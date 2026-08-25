@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic[email]==2.9.2
+PyJWT==2.9.0
+python-multipart==0.0.9
+# added when the real database logic lands:
+# SQLAlchemy==2.0.35
+# psycopg2-binary==2.9.9
+# passlib[bcrypt]==1.7.4
+# boto3==1.35.0
