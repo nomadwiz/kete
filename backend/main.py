@@ -390,26 +390,62 @@ def get_targets(user_id: int = Depends(current_user_id),
 # ==========================================================================
 # 7-12  Recipes  (protected)
 # ==========================================================================
+def _owned_recipe(db: Session, recipe_id: int, user_id: int) -> models.Recipe:
+    """Fetch a recipe, but only if it belongs to the signed-in user.
+
+    Returning 404 (rather than 403) for someone else's recipe is deliberate: it
+    does not reveal that the recipe exists at all.
+    """
+    recipe = db.query(models.Recipe).filter_by(
+        recipe_id=recipe_id, user_id=user_id).first()
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return recipe
+
+
+def _summary(r: models.Recipe) -> RecipeSummary:
+    return RecipeSummary(recipe_id=r.recipe_id, name=r.name,
+                         cuisine=r.cuisine or "",
+                         energy_kcal=int(r.energy_kcal or 0),
+                         photo_url=r.photo_url)
+
+
+def _detail(r: models.Recipe) -> RecipeDetail:
+    return RecipeDetail(recipe_id=r.recipe_id, name=r.name,
+                        cuisine=r.cuisine or "",
+                        ingredients=r.ingredients or "", steps=r.steps or "",
+                        servings=r.servings,
+                        energy_kcal=int(r.energy_kcal or 0),
+                        protein_g=int(r.protein_g or 0),
+                        carbs_g=int(r.carbs_g or 0),
+                        fat_g=int(r.fat_g or 0),
+                        photo_url=r.photo_url)
+
+
 @app.get("/recipes", response_model=list[RecipeSummary], tags=["recipes"])
-def list_recipes(q: str = "", user_id: int = Depends(current_user_id)):
-    # TODO: SELECT ... WHERE user_id = ? AND name ILIKE %q%
-    items = [r for r in SAMPLE_RECIPES if q.lower() in r.name.lower()]
-    return [RecipeSummary(**r.model_dump()) for r in items]
+def list_recipes(q: str = "", user_id: int = Depends(current_user_id),
+                 db: Session = Depends(get_db)):
+    """Browse and search. Scoped to the signed-in user by the token."""
+    query = db.query(models.Recipe).filter_by(user_id=user_id)
+    if q:
+        query = query.filter(models.Recipe.name.ilike(f"%{q}%"))
+    return [_summary(r) for r in query.order_by(models.Recipe.name).all()]
 
 
 @app.get("/recipes/{recipe_id}", response_model=RecipeDetail, tags=["recipes"])
-def get_recipe(recipe_id: int, user_id: int = Depends(current_user_id)):
-    # TODO: SELECT ... WHERE recipe_id = ? AND user_id = ?
-    for r in SAMPLE_RECIPES:
-        if r.recipe_id == recipe_id:
-            return r
-    raise HTTPException(status_code=404, detail="Recipe not found")
+def get_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
+               db: Session = Depends(get_db)):
+    return _detail(_owned_recipe(db, recipe_id, user_id))
 
 
 @app.post("/recipes", response_model=RecipeCreatedOut, status_code=201, tags=["recipes"])
-def create_recipe(body: RecipeIn, user_id: int = Depends(current_user_id)):
-    # TODO: INSERT INTO recipes (user_id = owner) RETURNING recipe_id
-    return RecipeCreatedOut(recipe_id=4)
+def create_recipe(body: RecipeIn, user_id: int = Depends(current_user_id),
+                  db: Session = Depends(get_db)):
+    recipe = models.Recipe(user_id=user_id, **body.model_dump())
+    db.add(recipe)
+    db.commit()
+    db.refresh(recipe)
+    return RecipeCreatedOut(recipe_id=recipe.recipe_id)
 
 
 @app.post("/recipes/{recipe_id}/photo", response_model=PhotoOut, tags=["recipes"])
@@ -420,14 +456,23 @@ def upload_photo(recipe_id: int, file: UploadFile = File(...),
 
 
 @app.put("/recipes/{recipe_id}", response_model=RecipeDetail, tags=["recipes"])
-def update_recipe(recipe_id: int, body: RecipeIn, user_id: int = Depends(current_user_id)):
-    # TODO: UPDATE recipes SET ... WHERE recipe_id = ? AND user_id = ?
-    return RecipeDetail(recipe_id=recipe_id, photo_url=None, **body.model_dump())
+def update_recipe(recipe_id: int, body: RecipeIn,
+                  user_id: int = Depends(current_user_id),
+                  db: Session = Depends(get_db)):
+    recipe = _owned_recipe(db, recipe_id, user_id)
+    for field, value in body.model_dump().items():
+        setattr(recipe, field, value)
+    db.commit()
+    db.refresh(recipe)
+    return _detail(recipe)
 
 
 @app.delete("/recipes/{recipe_id}", status_code=204, tags=["recipes"])
-def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id)):
-    # TODO: DELETE FROM recipes WHERE recipe_id = ? AND user_id = ?
+def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
+                  db: Session = Depends(get_db)):
+    """Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE)."""
+    db.delete(_owned_recipe(db, recipe_id, user_id))
+    db.commit()
     return Response(status_code=204)
 
 
