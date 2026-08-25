@@ -11,23 +11,23 @@ Run locally:   uvicorn main:app --reload
 Interactive docs: http://localhost:8000/docs
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
-import jwt
 from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
+import models
+from database import get_db
+from security import hash_password, make_token, read_token, verify_password
 
 # --------------------------------------------------------------------------
 # Config
 # --------------------------------------------------------------------------
-# TODO: move to environment variables before deploying to EC2.
-JWT_SECRET = "dev-only-secret-replace-me-with-a-32-byte-env-var"
-JWT_ALGORITHM = "HS256"
-TOKEN_HOURS = 12
-
 app = FastAPI(
     title="Kete API",
     version="0.1.0-stub",
@@ -51,18 +51,9 @@ bearer = HTTPBearer(auto_error=True)
 def current_user_id(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> int:
     """Read user_id out of the JWT. Every protected query is scoped by this."""
     try:
-        payload = jwt.decode(cred.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return int(payload["sub"])
+        return read_token(cred.credentials)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-
-def make_token(user_id: int) -> str:
-    payload = {
-        "sub": str(user_id),
-        "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_HOURS),
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 # --------------------------------------------------------------------------
@@ -243,47 +234,157 @@ SAMPLE_RECIPES = [
 # 1-2  Auth  (PUBLIC — no token)
 # ==========================================================================
 @app.post("/register", response_model=RegisterOut, status_code=201, tags=["auth"])
-def register(body: RegisterIn):
-    # TODO: hash password, INSERT INTO users, handle duplicate username/email (409)
-    return RegisterOut(user_id=1)
+def register(body: RegisterIn, db: Session = Depends(get_db)):
+    """Create a user row. The password is hashed; the plain text is never stored."""
+    clash = db.query(models.User).filter(
+        or_(models.User.username == body.username,
+            models.User.email == body.email)
+    ).first()
+    if clash:
+        field = "username" if clash.username == body.username else "email"
+        raise HTTPException(status_code=409, detail=f"That {field} is already taken")
+
+    user = models.User(
+        first_name=body.first_name,
+        last_name=body.last_name,
+        username=body.username,
+        email=body.email,
+        password_hash=hash_password(body.password),
+    )
+    db.add(user)       # stage the new row
+    db.commit()        # actually write it
+    db.refresh(user)   # read back what the database assigned (user_id)
+    return RegisterOut(user_id=user.user_id)
 
 
 @app.post("/login", response_model=LoginOut, tags=["auth"])
-def login(body: LoginIn):
-    # TODO: SELECT user by username or email, verify password hash
-    return LoginOut(token=make_token(1), user_id=1)
+def login(body: LoginIn, db: Session = Depends(get_db)):
+    """Find the user, check the password, hand back a token."""
+    user = db.query(models.User).filter(
+        or_(models.User.username == body.username_or_email,
+            models.User.email == body.username_or_email)
+    ).first()
+
+    # Same message whether the user is missing or the password is wrong, so an
+    # attacker cannot use it to discover which usernames exist.
+    if not user or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    return LoginOut(token=make_token(user.user_id), user_id=user.user_id)
 
 
 # ==========================================================================
 # 3-6  Profile, metrics and targets  (protected)
 # ==========================================================================
 @app.get("/profile", response_model=ProfileOut, tags=["profile"])
-def get_profile(user_id: int = Depends(current_user_id)):
-    # TODO: SELECT ... FROM users WHERE user_id = ?
-    return ProfileOut(first_name="Jack", last_name="Smith",
-                      username="jacksmith", email="jack@example.com")
+def get_profile(user_id: int = Depends(current_user_id),
+                db: Session = Depends(get_db)):
+    """Return the signed-in user. user_id comes from the token, never the client."""
+    user = db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return ProfileOut(first_name=user.first_name, last_name=user.last_name,
+                      username=user.username, email=user.email)
 
 
 @app.put("/profile", response_model=ProfileOut, tags=["profile"])
-def update_profile(body: ProfileIn, user_id: int = Depends(current_user_id)):
-    # TODO: UPDATE users SET ... WHERE user_id = ?
-    return ProfileOut(**body.model_dump())
+def update_profile(body: ProfileIn, user_id: int = Depends(current_user_id),
+                   db: Session = Depends(get_db)):
+    """Update the signed-in user's account details."""
+    user = db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # someone ELSE must not already hold this username or email
+    clash = db.query(models.User).filter(
+        models.User.user_id != user_id,
+        or_(models.User.username == body.username,
+            models.User.email == body.email),
+    ).first()
+    if clash:
+        field = "username" if clash.username == body.username else "email"
+        raise HTTPException(status_code=409, detail=f"That {field} is already taken")
+
+    user.first_name = body.first_name
+    user.last_name = body.last_name
+    user.username = body.username
+    user.email = body.email
+    db.commit()
+    db.refresh(user)
+    return ProfileOut(first_name=user.first_name, last_name=user.last_name,
+                      username=user.username, email=user.email)
 
 
 @app.post("/profile/metrics", response_model=TargetsOut, tags=["profile"])
-def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id)):
-    """One request, two tables: UPSERT profiles, run the engine, UPSERT targets."""
-    targets = compute_targets(body.weight_kg, body.height_cm, body.age,
-                              body.sex, body.activity_level)
-    # TODO: UPSERT profiles, then UPSERT nutrition_targets with `targets`
-    return TargetsOut(**targets, computed_at=datetime.now(timezone.utc))
+def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
+                 db: Session = Depends(get_db)):
+    """One request, two tables.
+
+    1. Save the raw body metrics into `profiles`.
+    2. Run the nutrition engine on them.
+    3. Save the computed result into `nutrition_targets`.
+
+    Both writes happen in a single transaction, so either both land or neither
+    does. That matters: stored targets must never disagree with the metrics
+    they came from.
+    """
+    if not db.get(models.User, user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # --- 1. the raw metrics (create the row first time, update it after) ---
+    profile = db.query(models.Profile).filter_by(user_id=user_id).first()
+    if profile is None:
+        profile = models.Profile(user_id=user_id)
+        db.add(profile)
+    profile.weight_kg = body.weight_kg
+    profile.height_cm = body.height_cm
+    profile.age = body.age
+    profile.sex = body.sex
+    profile.activity_level = body.activity_level
+
+    # --- 2. the engine ---
+    computed = compute_targets(body.weight_kg, body.height_cm, body.age,
+                               body.sex, body.activity_level)
+
+    # --- 3. the derived targets ---
+    target = db.query(models.NutritionTarget).filter_by(user_id=user_id).first()
+    if target is None:
+        target = models.NutritionTarget(user_id=user_id)
+        db.add(target)
+    target.energy_kcal = computed["energy_kcal"]
+    target.protein_g = computed["protein_g"]
+    target.carbs_g = computed["carbs_g"]
+    target.fat_g = computed["fat_g"]
+    target.computed_at = datetime.now(timezone.utc)
+
+    db.commit()          # both rows written together
+    db.refresh(target)
+
+    return TargetsOut(energy_kcal=int(target.energy_kcal),
+                      protein_g=int(target.protein_g),
+                      carbs_g=int(target.carbs_g),
+                      fat_g=int(target.fat_g),
+                      computed_at=target.computed_at)
 
 
 @app.get("/targets", response_model=TargetsOut, tags=["profile"])
-def get_targets(user_id: int = Depends(current_user_id)):
-    # TODO: SELECT ... FROM nutrition_targets WHERE user_id = ?
-    return TargetsOut(energy_kcal=2480, protein_g=186, carbs_g=248, fat_g=83,
-                      computed_at=datetime.now(timezone.utc))
+def get_targets(user_id: int = Depends(current_user_id),
+                db: Session = Depends(get_db)):
+    """Read the computed targets.
+
+    Note this reads `nutrition_targets` only. It never touches `profiles`, so
+    the sensitive body metrics are not re-read every time a screen loads.
+    """
+    target = db.query(models.NutritionTarget).filter_by(user_id=user_id).first()
+    if target is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No targets yet — save your body metrics first")
+    return TargetsOut(energy_kcal=int(target.energy_kcal),
+                      protein_g=int(target.protein_g),
+                      carbs_g=int(target.carbs_g),
+                      fat_g=int(target.fat_g),
+                      computed_at=target.computed_at)
 
 
 # ==========================================================================
