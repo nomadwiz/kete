@@ -479,38 +479,106 @@ def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
 # ==========================================================================
 # 13-17  Weekly meal plan  (protected)
 # ==========================================================================
+DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+MEALS = ["breakfast", "lunch", "dinner"]
+
+
+def _slot_out(s: models.PlanSlot) -> PlanSlotOut:
+    return PlanSlotOut(slot_id=s.slot_id, day_of_week=s.day_of_week,
+                       meal_position=s.meal_position,
+                       recipe=PlanRecipe(recipe_id=s.recipe.recipe_id,
+                                         name=s.recipe.name))
+
+
 @app.get("/mealplan", response_model=list[PlanSlotOut], tags=["mealplan"])
-def get_mealplan(week: str, user_id: int = Depends(current_user_id)):
-    # TODO: SELECT plan_slots JOIN recipes WHERE user_id = ? AND week = ?
-    return [
-        PlanSlotOut(slot_id=1, day_of_week="Mon", meal_position="dinner",
-                    recipe=PlanRecipe(recipe_id=1, name="Chicken & rice bowl")),
-        PlanSlotOut(slot_id=2, day_of_week="Tue", meal_position="lunch",
-                    recipe=PlanRecipe(recipe_id=2, name="Veggie stir-fry")),
-    ]
+def get_mealplan(week: str, user_id: int = Depends(current_user_id),
+                 db: Session = Depends(get_db)):
+    """The week's plan, each slot with its recipe. This is the JOIN."""
+    slots = (db.query(models.PlanSlot)
+               .filter_by(user_id=user_id, week=week)
+               .join(models.Recipe)
+               .order_by(models.PlanSlot.slot_id)
+               .all())
+    return [_slot_out(s) for s in slots]
 
 
 @app.post("/mealplan", response_model=PlanSlotCreatedOut, status_code=201, tags=["mealplan"])
-def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id)):
-    # TODO: INSERT INTO plan_slots; 409 if that slot is already taken
-    return PlanSlotCreatedOut(slot_id=3)
+def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id),
+                  db: Session = Depends(get_db)):
+    """Put one recipe in one day-and-meal slot."""
+    if body.day_of_week not in DAYS:
+        raise HTTPException(status_code=422,
+                            detail=f"day_of_week must be one of {DAYS}")
+    _owned_recipe(db, body.recipe_id, user_id)   # 404 if not yours
+
+    taken = db.query(models.PlanSlot).filter_by(
+        user_id=user_id, week=body.week,
+        day_of_week=body.day_of_week, meal_position=body.meal_position).first()
+    if taken:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{body.day_of_week} {body.meal_position} is already filled")
+
+    slot = models.PlanSlot(user_id=user_id, recipe_id=body.recipe_id,
+                           week=body.week, day_of_week=body.day_of_week,
+                           meal_position=body.meal_position)
+    db.add(slot)
+    db.commit()
+    db.refresh(slot)
+    return PlanSlotCreatedOut(slot_id=slot.slot_id)
 
 
 @app.delete("/mealplan/{slot_id}", status_code=204, tags=["mealplan"])
-def remove_plan_slot(slot_id: int, user_id: int = Depends(current_user_id)):
-    # TODO: DELETE FROM plan_slots WHERE slot_id = ? AND user_id = ?
+def remove_plan_slot(slot_id: int, user_id: int = Depends(current_user_id),
+                     db: Session = Depends(get_db)):
+    slot = db.query(models.PlanSlot).filter_by(
+        slot_id=slot_id, user_id=user_id).first()
+    if slot is None:
+        raise HTTPException(status_code=404, detail="Plan slot not found")
+    db.delete(slot)
+    db.commit()
     return Response(status_code=204)
 
 
 @app.post("/mealplan/generate", response_model=GenerateOut, status_code=201, tags=["mealplan"])
-def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id)):
-    # TODO: SELECT the user's recipes, fill 7 days x 3 meals, bulk INSERT
-    return GenerateOut(created=21)
+def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
+                  db: Session = Depends(get_db)):
+    """Fill a whole week from the user's recipe library.
+
+    Clears the week first, then deals recipes round-robin across all 21 slots,
+    so the same recipe does not land twice in a row while the library is small.
+
+    Choosing recipes to best hit the nutrition targets is future work; this
+    version just fills the week.
+    """
+    recipes = db.query(models.Recipe).filter_by(user_id=user_id).order_by(
+        models.Recipe.recipe_id).all()
+    if not recipes:
+        raise HTTPException(
+            status_code=400,
+            detail="Add at least one recipe before generating a week")
+
+    db.query(models.PlanSlot).filter_by(user_id=user_id, week=body.week).delete()
+
+    created = 0
+    for day in DAYS:
+        for meal in MEALS:
+            db.add(models.PlanSlot(
+                user_id=user_id,
+                recipe_id=recipes[created % len(recipes)].recipe_id,
+                week=body.week, day_of_week=day, meal_position=meal))
+            created += 1
+
+    db.commit()
+    return GenerateOut(created=created)
 
 
 @app.delete("/mealplan/week/{week}", status_code=204, tags=["mealplan"])
-def clear_week(week: str, user_id: int = Depends(current_user_id)):
-    # TODO: DELETE FROM plan_slots WHERE user_id = ? AND week = ?
+def clear_week(week: str, user_id: int = Depends(current_user_id),
+               db: Session = Depends(get_db)):
+    """Empty an entire week. Recipes themselves are untouched."""
+    db.query(models.PlanSlot).filter_by(user_id=user_id, week=week).delete()
+    db.commit()
     return Response(status_code=204)
 
 
