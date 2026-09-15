@@ -1,28 +1,34 @@
-# Angular specific
-/dist/
-/out-tsc/
-/tmp/
-/coverage/
-/e2e/test-output/
-/.angular/
+# ---- Python / backend ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ---- Node / Angular frontend ----
+node_modules/
+dist/
 .angular/
 
-# Node modules and dependency files
-/node_modules/
-/package-lock.json
-/yarn.lock
+# ---- Secrets: never commit these ----
+# `.env` alone matches ONLY the file named exactly .env. Backups and variants
+# such as .env.backup, .env.local or .env.production would have slipped
+# through, so ignore every .env.* and then re-include the template.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+aws-credentials*
 
-# Environment files
-/.env
+# ---- Editors / OS ----
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
 
-# Angular CLI and build artefacts
-/.angular-cli.json
-/.ng/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# diagnostic output, never useful to anyone else
+debug_register.log
+test_s3.db

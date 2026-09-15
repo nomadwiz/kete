@@ -1,0 +1,18 @@
+# Minimum versions rather than exact pins, so pip picks a build that matches
+# whatever Python version you have.
+
+# API
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic[email]>=2.9
+PyJWT>=2.9
+python-multipart>=0.0.9
+
+# Database
+SQLAlchemy>=2.0
+psycopg2-binary>=2.9
+python-dotenv>=1.0
+
+# Cloud storage
+
+boto3>=1.35
