@@ -31,10 +31,16 @@ def _build_url() -> str:
     port = os.getenv("DB_PORT", "5432")
     name = os.getenv("DB_NAME", "kete")
 
+    # Amazon RDS running PostgreSQL 15 or later refuses unencrypted
+    # connections (its rds.force_ssl parameter defaults to on), so require SSL
+    # whenever the host is an RDS endpoint. Set DB_SSLMODE to override.
+    default_sslmode = "require" if host.endswith(".rds.amazonaws.com") else "prefer"
+    sslmode = os.getenv("DB_SSLMODE", default_sslmode)
+
     # quote_plus turns @ into %40, # into %23, and so on.
     return (
         f"postgresql+psycopg2://{quote_plus(user)}:{quote_plus(password)}"
-        f"@{host}:{port}/{name}"
+        f"@{host}:{port}/{name}?sslmode={sslmode}"
     )
 
 
