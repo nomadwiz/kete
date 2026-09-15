@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 import models
 from database import get_db
+import storage
 from security import hash_password, make_token, read_token, verify_password
 
 # --------------------------------------------------------------------------
@@ -407,7 +408,7 @@ def _summary(r: models.Recipe) -> RecipeSummary:
     return RecipeSummary(recipe_id=r.recipe_id, name=r.name,
                          cuisine=r.cuisine or "",
                          energy_kcal=int(r.energy_kcal or 0),
-                         photo_url=r.photo_url)
+                         photo_url=storage.link_for(r.photo_url))
 
 
 def _detail(r: models.Recipe) -> RecipeDetail:
@@ -419,7 +420,7 @@ def _detail(r: models.Recipe) -> RecipeDetail:
                         protein_g=int(r.protein_g or 0),
                         carbs_g=int(r.carbs_g or 0),
                         fat_g=int(r.fat_g or 0),
-                        photo_url=r.photo_url)
+                        photo_url=storage.link_for(r.photo_url))
 
 
 @app.get("/recipes", response_model=list[RecipeSummary], tags=["recipes"])
@@ -450,9 +451,54 @@ def create_recipe(body: RecipeIn, user_id: int = Depends(current_user_id),
 
 @app.post("/recipes/{recipe_id}/photo", response_model=PhotoOut, tags=["recipes"])
 def upload_photo(recipe_id: int, file: UploadFile = File(...),
-                 user_id: int = Depends(current_user_id)):
-    # TODO: put the object in S3, then UPDATE recipes SET photo_url = ?
-    return PhotoOut(photo_url=f"https://kete-photos.s3.amazonaws.com/{recipe_id}.jpg")
+                 user_id: int = Depends(current_user_id),
+                 db: Session = Depends(get_db)):
+    """Store a recipe photograph in S3 and keep only its key in the database.
+
+    The bucket is private, so the response carries a time-limited link rather
+    than a permanent URL.
+    """
+    if not storage.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Photo storage is not configured on this server (S3_BUCKET).",
+        )
+
+    recipe = _owned_recipe(db, recipe_id, user_id)   # 404s if it is not theirs
+
+    if file.content_type not in storage.ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="Unsupported image type. Allowed: "
+                   + ", ".join(sorted(storage.ALLOWED_TYPES)),
+        )
+
+    data = file.file.read(storage.MAX_BYTES + 1)
+    if len(data) > storage.MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image is larger than {storage.MAX_BYTES // (1024 * 1024)} MB.",
+        )
+    if not data:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+
+    previous = recipe.photo_url
+    key = storage.build_key(user_id, recipe_id, file.content_type)
+    try:
+        storage.upload(key, data, file.content_type)
+    except storage.StorageNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Could not store the image.")
+
+    recipe.photo_url = key
+    db.commit()
+
+    # Only once the new object is safely recorded do we remove the old one.
+    if previous and previous != key:
+        storage.delete(previous)
+
+    return PhotoOut(photo_url=storage.link_for(key))
 
 
 @app.put("/recipes/{recipe_id}", response_model=RecipeDetail, tags=["recipes"])
@@ -471,8 +517,11 @@ def update_recipe(recipe_id: int, body: RecipeIn,
 def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     """Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE)."""
-    db.delete(_owned_recipe(db, recipe_id, user_id))
+    recipe = _owned_recipe(db, recipe_id, user_id)
+    key = recipe.photo_url              # remember it before the row disappears
+    db.delete(recipe)
     db.commit()
+    storage.delete(key)                 # tidy up the object, best effort
     return Response(status_code=204)
 
 

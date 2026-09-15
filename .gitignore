@@ -12,7 +12,12 @@ dist/
 .angular/
 
 # ---- Secrets: never commit these ----
+# `.env` alone matches ONLY the file named exactly .env. Backups and variants
+# such as .env.backup, .env.local or .env.production would have slipped
+# through, so ignore every .env.* and then re-include the template.
 .env
+.env.*
+!.env.example
 *.pem
 *.key
 aws-credentials*
@@ -23,3 +28,7 @@ aws-credentials*
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# diagnostic output, never useful to anyone else
+debug_register.log
+test_s3.db
