@@ -126,7 +126,7 @@ whole thing is assessed against. They are here so that three people building thr
 tiers work from the same facts instead of asking one person for them.
 
 **Most of them are edited here.** If `product.md`, `delivery-plan.md`,
-`A02_ResearchReport_draft.md` or `open-findings.md` is wrong or has been
+`report.md` or `open-findings.md` is wrong or has been
 overtaken, correct it in a branch and a pull request, the same way code is
 corrected. Any member may. A document only one person can fix is one the other
 two stop reading, and then it is not shared understanding, only paperwork.

@@ -234,7 +234,7 @@ against, not because a truer copy lives somewhere else.
 
 | Owner | Files |
 | --- | --- |
-| This repository, edited by any member | `doc/product.md`, `doc/delivery-plan.md`, `doc/A02_ResearchReport_draft.md`, `doc/open-findings.md` |
+| This repository, edited by any member | `doc/product.md`, `doc/delivery-plan.md`, `doc/report.md`, `doc/open-findings.md` |
 | This repository, never edited | `doc/overview.md`, `doc/rubric.md` — transcribed as issued |
 | The project notes, not published | `checklist.md`, the rubric tracker the notes keep for their own pipeline; `work/build/issues.md`, a dead snapshot of a board that has since moved |
 
@@ -255,7 +255,7 @@ other in the same commit.
 
 ## Repository URL — two values on record, and neither one opens
 
-`A02_ResearchReport_draft.md` §3 gives the repository as
+`report.md` §3 gives the repository as
 `github.com/kafesprout/kete`. The clone in `kete/` has its origin set to
 `github.com/nomadwiz/kete`. The report's first page carries the repository URL as
 a marked requirement, so this is settled before submission, not after — issue S3,

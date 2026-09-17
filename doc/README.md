@@ -8,7 +8,7 @@ for them.
 | --- | --- | --- |
 | [`product.md`](product.md) | The product definition — the problem, the mechanism, and the scope boundary | You are about to build something and want to know whether it is in scope |
 | [`delivery-plan.md`](delivery-plan.md) | The lanes, the database seam, the milestone order, and the known gaps in the API contract | You are picking up work, or you are about to touch another lane |
-| [`A02_ResearchReport_draft.md`](A02_ResearchReport_draft.md) | The document being submitted, in progress | You are writing a section, or you want to check what the report already claims |
+| [`report.md`](report.md) | The document being submitted, in progress | You are writing a section, or you want to check what the report already claims |
 | [`overview.md`](overview.md) | The assignment brief | You want the actual requirement wording |
 | [`rubric.md`](rubric.md) | The marking rubric | You are deciding what is worth your time |
 | [`open-findings.md`](open-findings.md) | Findings from a cold review of the whole project, with the issue that fixes each | You want to know what is already known to be wrong |
@@ -17,7 +17,7 @@ for them.
 ## Who edits these
 
 **Edited here, through a branch and a reviewed pull request.**
-`product.md`, `delivery-plan.md`, `A02_ResearchReport_draft.md` and
+`product.md`, `delivery-plan.md`, `report.md` and
 `open-findings.md` are maintained in this repository. This is the copy the team
 works from, so a correction belongs here rather than in a message to one person.
 If something is wrong, fix it, and say what you changed in the pull request.
@@ -37,7 +37,7 @@ Two files deserve particular care:
 
 - **`product.md`** is the one to trust most for scope, and it is also the one
   most likely to move — the open items at its §6 are genuinely open.
-- **`A02_ResearchReport_draft.md`** is a **draft**. It carries `[CITE]` markers
+- **`report.md`** is a **draft**. It carries `[CITE]` markers
   where a citation is still owed, and some sections are not written yet. Do not
   read an unfinished section as a decision.
 
