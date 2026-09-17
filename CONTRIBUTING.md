@@ -147,6 +147,14 @@ git config user.email "the-address-on-your-github-account"
 Do this **before** committing. Commits already made under the wrong address can
 only be corrected by rewriting history, which the next rule forbids.
 
+## No claim without evidence
+
+**No claim about completed work goes in the report unless a commit, a screenshot
+or a board item evidences it.** Sweep every such claim before a draft goes round
+the team — issue #205. The report invites a marker to check its contribution
+claims against the timestamped history, so a claim that cannot be traced is worse
+than one that was never made.
+
 ## Never rewrite history
 
 No `git rebase` on a pushed branch, no `git commit --amend` on a pushed commit,
