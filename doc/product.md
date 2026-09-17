@@ -1,14 +1,14 @@
 # Kete — product definition
 
-The authority on **what the system is**, and the copy that is edited.
-Paper-agnostic: no rubric language, no architecture, no cloud services.
-Everything the design later claims traces back here; if the design invents
-something this file does not claim, it is added here first.
+The authority on **what the system is**. Paper-agnostic: no rubric language, no
+architecture, no cloud services. Everything the design later claims traces back
+here; if the design invents something this file does not claim, it is added here
+first.
 
-**Copies of this file exist elsewhere and are snapshots, not peers.** The one in
-the `kete` repository at `doc/product.md` is published for the team to read.
-Editing a copy changes nothing here and creates a disagreement nobody will
-notice — change this file, then refresh the copy.
+**This is the copy that is edited, and any member may edit it** — in a branch,
+through a pull request, reviewed by someone from another lane. A scope question
+is settled by changing this file. Settling it in a message instead leaves the
+next person reading the old answer.
 
 
 ---

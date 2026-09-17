@@ -51,7 +51,7 @@ issue — the value of the list is seeing which defects cluster.
 | 5 | **Zero citations and no reference list in 764 lines**, with the sources already in hand | #206 |
 | 8 | **Angular and Notion appear in the report in twenty-plus places.** The client is React with TypeScript and project management is GitHub Projects. §6.4–§6.6 argue *for* Notion specifically, so they need re-arguing, not renaming | #204 |
 | 9 | **`checklist.md` is an unfilled template**, and nothing maps the issues to the marks | #209 |
-| 10 | **Two different repository URLs are on record**, one of them on the report's marked first page. Also confirm the repository is public — a private one fails the brief silently | #140 |
+| 10 | **Two different repository URLs are on record**, one of them on the report's marked first page. Also confirm the repository is public — a private one fails the brief silently | #140, #222 |
 | 14 | **Every figure the report references is missing**, and the figures use a syntax that will not survive PDF export | #203 |
 | 15 | **Meeting minutes and a timestamped worklog are explicit brief requirements** and neither exists. Four report snapshot placeholders are waiting on them. Backfill honestly, dated as backfilled, then run it weekly | #144 |
 | 16 | **There is no HTTPS story**, and S3 static website hosting cannot serve one — a client on a secure page will not be able to call the API | #193 |

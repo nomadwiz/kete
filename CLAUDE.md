@@ -96,9 +96,19 @@ report makes:
   on three branches conflicts constantly, and a box an assistant ticks proves
   only that it believed it was finished. An issue closes because a reviewed pull
   request merged.
+  The one document allowed to resemble a list is `doc/rubric-coverage.md`
+  (issue #209): it maps each marking criterion to the issues that produce its
+  evidence and the report section that presents it. It carries no boxes and no
+  progress, because the board already records what is done. What the board
+  cannot answer, being organised by lane, is whether a ten-mark criterion has
+  anything behind it at all.
 - **One branch per issue**, named `lane/issue-number-short-description`.
-- **Every pull request is reviewed by someone from a different lane.** The full
-  reasoning is in [`CONTRIBUTING.md`](CONTRIBUTING.md). Do not merge your own.
+- **Ask someone from another lane to review, and decide when it is needed.**
+  Merging your own is fine for work inside your own lane or for documentation. A
+  review is required for another lane's files, the API contract, the database
+  schema, the scope in `doc/product.md`, or these rules. Say which you chose in
+  the pull request. The full reasoning, and the contribution-evidence cost of
+  merging alone, is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **Never rewrite history.** No rebase on a pushed branch, no amend of a pushed
   commit, no force push, no squashing that discards authorship. The brief
   forbids it and the history is the evidence of who did what.
@@ -108,10 +118,29 @@ report makes:
 - **No claim about completed work goes in the report unless a commit, a
   screenshot or a board item evidences it.**
 
-## `doc/` is a read-only snapshot
+## `doc/` holds the documents this project is built from
 
-[`doc/`](doc/README.md) holds the project's definition documents, copied in from
-the notes where they are written and maintained. **They are not edited here** —
-an edit changes nothing upstream and creates a disagreement nobody will notice.
-Read `doc/README.md` first; it says which file is which and where the
-authoritative copy lives.
+[`doc/`](doc/README.md) holds what defines the work: the product definition, the
+delivery plan, the report being submitted, and the brief and marking criteria the
+whole thing is assessed against. They are here so that three people building three
+tiers work from the same facts instead of asking one person for them.
+
+**Most of them are edited here.** If `product.md`, `delivery-plan.md`,
+`A02_ResearchReport_draft.md` or `open-findings.md` is wrong or has been
+overtaken, correct it in a branch and a pull request, the same way code is
+corrected. Any member may. A document only one person can fix is one the other
+two stop reading, and then it is not shared understanding, only paperwork.
+
+**Two are never edited.** `doc/overview.md` is the assignment brief and
+`doc/rubric.md` is the marking criteria, both transcribed exactly as the paper
+issued them. Every claim this project makes is checked against those two files,
+so a correction written into either one removes the only fixed point there is —
+a misremembered requirement stops being falsifiable. If one of them reads oddly,
+that is what the paper actually says.
+
+One restriction inside the editable set: `open-findings.md` records what a review
+found on a stated date. Add to it, and mark a finding fixed by naming the commit
+or issue that fixed it. Do not reword a finding so that it matches what is now
+true — the file is useful because it is dated.
+
+Read `doc/README.md` first; it says which file is which and who edits it.

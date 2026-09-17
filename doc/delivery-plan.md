@@ -95,9 +95,13 @@ Finish a full day before the deadline.
 
 ## Cross-lane rules
 
-- **Every pull request is reviewed by someone from a different lane.** This is
-  what stops three silos, and the review comments are themselves contribution
-  evidence in a history the markers read.
+- **Cross-lane review is the default, and the author decides when a change needs
+  it.** Merging your own is allowed inside your own lane and for documentation; a
+  review is required for another lane's files, the contract, the schema, the
+  scope, or the rules. The relaxation is deliberate — a blocking review on a typo
+  stalls a three-person team — but review comments are the cloud lane's main
+  contribution evidence in a history the markers read, so that record now has to
+  be built on purpose.
 - The photo upload crosses all three lanes — client control, backend
   presigned URL, cloud bucket and policy. It is a scheduled joint session,
   not a handoff chain. Backend drives.
@@ -138,30 +142,37 @@ the branch naming and the commit-identity check live in `CONTRIBUTING.md` at the
 repository root; it was drafted in the project notes under `work/build/` as
 `contributing-draft.md` and placed from there.
 
-**The rule applies from the commit that added `CONTRIBUTING.md`, not
-retrospectively.** PR #95 — the merge of `backend` into `main`, 2026-09-15 — was
-merged by its own author with no review requested and none given. It is the only
-pull request in the project's history so far, so the project's entire review
-record is currently one breach of the rule. That is left standing rather than
+**The rule applies from the first pull request opened after `CONTRIBUTING.md`
+reached `main`.** Two merges precede it. PR #95 — the merge of `backend` into
+`main`, 2026-09-15 — was merged by its own author with no review requested and
+none given. PR #218 — the documents and the assistant brief, 2026-09-16 — added
+`CONTRIBUTING.md` itself and was likewise merged by its author. Neither is
 papered over with a retrospective approval: §6.5 invites a marker to verify the
 report's contribution claims against the timestamped history, and an approval
-added weeks after the merge is visible to anyone who takes that invitation.
+added weeks after the merge is visible to anyone who takes that invitation. #218
+is not counted as a breach, on the general principle that a rule cannot govern
+the act of its own creation — not as an exemption written for this case.
 
 **Both the repository and the board are private** (`visibility=PRIVATE`;
 the project reports `public: false`). This is not only S3's repository-URL
 problem. It has two consequences that belong to other issues and are recorded
 here so neither is discovered late:
 
-- **S3** settles two visibility values, not one. Making the board public while
-  the repository stays private shows a marker a board whose item details are
-  hidden, because project items inherit the visibility of the repository they
-  come from. The repository is the one that has to change.
-- **S6** requires a branch protection rule to enforce the cross-lane review.
-  Branch protection and rulesets are unavailable on private repositories on a
-  free account, so if that is this account's tier, **S3 going public is a
-  prerequisite for S6 rather than a tidy-up after it**. Verify by attempting the
-  ruleset once the repository is public; `gh api repos/nomadwiz/kete/rulesets`
-  currently returns an empty list and no protection is configured.
+- **S10** (#222) is where both visibility values are settled, at `W12 Submit`.
+  Making the board public while the repository stays private shows a marker a
+  board whose item details are hidden, because project items inherit the
+  visibility of the repository they come from. The repository is the one that has
+  to change, and the board follows it. S3 (#140) settles only which address is
+  correct.
+- **S6** asks for a branch protection rule to enforce the cross-lane review.
+  Whether one can exist on a private repository depends on this account's tier,
+  and it has not been tested: `gh api repos/nomadwiz/kete/rulesets` returns an
+  empty list and `main` reports "Branch not protected", which is what an untried
+  setting looks like as well as an unavailable one. Attempt the ruleset and find
+  out. If it cannot be created while private, mechanical enforcement waits on
+  S10 at `W12 Submit` — most of the build — so S6 closes on the written rule and
+  the requested reviewers, with the missing enforcement recorded as a known gap
+  rather than left to read as an oversight.
 
 `issues.md` is a snapshot of that backlog, taken when the issues
 were created on 2026-09-16. It is readable but **not live** — once the board
@@ -199,52 +210,71 @@ board reads as the project's history rather than only as a list of what is left.
 Contribution is a marked criterion and the markers are told to check the
 repository, so work that happened needs to be visible there.
 
-## The document mirror
+## The project's documents live in this repository
 
-Decided 2026-09-16. The project's documents are written and maintained in the
-project notes, and **published into the repository** at `kete/doc/`, so that
-every member can read the scope they are building to, and so that the work
-appears in the history the markers are told to inspect. Before this, one
-member's entire output — the report, the product definition, this file, the 81
-issues — was invisible in a repository showing him two commits.
+Decided 2026-09-16, revised 2026-09-17. The documents that define this project
+are published into the repository at `kete/doc/`, so that every member can read
+the scope they are building to, and so that the work appears in the history the
+markers are told to inspect. Before this, one member's entire output — the
+report, the product definition, this file, the 81 issues — was invisible in a
+repository showing him two commits.
 
-**Direction is one way.** This side is written and edited; `kete/doc/` is a
-snapshot of it. A change here is carried into the copy; a change made in the
-copy is lost at the next refresh. `kete/doc/README.md` says so in the repository
-itself, and `doc/product.md` now says it in its own header, so a reader of
-either copy is told which one they are holding.
+**The copy here is the one that is edited.** The first version of this decision
+made `kete/doc/` a one-way snapshot of files kept in one member's notes. That was
+reversed on 2026-09-17 by S9 (#221), for the reason the publication existed in
+the first place: the point was to put three people onto the same facts, and a
+document two of the three may not correct is one they stop trusting and then stop
+reading. Corrections now arrive the way code does — a branch, a pull request, a
+reviewer from another lane.
 
-**Refreshed on change, in the same turn.** Not batched, not at milestones. The
-comp842 precedent skipped this rule and its two copies now contradict each other
-about which is authoritative.
+**Two files are still never edited**: `doc/overview.md` and `doc/rubric.md`, the
+brief and the marking criteria as issued. That is a different reason from the one
+just reversed. They are fixed because they are the sources every claim is checked
+against, not because a truer copy lives somewhere else.
 
-| Published | Withheld |
+| Owner | Files |
 | --- | --- |
-| `doc/product.md`, `doc/A02_ResearchReport_draft.md`, `doc/overview.md`, `doc/rubric.md`, `doc/checklist.md`, and this file | `work/cold-review.md` — published instead as `doc/open-findings.md`, a redacted summary: 23 of its 26 findings, each pointing at the issue that fixes it |
-| | `work/build/issues.md` — it declares itself a dead snapshot and the board is the tracker. Committing a stale tracker invites someone to work from it |
+| This repository, edited by any member | `doc/product.md`, `doc/delivery-plan.md`, `doc/A02_ResearchReport_draft.md`, `doc/open-findings.md` |
+| This repository, never edited | `doc/overview.md`, `doc/rubric.md` — transcribed as issued |
+| The project notes, not published | `checklist.md`, the rubric tracker the notes keep for their own pipeline; `work/build/issues.md`, a dead snapshot of a board that has since moved |
 
-Three findings are not carried into `open-findings.md`: the per-member
-contribution audit, and two whose technical point is wrapped in a judgement
-about the team's conduct. Their actionable content survives elsewhere — the
-commit-identity instruction in `CONTRIBUTING.md`, the report's claim-sweep as
-issue D9, and the client tier's state as twenty open issues on the board.
-Nothing technical was dropped.
+`work/cold-review.md` was published as `doc/open-findings.md`, a redacted
+summary: 23 of its 26 findings, each pointing at the issue that fixes it. Three
+are not carried across — the per-member contribution audit, and two whose
+technical point is wrapped in a judgement about the team's conduct. Their
+actionable content survives elsewhere: the commit-identity instruction in
+`CONTRIBUTING.md`, the report's claim-sweep as issue D9, and the client tier's
+state as twenty open issues on the board. Nothing technical was dropped. The
+unredacted review no longer exists, so this summary is the whole surviving
+record.
 
 **The repository also carries a brief for assistants**: `CLAUDE.md` at the root
 is the full copy, and `.github/copilot-instructions.md` repeats the hard
 prohibitions for Copilot users. A rule changed in one is checked against the
-other in the same commit. All four repository-side files were drafted in the
-project notes under `work/build/` as `kete-claude-draft.md`,
-`kete-doc-readme-draft.md`, `kete-copilot-draft.md` and `kete-findings-draft.md`,
-and placed from there.
+other in the same commit.
 
-## Repository URL — two different values on record
+## Repository URL — two values on record, and neither one opens
 
 `A02_ResearchReport_draft.md` §3 gives the repository as
 `github.com/kafesprout/kete`. The clone in `kete/` has its origin set to
-`github.com/nomadwiz/kete`. One of the two is wrong, and the report's first
-page carries the repository URL as a marked requirement, so this is settled
-before submission, not after.
+`github.com/nomadwiz/kete`. The report's first page carries the repository URL as
+a marked requirement, so this is settled before submission, not after — issue S3,
+#140.
+
+**They are the same repository.** `kafesprout` is a former owner name and GitHub
+still serves a redirect from it, so both addresses resolve today. The reason to
+change the report is not that the old one is broken but that it is unclaimed: a
+GitHub owner redirect stops working the moment someone else registers that name,
+and the first page has to keep resolving until marking is notified.
+
+**Settling the address does not make it open.** The repository is private, so a
+marker who types the corrected URL is shown a 404, and a first-page requirement
+fails without anyone being told. Going public is a decision of its own with its
+own review, and it is deliberately last: issue S10, #222, at `W12 Submit`.
+Everything that would be awkward in public — a published token fallback, a list
+of unfixed defects, a wildcard CORS origin — is cheaper to fix while the
+repository is still closed. #140 settles which address is right; S10 makes it
+resolve.
 
 ## State of the backend, read 2026-09-15
 
