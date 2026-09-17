@@ -154,6 +154,17 @@ else.
   the user's own library is in scope and does not breach this, because it deals
   recipes out without looking at the targets at all. Choosing recipes to hit
   the targets would breach it.
+- **Prediction, ranking and recommendation of any kind.** Targets come from an
+  equation and totals are a sum (§4). Nothing scores a recipe, orders a list by
+  suitability, or estimates a figure the user has not supplied. Every number on
+  screen has to be reproducible with a calculator, and a predicted or ranked
+  figure is not checkable by hand — which would remove the property that makes
+  the system testable.
+- **Any nutrient beyond energy, protein, carbohydrate and fat.** Fibre, sodium,
+  sugar and micronutrients are all out. The user supplies nutrition per recipe
+  (§4), so adding a fifth nutrient makes every recipe already written
+  incomplete, and the week's total for that nutrient would be wrong rather than
+  merely absent.
 - **Cooking assistance.** The user cooks; the system does not instruct.
 
 **Out, and stated rather than left silent.**

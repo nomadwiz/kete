@@ -29,11 +29,16 @@ with legible evidence beats a large impressive one.
 | What does the paper require, and how is it marked? | [`doc/overview.md`](doc/overview.md) · [`doc/rubric.md`](doc/rubric.md) |
 | How do I branch, get reviewed, and commit? | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
-**Before writing code, read [`doc/product.md`](doc/product.md) and
-[`doc/implementation.md`](doc/implementation.md) §5** — the second lists what was
-reviewed, found correct, and must not be "improved".
+**Before writing code, read [`doc/product.md`](doc/product.md) §5 and
+[`doc/implementation.md`](doc/implementation.md) §5.** They are different lists
+that share a number. The first is what Kete deliberately does not do — building
+one of those items is the mistake an assistant makes fastest, and it makes the
+report's scope section wrong. The second is what was reviewed, found correct, and
+must not be "improved".
 
-## Which file wins
+## Rules
+
+### Which file wins
 
 - **The board beats every file here.** The tracker is at
   <https://github.com/users/nomadwiz/projects/14>. There is no task-list file in
@@ -60,30 +65,7 @@ reviewed, found correct, and must not be "improved".
   any member. A document two of the three may not correct is one they stop
   trusting, and then stop reading.
 
-## Do not build any of these
-
-Each is a decision with a reason, and [`doc/product.md`](doc/product.md) §5 holds
-the reasoning. They are listed rather than linked because building one is the
-mistake an assistant makes fastest, and it makes the report's scope section wrong.
-
-- **No per-ingredient nutrition database.** The user supplies nutrition per
-  recipe, per serving. The system never derives it from ingredients.
-- **No automatic correction.** Nothing swaps an ingredient, suggests a recipe or
-  adjusts a plan to close a gap. Note the boundary: filling an empty week from the
-  user's own library **is** in scope, because it deals recipes out without reading
-  the targets. Choosing recipes **to hit** the targets is out.
-- **No shared or social recipe library.** Every recipe belongs to one account.
-- **No buying food** — no shops, stock, prices, orders, delivery or payment.
-- **No cooking assistance.**
-- **Nothing about what a user cannot eat** — allergies, intolerances and
-  condition-driven diets are all outside the system, which makes no claim about
-  the safety of any ingredient for any person.
-- **Four nutrients and no others**: energy, protein, carbohydrate, fat.
-- **Nothing that predicts, ranks or recommends.** Targets come from an equation,
-  totals are a sum, and every number on screen must be reproducible with a
-  calculator — which is what makes the system testable.
-
-## Working here
+### Working here
 
 **One branch per issue**, named `lane/issue-number-short-description`. Branching,
 review, commit identity and the never-rewrite-history rule are all in
