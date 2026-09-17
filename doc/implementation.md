@@ -97,5 +97,7 @@ reader needs explained; and the quality-attribute scenarios, because
 correcting it twice.
 
 What is deliberately elsewhere: the architecture diagrams and their justification
-are `report.md` §7, the cloud services and how they were set up are §8, and why a
-choice was made rather than its alternative is [`decisions.md`](decisions.md).
+are [`report.md`](report.md) §7, and the cloud services and how they were set up
+are §8. Why a choice was made rather than its alternative is being pulled into a
+`decisions.md` under issue #225 — until that exists, the reasoning sits in
+[`report.md`](report.md) §5.8 and §7.5.
