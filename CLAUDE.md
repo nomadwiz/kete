@@ -11,9 +11,10 @@ This file is the standing brief for anyone working in this repository,
 before writing code.
 
 **This file is the brief, and the only full copy.**
-`.github/copilot-instructions.md` is a short pointer to it so that a teammate
-using GitHub Copilot starts from the same facts; it repeats only the hard
-prohibitions. If a rule changes here, check that list in the same commit.
+`.github/copilot-instructions.md` is a pointer to it, so that a teammate using
+GitHub Copilot starts from the same facts. It repeats nothing, which is the
+point: there is no second copy to keep in step, and no rule that can quietly
+drift out of agreement with this one.
 
 This is university coursework: INFS803 Assignment 2, three people, due
 **16 October 2026**. It is a **cloud engineering** paper. Thirty of the forty
@@ -25,18 +26,8 @@ one.
 ## The lanes
 
 Each member owns one tier across every feature, not one feature across every
-tier.
-
-| Lane | Owner | Owns |
-| --- | --- | --- |
-| **Client** | Nicholas Shih Hao Ng (`@nomadwiz`) | Every page, the shell and routing, token storage, form validation, the week grid, the targets comparison view |
-| **Backend** | Sokhour Lay (`@laysokhour-computer`) | All endpoints, auth middleware, the nutrition computation, the database schema, migrations and queries, seed data |
-| **Cloud** | Kyle Wakos (`@kylewakos`) | The database instance, object storage, hosting, the deployment pipeline, environments, secrets, the two public URLs, monitoring and cost |
-
-**The database is split on purpose**, because it is the seam each owner would
-otherwise assume the other had covered. Backend owns the schema, the migrations
-and the queries — these are code and they live here. Cloud owns the instance:
-provisioning, network rules, credentials, backups and cost.
+tier. Who owns what, and how the database is split between two of them, is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 If you are an assistant working for one member, **stay in that member's lane**.
 Changing another lane's files produces a merge conflict and takes that member's

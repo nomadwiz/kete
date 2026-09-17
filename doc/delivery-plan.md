@@ -11,35 +11,13 @@ recorded, in the present tense and kept current, in
 [`implementation.md`](implementation.md) — along with the API contract and what
 is actually running. The backlog is the board.
 
-## The lanes
+## The lanes, and the seam between them
 
-| Lane | Member | Owns in code | Owns in the document |
-| --- | --- | --- | --- |
-| **Client** | Nicholas Shih Hao Ng (`@nomadwiz`) | Every page, the shell and routing, token storage, form validation, the week grid, the targets comparison view | User manual, presentation video |
-| **Backend** | Sokhour Lay (`@laysokhour-computer`) | All endpoints, auth middleware, the nutrition computation, **database schema, migrations and queries**, seed data | RESTful API list, detailed design |
-| **Cloud** | Kyle Wakos (`@kylewakos`) | **Database instance**, object storage, hosting for client and backend, CI/CD, environments, secrets, the two public URLs, monitoring, cost | Cloud implementation |
-
-## The database seam
-
-The brief requires three tiers — client, backend, database — and the team
-named three lanes that do not include a database lane. The database is
-therefore split by responsibility, not left unowned:
-
-- **Backend owns the schema**, the migrations and the queries. These are code,
-  they live in the repository, and they change with every endpoint.
-- **Cloud owns the instance**: provisioning, network rules, credentials,
-  backups and cost.
-
-Stated explicitly because this is the seam both owners would otherwise assume
-the other had covered.
-
-## Why the marks are uneven, and what evens them
-
-Cloud implementation and cloud engineering quality are 20 of the 40 technical
-marks and both fall inside one lane. The client lane carries almost none
-directly. The written sections in the lane table are the correction, and the
-reflection section says so plainly rather than leaving the imbalance
-unexplained — equitable contribution is itself marked.
+The team splits horizontally: one member per tier, with the database divided
+between two of them because it is the seam each would otherwise assume the other
+had covered. The table, the split and why the marks fall unevenly across the
+lanes are in [`CONTRIBUTING.md`](../CONTRIBUTING.md) — they describe how the team
+works now, not what was planned, so they are kept where they are used.
 
 ## Milestone order
 
@@ -125,17 +103,6 @@ there from the moment its pull request opens until it merges. The rule itself,
 the branch naming and the commit-identity check live in `CONTRIBUTING.md` at the
 repository root; it was drafted in the project notes under `work/build/` as
 `contributing-draft.md` and placed from there.
-
-**The rule applies from the first pull request opened after `CONTRIBUTING.md`
-reached `main`.** Two merges precede it. PR #95 — the merge of `backend` into
-`main`, 2026-09-15 — was merged by its own author with no review requested and
-none given. PR #218 — the documents and the assistant brief, 2026-09-16 — added
-`CONTRIBUTING.md` itself and was likewise merged by its author. Neither is
-papered over with a retrospective approval: §6.5 invites a marker to verify the
-report's contribution claims against the timestamped history, and an approval
-added weeks after the merge is visible to anyone who takes that invitation. #218
-is not counted as a breach, on the general principle that a rule cannot govern
-the act of its own creation — not as an exemption written for this case.
 
 **Both the repository and the board are private** (`visibility=PRIVATE`;
 the project reports `public: false`). This is not only S3's repository-URL

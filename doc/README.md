@@ -7,7 +7,7 @@ for them.
 | File | What it is | Use it when |
 | --- | --- | --- |
 | [`product.md`](product.md) | The product definition — the problem, the mechanism, and the scope boundary | You are about to build something and want to know whether it is in scope |
-| [`delivery-plan.md`](delivery-plan.md) | The lanes, the database seam, the milestone order, and the known gaps in the API contract | You are picking up work, or you are about to touch another lane |
+| [`delivery-plan.md`](delivery-plan.md) | What the team planned to deliver, and in what order | You want to know what the schedule was, or what was committed to before building started |
 | [`report.md`](report.md) | The document being submitted, in progress | You are writing a section, or you want to check what the report already claims |
 | [`overview.md`](overview.md) | The assignment brief | You want the actual requirement wording |
 | [`rubric.md`](rubric.md) | The marking rubric | You are deciding what is worth your time |
