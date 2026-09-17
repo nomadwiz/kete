@@ -14,6 +14,20 @@ across nine week-named milestones. Where this file and
 Read this before starting work in your lane. Most of these are already someone's
 issue — the value of the list is seeing which defects cluster.
 
+**Why twenty-three and not twenty-six.** The review was written to the project's
+own notes as `work/cold-review.md` and published here redacted. Three findings
+are not carried across: the per-member contribution audit, and two whose
+technical point is wrapped in a judgement about the team's conduct. Their
+actionable content survives elsewhere — the commit-identity instruction in
+`CONTRIBUTING.md`, the report's claim-sweep as issue D9, and the client tier's
+state as twenty open issues on the board. Nothing technical was dropped.
+
+**The unredacted review no longer exists**, so this summary is the whole
+surviving record of it. That is also why nothing here is reworded: add findings,
+and mark one fixed by naming the commit or issue that fixed it, but do not
+rewrite a finding to match what is now true. The file is worth something because
+it records what was known on a particular day.
+
 ## The three most serious
 
 | # | Finding | Issue |
