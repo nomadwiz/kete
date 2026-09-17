@@ -5,22 +5,36 @@ divide the work, how a change reaches `main`, and two rules we cannot repair
 after the fact if we get them wrong.
 
 These rules take effect from the first pull request opened after this file
-reaches `main`. A rule cannot govern the act of its own creation: #218 added this
-file and was merged by its author. Before that, #95 merged an entire tier into
-`main` with no review requested and none given. Neither is corrected after the
-fact — a record that matches what happened is worth more than one that does not,
-and §6.5 of the report invites a marker to check that history for themselves.
+reaches `main`, because a rule cannot govern the act of its own creation. Three
+merges precede that line, and none of them is corrected after the fact:
+
+- **#95** merged an entire tier into `main` with no review requested and none given.
+- **#218** added the first version of this file and was merged by its author.
+- **#223** rewrote the rules below and was merged by its author too, without the
+  review its own description had asked for.
+
+**#223 is the one worth naming plainly.** The rule live on `main` the whole time
+it was open said "do not merge your own", so it was a breach of the rule in force
+at the time, whatever the start line above says about the revised one. §6.5 of
+the report invites a marker to check this history against the timestamps, and a
+count that is short by one is as visible there as an approval added late.
 
 ## The lanes
 
 Each member owns one tier across every feature, rather than one feature across
 every tier.
 
-| Lane | Owner | Owns |
-| --- | --- | --- |
-| **Client** | Nicholas Shih Hao Ng (`@nomadwiz`) | Every page, the application shell and routing, token storage, form validation, the week grid, the targets comparison view |
-| **Backend** | Sokhour Lay (`@laysokhour-computer`) | All endpoints, authentication middleware, the nutrition computation, the database schema, migrations and queries, seed data |
-| **Cloud** | Kyle Wakos (`@kylewakos`) | The database instance, object storage, hosting for the client and the backend, the deployment pipeline, environments, secrets, the two public URLs, monitoring and cost |
+| Lane | Owner | Owns in the code | Owns in the report |
+| --- | --- | --- | --- |
+| **Client** | Nicholas Shih Hao Ng (`@nomadwiz`) | Every page, the application shell and routing, token storage, form validation, the week grid, the targets comparison view | User manual, presentation video |
+| **Backend** | Sokhour Lay (`@laysokhour-computer`) | All endpoints, authentication middleware, the nutrition computation, the database schema, migrations and queries, seed data | RESTful API list, detailed design |
+| **Cloud** | Kyle Wakos (`@kylewakos`) | The database instance, object storage, hosting for the client and the backend, the deployment pipeline, environments, secrets, the two public URLs, monitoring and cost | Cloud implementation |
+
+**The written column is not decoration.** Cloud implementation and cloud
+engineering quality are 20 of the 40 technical marks and both fall inside one
+lane, while the client lane carries almost none directly. The report sections in
+that last column are what evens it, and the reflection says so plainly rather
+than leaving the imbalance unexplained — equitable contribution is itself marked.
 
 The database is split between two lanes on purpose, because it is the seam each
 owner would otherwise assume the other had covered. **Backend owns the schema,
@@ -105,6 +119,14 @@ to sit in the project notes has been lost, along with the script that generated
 it. If the board ever has to be rebuilt, it is rebuilt from the milestone table
 in [`doc/delivery-plan.md`](doc/delivery-plan.md).
 
+**Dates live in the project's fields, not in the issue body.** Each issue opens
+with its planned range, for example `**Planned: 2026-08-17 to 2026-08-23**`, and
+that line is for a person reading the issue. A roadmap view cannot read it:
+GitHub positions items on a timeline using the date fields on the project item
+and nothing else, with milestones drawn only as vertical marker lines. The
+**Start** and **Target** fields are what draw the roadmap. Set both, and match
+them to the `Planned:` line, or the item is invisible on the timeline.
+
 ## Commit under your own identity
 
 Before your next commit, check that the email Git uses matches the email on your
@@ -124,6 +146,14 @@ git config user.email "the-address-on-your-github-account"
 
 Do this **before** committing. Commits already made under the wrong address can
 only be corrected by rewriting history, which the next rule forbids.
+
+## No claim without evidence
+
+**No claim about completed work goes in the report unless a commit, a screenshot
+or a board item evidences it.** Sweep every such claim before a draft goes round
+the team — issue #205. The report invites a marker to check its contribution
+claims against the timestamped history, so a claim that cannot be traced is worse
+than one that was never made.
 
 ## Never rewrite history
 
