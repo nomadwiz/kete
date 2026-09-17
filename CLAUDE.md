@@ -108,6 +108,13 @@ anything in `backend/`.
 - **No claim about completed work goes in the report unless a commit, a
   screenshot or a board item evidences it.**
 
+## Before disagreeing with a rule
+
+Check whether it is already settled. [`doc/product.md`](doc/product.md) §5 and §6
+record what was decided and what is still open, each with its reason. If you
+think a decision is wrong, raise it on an issue rather than reopening it in code
+— and never implement a rejected alternative because it looks tidier.
+
 ## `doc/` holds the documents this project is built from
 
 [`doc/`](doc/README.md) holds what defines the work: the product definition, the
