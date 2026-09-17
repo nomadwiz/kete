@@ -46,17 +46,20 @@ reason, and building one makes the report's scope section wrong:
 pushed commit, no force push, no squash that discards authorship. The brief
 forbids it and the history is the evidence of who contributed what.
 
-**Never edit anything in `doc/`.** It is a read-only snapshot of documents
-maintained outside this repository; an edit there changes nothing upstream.
+**Never edit `doc/overview.md` or `doc/rubric.md`.** They are the assignment
+brief and the marking criteria transcribed exactly as issued, and every claim the
+project makes is checked against them. Everything else in `doc/` is edited here,
+through a branch and a reviewed pull request, like any other change.
 
 ## Picking up work
 
 **The GitHub issues are the checklist**, on the board at
 <https://github.com/users/nomadwiz/projects/14>. There is no task-list file in
 this repository, deliberately — **do not create one**. Branch per issue as
-`lane/issue-number-short-description`. Every pull request is reviewed by someone
-from a different lane; do not merge your own. The full workflow is in
-[`../CONTRIBUTING.md`](../CONTRIBUTING.md).
+`lane/issue-number-short-description`. Ask another lane to review; the author
+decides when that is needed, but it is always needed for another lane's files,
+the API contract, the database schema, the scope in `doc/product.md`, or the
+rules. The full workflow is in [`../CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## Before disagreeing with a rule
 
