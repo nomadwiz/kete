@@ -17,7 +17,7 @@ Submitted 16 October 2026
 
 | | |
 |---|---|
-| **Git repository** | https://github.com/kafesprout/kete |
+| **Git repository** | https://github.com/nomadwiz/kete |
 | **Web client URL** | `[after deployment]` |
 | **Backend API URL** | `[after deployment]` — interactive documentation at `/docs` |
 
@@ -72,7 +72,7 @@ Video: `[URL]`
 
 | Resource | URL |
 |---|---|
-| Git repository | https://github.com/kafesprout/kete |
+| Git repository | https://github.com/nomadwiz/kete |
 | Web client | `[after deployment]` |
 | Backend API | `[after deployment]` |
 | Interactive API documentation | `[backend URL]/docs` |
