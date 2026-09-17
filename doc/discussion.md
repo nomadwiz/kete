@@ -84,14 +84,6 @@ report has already published.
 
 ## Open — repository and access
 
-**Which of the two repository URLs is correct.** The report's first page says
-`github.com/kafesprout/kete`; the clone's origin is `github.com/nomadwiz/kete`.
-They are the same repository behind an owner redirect.
-*Costs:* the redirect works today, but `kafesprout` is unclaimed and a redirect
-dies the moment someone registers that name — and the URL must resolve until
-marking is notified.
-*Blocks:* a marked first-page requirement. Issue #140.
-
 **Whether the repository goes public, and when.** It is private, so a marker
 following the URL gets a 404.
 *Costs:* going public exposes a published token fallback, a list of this system's
@@ -116,5 +108,19 @@ moving the freeze later starts the client lane a week behind.
 
 ## Settled
 
-Nothing yet. When a question above is answered, it moves here as one line naming
-the date and the document that now holds the answer.
+An answered question moves here, naming the date, the answer, and the document
+that now holds it. Where the reason for the answer has no other owner — as with
+the repository address, which is one value on a page and not a section of any
+document — the reason stays here with it.
+
+**2026-09-18 — the repository URL is `https://github.com/nomadwiz/kete`.** The
+value lives on [`report.md`](report.md)'s first page and in §3, and no document
+carries `kafesprout` any longer. Both addresses resolve: `kafesprout` is a former
+owner name and GitHub serves an owner redirect from it, so on 2026-09-18
+`git ls-remote` returned the same HEAD — `0ae3877` — for both. **The redirect is
+not relied on**, because `kafesprout` is currently unclaimed and a GitHub owner
+redirect stops working the moment someone else registers that name — and the
+brief requires the first-page URL to resolve from submission until marking is
+notified. The canonical owner path has no such dependency. This settles the
+address only: the repository is still private, so following the corrected URL
+shows a marker a 404, which is the question above at issue #222. Issue #140.
