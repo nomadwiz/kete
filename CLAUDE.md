@@ -71,22 +71,12 @@ Weekly totals are a sum. There is no prediction, no ranking and no
 recommendation anywhere in the system, and none is to be added — every number on
 screen must be reproducible with a calculator, which is what makes it testable.
 
-## Things that are already right — do not "improve" them
+## What must not change in the code
 
-These were reviewed and found correct. Changing them will break a claim the
-report makes:
-
-- **Every query is scoped by the user id taken from the token**, never from the
-  client: `current_user_id` as a dependency, `filter_by(user_id=user_id)` on
-  every query, and `_owned_recipe` returning **404 rather than 403** so the
-  endpoint does not confirm that someone else's record exists. Keep all three.
-- **`security.py`**: PBKDF2-SHA256, per-password salt, 240,000 iterations,
-  algorithm and iteration count stored in the hash string, `hmac.compare_digest`
-  for the comparison. Do not lower the iteration count or swap the comparison.
-- **`database.py`**: `quote_plus` on the password and automatic
-  `sslmode=require` for RDS hosts.
-- **The Mifflin-St Jeor arithmetic** and the 4/4/9 gram conversion are the
-  standard published values. Do not round or "tidy" them.
+The invariants that were reviewed and found correct — token scoping, password
+hashing, the SSL handling and the nutrition arithmetic — are in
+[`doc/implementation.md`](doc/implementation.md) §5. Read that before changing
+anything in `backend/`.
 
 ## Working here
 

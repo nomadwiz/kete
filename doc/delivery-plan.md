@@ -4,28 +4,12 @@ Decided in discussion 2026-09-14/15. The team splits **horizontally**: each
 member owns one layer across every feature. This file owns the split, the
 seams between lanes, and the milestone order.
 
-## The stack, as it already stands
+## The stack
 
-The repository is `nomadwiz/kete`.
-
-| Tier               | Built with                                                            |
-| ------------------ | --------------------------------------------------------------------- |
-| Client | **React with TypeScript** (Vite). Changed 2026-09-15; the report still says Angular in §7.5 — issue D1 |
-| Backend            | Python, FastAPI, SQLAlchemy                                           |
-| Database           | PostgreSQL on Amazon RDS (`backend/schema.sql`)                       |
-| Object storage     | Amazon S3 — recipe photos, and static hosting for the compiled client |
-| Compute            | Amazon EC2, for the backend                                           |
-| Authentication     | JSON Web Tokens issued by the API                                     |
-| Project management | **GitHub Projects** — board, issues, milestones. Changed 2026-09-15; the report still says Notion in §6.6 and §7.5 — issue D1 |
-
-The backlog lives on GitHub; `issues.md` is a snapshot of it. What
-the system is, and every scope boundary these issues are held against, is
-[`product.md`](product.md).
-
-**The API contract is the FastAPI schema**, generated from the request and
-response models in `backend/main.py` and served at `/docs`. That generated
-schema is what the client lane builds a mock from — there is no second,
-hand-written contract document to drift from it.
+The repository is `nomadwiz/kete`. What the team planned to build with is now
+recorded, in the present tense and kept current, in
+[`implementation.md`](implementation.md) — along with the API contract and what
+is actually running. The backlog is the board.
 
 ## The lanes
 
@@ -276,29 +260,8 @@ of unfixed defects, a wildcard CORS origin — is cheaper to fix while the
 repository is still closed. #140 settles which address is right; S10 makes it
 resolve.
 
-## State of the backend, read 2026-09-15
+## State of the backend
 
-The `backend` branch is further along than its own README says. The README
-claims all 17 endpoints return sample data; that stopped being true when the
-SQLAlchemy work landed.
-
-**Real, and working against a database.** `database.py` builds the connection
-from `.env` and handles RDS SSL. `models.py` and `schema.sql` carry the five
-entities with their unique constraints and cascading deletes. `security.py`
-hashes passwords with PBKDF2-SHA256, salted, 240,000 iterations, and compares
-in constant time; it issues and reads a 12-hour JWT. Sixteen of the seventeen
-endpoints run real queries, and every one of them scopes by the user id taken
-from the token rather than from the client. `init_db.py` and `check_db.py`
-exist so nobody needs psql.
-
-**Not real yet.** The photo upload is the only faked endpoint: it returns a
-constructed S3 URL and stores nothing. `SAMPLE_RECIPES` is dead code no
-endpoint reads. The application still calls itself a stub in its title, its
-version and its health check. CORS is `allow_origins=["*"]`. `JWT_SECRET`
-falls back to a published default instead of refusing to start. Dependencies
-are minimum-version rather than pinned, with `passlib` and `boto3` commented
-out. There are no tests of any kind.
-
-**Judgement.** The backend is not the risk in this project. The risks are the
-cloud work, which has not started, and the client, which is being rewritten in
-a different framework from the one the report describes.
+Moved to [`implementation.md`](implementation.md) §4, where it is kept current.
+A plan records what was intended, not what is running — and an audit that sits
+in a frozen document goes stale the week after it is written.
