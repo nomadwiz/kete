@@ -70,4 +70,4 @@ Work known to have happened that produces no commit, and so is not above:
 
 - Kyle — all AWS work to date: account, RDS instance, S3 buckets, EC2, any IAM or network configuration. Dates and durations needed.
 - Nicholas — the report drafting, the product definition and the delivery plan. These are authored outside the repository and published into `doc/`, so the commit above records the publication, not the writing.
-- All — meetings M1–M6, two hours each (see the meetings record).
+- All — meetings M1, M2, M5 and M6, two hours each. M3 and M4 fell due inside the mid-semester break and were not held (see the meetings record).
