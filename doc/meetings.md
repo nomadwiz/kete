@@ -21,7 +21,7 @@
 ---
 
 ## M1 — Monday 2026-08-10, 14:00–16:00
-**Milestone:** W5 Foundations · **Attendees:** `[to confirm — assumed all three]`
+**Milestone:** W5 Foundations · **Attendees:** @laysokhour-computer, @nomadwiz, @kylewakos 
 
 **Decisions**
 - Team formed; each member owns one tier across every feature rather than one feature across every tier.
