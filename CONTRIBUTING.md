@@ -77,7 +77,7 @@ below applies.
 - it touches files another lane owns
 - it changes the API contract or the database schema
 - it changes what the system does or does not do — the scope in
-  `doc/product.md`
+  `../doc/design/product.md`
 - it changes the rules: this file, `CLAUDE.md`, or
   `.github/copilot-instructions.md`
 
@@ -117,7 +117,7 @@ through four columns, and the column is changed by the person doing the work:
 The board is the tracker, and now the only one. The readable snapshot that used
 to sit in the project notes has been lost, along with the script that generated
 it. If the board ever has to be rebuilt, it is rebuilt from the milestone table
-in [`doc/delivery-plan.md`](doc/delivery-plan.md).
+in [`../doc/plan/delivery-plan.md`](../doc/plan/delivery-plan.md).
 
 **Dates live in the project's fields, not in the issue body.** Each issue opens
 with its planned range, for example `**Planned: 2026-08-17 to 2026-08-23**`, and
