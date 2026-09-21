@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 import models
 from database import get_db
@@ -193,6 +193,10 @@ class PhotoOut(BaseModel):
 class PlanRecipe(BaseModel):
     recipe_id: int
     name: str
+    energy_kcal: int
+    protein_g: int
+    carbs_g: int
+    fat_g: int
 
 
 class PlanSlotOut(BaseModel):
@@ -526,16 +530,24 @@ def _slot_out(s: models.PlanSlot) -> PlanSlotOut:
     return PlanSlotOut(slot_id=s.slot_id, day_of_week=s.day_of_week,
                        meal_position=s.meal_position,
                        recipe=PlanRecipe(recipe_id=s.recipe.recipe_id,
-                                         name=s.recipe.name))
+                                         name=s.recipe.name,
+                                         energy_kcal=int(s.recipe.energy_kcal or 0),
+                                         protein_g=int(s.recipe.protein_g or 0),
+                                         carbs_g=int(s.recipe.carbs_g or 0),
+                                         fat_g=int(s.recipe.fat_g or 0)))
 
 
 @app.get("/mealplan", response_model=list[PlanSlotOut], tags=["mealplan"])
 def get_mealplan(week: str, user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)):
-    """The week's plan, each slot with its recipe. This is the JOIN."""
+    """The week's plan, each slot with its recipe and its per-serving nutrition.
+
+    joinedload fetches the recipes in the same statement, so a full week costs
+    one query rather than one more per distinct recipe.
+    """
     slots = (db.query(models.PlanSlot)
                .filter_by(user_id=user_id, week=week)
-               .join(models.Recipe)
+               .options(joinedload(models.PlanSlot.recipe))
                .order_by(models.PlanSlot.slot_id)
                .all())
     return [_slot_out(s) for s in slots]
