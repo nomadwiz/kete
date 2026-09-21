@@ -27,7 +27,7 @@ with legible evidence beats a large impressive one.
 | What did we plan to deliver, and when? | [`../doc/plan/delivery-plan.md`](../doc/plan/delivery-plan.md) |
 | What did a review find wrong, and when? | [`../doc/plan/open-findings.md`](../doc/plan/open-findings.md) |
 | What does the paper require, and how is it marked? | [`../doc/overview.md`](../doc/overview.md) · [`../doc/rubric.md`](../doc/rubric.md) |
-| How do I branch, get reviewed, and commit? | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| How do I branch, get reviewed, and commit? | [`../doc/contributing.md`](../doc/contributing.md) |
 
 **Before writing code, read [`../doc/design/product.md`](../doc/design/product.md) §5 and
 [`../doc/design/implementation.md`](../doc/design/implementation.md) §5.** They are different lists
@@ -69,7 +69,7 @@ must not be "improved".
 
 **One branch per issue**, named `lane/issue-number-short-description`. Branching,
 review, commit identity and the never-rewrite-history rule are all in
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
+[`../doc/contributing.md`](../doc/contributing.md).
 
 **Each member owns one tier** — client, backend, cloud. If you are an assistant
 working for one member, **stay in that member's lane.** Changing another lane's
