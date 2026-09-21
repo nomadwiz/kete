@@ -1,11 +1,16 @@
 """
-Kete — INFS803 A02 backend (stub API).
+Kete — INFS803 A02 backend.
 
-All 17 endpoints exist with the agreed request/response shapes but return
-hard-coded sample data. Nick can build every screen against this immediately;
-Jack replaces the bodies with real logic + database calls one at a time.
+Seventeen endpoints over PostgreSQL: accounts and JWT auth, each user's own
+recipe library, their weekly meal plan, and the nutrition targets computed
+from their measurements by the Mifflin-St Jeor equation.
 
-The shape must NOT change when the real logic lands — that is the whole point.
+Every endpoint except /register and /login takes the user id from the bearer
+token rather than from the request, and scopes its queries by it, so one
+account cannot reach another's rows.
+
+The request and response shapes are the API contract the client is built
+against. Do not change one without telling the team.
 
 Run locally:   uvicorn main:app --reload
 Interactive docs: http://localhost:8000/docs
@@ -31,11 +36,15 @@ from security import hash_password, make_token, read_token, verify_password
 # --------------------------------------------------------------------------
 app = FastAPI(
     title="Kete API",
-    version="0.1.0-stub",
-    description="Nutrition-aware meal planner. Stub responses — shapes are final.",
+    version="0.1.0",
+    description=(
+        "Nutrition-aware meal planner. Record your measurements once, write "
+        "your own recipes, arrange them into a week, and see the week's totals "
+        "against your computed targets."
+    ),
 )
 
-# CORS: the Angular client is served from a different origin (S3) than this API
+# CORS: the React client is served from a different origin (S3) than this API
 # (EC2), so without this every browser call is blocked. Tighten the origin list
 # once the real S3 URL exists.
 app.add_middleware(
@@ -210,25 +219,6 @@ class GenerateIn(BaseModel):
 
 class GenerateOut(BaseModel):
     created: int
-
-
-# --------------------------------------------------------------------------
-# Sample data — delete as each endpoint gets real logic
-# --------------------------------------------------------------------------
-SAMPLE_RECIPES = [
-    RecipeDetail(recipe_id=1, name="Chicken & rice bowl", cuisine="Asian",
-                 ingredients="rice, chicken, soy sauce", steps="Cook rice. Fry chicken. Combine.",
-                 servings=4, energy_kcal=540, protein_g=42, carbs_g=55, fat_g=14,
-                 photo_url="https://kete-photos.s3.amazonaws.com/1.jpg"),
-    RecipeDetail(recipe_id=2, name="Veggie stir-fry", cuisine="Asian",
-                 ingredients="broccoli, tofu, noodles", steps="Fry everything.",
-                 servings=2, energy_kcal=410, protein_g=22, carbs_g=48, fat_g=12,
-                 photo_url="https://kete-photos.s3.amazonaws.com/2.jpg"),
-    RecipeDetail(recipe_id=3, name="Salmon & greens", cuisine="Modern",
-                 ingredients="salmon, spinach, lemon", steps="Bake salmon. Wilt greens.",
-                 servings=2, energy_kcal=620, protein_g=48, carbs_g=18, fat_g=38,
-                 photo_url="https://kete-photos.s3.amazonaws.com/3.jpg"),
-]
 
 
 # ==========================================================================
@@ -633,4 +623,11 @@ def clear_week(week: str, user_id: int = Depends(current_user_id),
 
 @app.get("/health", tags=["meta"])
 def health():
-    return {"status": "ok", "mode": "stub"}
+    """Liveness only: is the process up and serving?
+
+    Deliberately does not touch the database. A health check that fails when
+    the database is unreachable is a readiness check, and behind a load
+    balancer it takes the instance out of service for a fault it cannot fix
+    by restarting. If a database probe is wanted, it belongs at its own path.
+    """
+    return {"status": "ok"}
