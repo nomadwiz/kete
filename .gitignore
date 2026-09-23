@@ -6,12 +6,6 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# ---- Node / Angular frontend ----
-node_modules/
-dist/
-.vite/
-coverage/
-
 # ---- Secrets: never commit these ----
 # `.env` alone matches ONLY the file named exactly .env. Backups and variants
 # such as .env.backup, .env.local or .env.production would have slipped

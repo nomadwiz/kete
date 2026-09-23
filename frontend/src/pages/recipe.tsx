@@ -1,3 +1,3 @@
-export default function Recipe() {
-  return <h1>Recipe</h1>;
+export default function RecipeDetail() {
+  return <h1>Recipe Detail</h1>;
 }

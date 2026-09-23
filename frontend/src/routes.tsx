@@ -5,7 +5,7 @@ import {
   MEASUREMENT,
   NOT_FOUND,
   PLANNER,
-  RECIPE,
+  RECIPE_DETAIL,
   RECIPES,
   SIGN_IN,
   SIGN_UP,
@@ -21,13 +21,12 @@ const PATHS = {
   dashboard: "/dashboard",
   recipes: "/recipes",
   recipe: "/recipes/:id",
-  recipe_create: "/recipe",
   planner: "/planner",
   account: "/account",
   not_found: "*",
 } as const;
 
-export const routes = [
+const routes = [
   {
     path: PATHS.home,
     Component: HOME,
@@ -58,9 +57,8 @@ export const routes = [
   },
   {
     path: PATHS.recipe,
-    Component: RECIPE,
+    Component: RECIPE_DETAIL,
   },
-
   {
     path: PATHS.planner,
     Component: PLANNER,
@@ -74,3 +72,5 @@ export const routes = [
     Component: NOT_FOUND,
   },
 ];
+
+export { PATHS, routes };
