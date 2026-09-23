@@ -9,7 +9,8 @@ __pycache__/
 # ---- Node / Angular frontend ----
 node_modules/
 dist/
-.angular/
+.vite/
+coverage/
 
 # ---- Secrets: never commit these ----
 # `.env` alone matches ONLY the file named exactly .env. Backups and variants
