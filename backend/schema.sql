@@ -17,8 +17,10 @@ CREATE TABLE IF NOT EXISTS profiles (
     profile_id     SERIAL PRIMARY KEY,
     user_id        INTEGER NOT NULL UNIQUE
                    REFERENCES users(user_id) ON DELETE CASCADE,
-    weight_kg      NUMERIC(5,2) NOT NULL,
-    height_cm      NUMERIC(5,2) NOT NULL,
+    weight_kg      NUMERIC(5,2) NOT NULL
+                   CONSTRAINT ck_profile_weight CHECK (weight_kg > 0 AND weight_kg <= 635),
+    height_cm      NUMERIC(5,2) NOT NULL
+                   CONSTRAINT ck_profile_height CHECK (height_cm > 0 AND height_cm <= 272),
     age            INTEGER      NOT NULL CHECK (age > 0 AND age < 130),
     sex            VARCHAR(10)  NOT NULL CHECK (sex IN ('male','female')),
     activity_level VARCHAR(20)  NOT NULL CHECK (activity_level IN
@@ -32,10 +34,14 @@ CREATE TABLE IF NOT EXISTS nutrition_targets (
     target_id      SERIAL PRIMARY KEY,
     user_id        INTEGER NOT NULL UNIQUE
                    REFERENCES users(user_id) ON DELETE CASCADE,
-    energy_kcal    NUMERIC(7,2) NOT NULL,
-    protein_g      NUMERIC(6,2) NOT NULL,
-    carbs_g        NUMERIC(6,2) NOT NULL,
-    fat_g          NUMERIC(6,2) NOT NULL,
+    energy_kcal    NUMERIC(7,2) NOT NULL
+                   CONSTRAINT ck_target_energy  CHECK (energy_kcal > 0),
+    protein_g      NUMERIC(6,2) NOT NULL
+                   CONSTRAINT ck_target_protein CHECK (protein_g > 0),
+    carbs_g        NUMERIC(6,2) NOT NULL
+                   CONSTRAINT ck_target_carbs   CHECK (carbs_g > 0),
+    fat_g          NUMERIC(6,2) NOT NULL
+                   CONSTRAINT ck_target_fat     CHECK (fat_g > 0),
     computed_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
@@ -48,10 +54,14 @@ CREATE TABLE IF NOT EXISTS recipes (
     ingredients    TEXT,
     steps          TEXT,
     servings       INTEGER NOT NULL DEFAULT 1 CHECK (servings > 0),
-    energy_kcal    NUMERIC(7,2),   -- per serving
-    protein_g      NUMERIC(6,2),   -- per serving
-    carbs_g        NUMERIC(6,2),   -- per serving
-    fat_g          NUMERIC(6,2),   -- per serving
+    energy_kcal    NUMERIC(7,2)    -- per serving
+                   CONSTRAINT ck_recipe_energy  CHECK (energy_kcal >= 0),
+    protein_g      NUMERIC(6,2)    -- per serving
+                   CONSTRAINT ck_recipe_protein CHECK (protein_g >= 0),
+    carbs_g        NUMERIC(6,2)    -- per serving
+                   CONSTRAINT ck_recipe_carbs   CHECK (carbs_g >= 0),
+    fat_g          NUMERIC(6,2)    -- per serving
+                   CONSTRAINT ck_recipe_fat     CHECK (fat_g >= 0),
     photo_url      VARCHAR(500),   -- object lives in S3; only the URL is stored
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );

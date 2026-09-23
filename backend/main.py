@@ -99,6 +99,7 @@ def compute_targets(weight_kg: float, height_cm: float, age: int,
 Sex = Literal["male", "female"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 MealPosition = Literal["breakfast", "lunch", "dinner"]
+Day = Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 class RegisterIn(BaseModel):
@@ -138,9 +139,9 @@ class ProfileIn(BaseModel):
 
 
 class MetricsIn(BaseModel):
-    weight_kg: float
-    height_cm: float
-    age: int
+    weight_kg: float = Field(gt=0, le=635)
+    height_cm: float = Field(gt=0, le=272)
+    age: int = Field(gt=0, lt=130)      # matches ck_profile_age exactly
     sex: Sex
     activity_level: Activity
 
@@ -171,15 +172,15 @@ class RecipeDetail(RecipeSummary):
 
 
 class RecipeIn(BaseModel):
-    name: str
-    cuisine: str
+    name: str = Field(min_length=1, max_length=150)
+    cuisine: str = Field(max_length=60)
     ingredients: str
     steps: str
-    servings: int
-    energy_kcal: int
-    protein_g: int
-    carbs_g: int
-    fat_g: int
+    servings: int = Field(gt=0)                 # matches ck_recipe_servings
+    energy_kcal: int = Field(ge=0, le=99999)    # Numeric(7, 2)
+    protein_g: int = Field(ge=0, le=9999)       # Numeric(6, 2)
+    carbs_g: int = Field(ge=0, le=9999)
+    fat_g: int = Field(ge=0, le=9999)
 
 
 class RecipeCreatedOut(BaseModel):
@@ -201,7 +202,7 @@ class PlanRecipe(BaseModel):
 
 class PlanSlotOut(BaseModel):
     slot_id: int
-    day_of_week: str
+    day_of_week: Day
     meal_position: MealPosition
     recipe: PlanRecipe
 
@@ -209,7 +210,7 @@ class PlanSlotOut(BaseModel):
 class PlanSlotIn(BaseModel):
     recipe_id: int
     week: str
-    day_of_week: str
+    day_of_week: Day
     meal_position: MealPosition
 
 
@@ -557,9 +558,6 @@ def get_mealplan(week: str, user_id: int = Depends(current_user_id),
 def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     """Put one recipe in one day-and-meal slot."""
-    if body.day_of_week not in DAYS:
-        raise HTTPException(status_code=422,
-                            detail=f"day_of_week must be one of {DAYS}")
     _owned_recipe(db, body.recipe_id, user_id)   # 404 if not yours
 
     taken = db.query(models.PlanSlot).filter_by(
