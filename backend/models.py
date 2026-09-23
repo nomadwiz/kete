@@ -66,6 +66,8 @@ class Profile(Base):
     user = relationship("User", back_populates="profile")
 
     __table_args__ = (
+        CheckConstraint("weight_kg > 0 AND weight_kg <= 635", name="ck_profile_weight"),
+        CheckConstraint("height_cm > 0 AND height_cm <= 272", name="ck_profile_height"),
         CheckConstraint("age > 0 AND age < 130", name="ck_profile_age"),
         CheckConstraint("sex IN ('male','female')", name="ck_profile_sex"),
         CheckConstraint(
@@ -90,6 +92,15 @@ class NutritionTarget(Base):
         DateTime(timezone=True), default=_now, onupdate=_now)
 
     user = relationship("User", back_populates="target")
+
+    # The engine writes these, not a request model, so the database is the only
+    # gate they pass. ADR 001 relies on a target never being zero.
+    __table_args__ = (
+        CheckConstraint("energy_kcal > 0", name="ck_target_energy"),
+        CheckConstraint("protein_g > 0", name="ck_target_protein"),
+        CheckConstraint("carbs_g > 0", name="ck_target_carbs"),
+        CheckConstraint("fat_g > 0", name="ck_target_fat"),
+    )
 
 
 class Recipe(Base):
@@ -116,6 +127,10 @@ class Recipe(Base):
 
     __table_args__ = (
         CheckConstraint("servings > 0", name="ck_recipe_servings"),
+        CheckConstraint("energy_kcal >= 0", name="ck_recipe_energy"),
+        CheckConstraint("protein_g >= 0", name="ck_recipe_protein"),
+        CheckConstraint("carbs_g >= 0", name="ck_recipe_carbs"),
+        CheckConstraint("fat_g >= 0", name="ck_recipe_fat"),
     )
 
 
