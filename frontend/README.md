@@ -4,14 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. **No screen calls the API yet** — every page renders its own name and nothing else, so the client runs without the backend and shows nothing useful with it.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one route error boundary catches what loaders and actions throw, and two screens are wired through them: `/recipes` loads its list and `/sign-in` posts to an action. The other nine pages render their own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| No API client, token storage or error surface                    | C2 (#167)                        |
-| Every page is a placeholder; no screen calls the API             | #170–#184                        |
+| Nine of the eleven pages are placeholders                        | #170–#184                        |
 | No layout, navigation, sign out or route guard                   | C4 (#169)                        |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | No tests of the client's security behaviour                      | C22 (#236)                       |
@@ -42,13 +41,13 @@ The API contract is the schema FastAPI generates from [`../backend/main.py`](../
 
 ## Where things go
 
-| Path              | What belongs there                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `src/routes.tsx`  | Every path string, once; the route objects; their loaders and actions                                                           |
-| `src/pages/`      | One file per page                                                                                                               |
-| `src/api/`        | The fetch wrapper, token storage and the one error surface (C2, #167)                                                           |
-| `src/types/`      | Types matching the FastAPI schema (C2, #167)                                                                                    |
-| `src/components/` | Shared presentational pieces, including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178) |
+| Path              | What belongs there                                                                                                                                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/routes.tsx`  | Every path string, once; the route objects; their loaders and actions                                                                                                                                    |
+| `src/pages/`      | One file per page                                                                                                                                                                                        |
+| `src/api/`        | Talking to the API: `http.ts` the transport, `session.ts` the credential and what an ended session means, `token.ts` its storage, `errors.ts` the error shapes. Nothing here knows the router (C2, #167) |
+| `src/types/`      | Types matching the FastAPI schema, added as a screen needs one rather than up front (C2, #167; C21, #235)                                                                                                |
+| `src/components/` | The route error boundary, and shared presentational pieces — including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178)                                           |
 
 ## Talking to the API
 
