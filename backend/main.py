@@ -82,7 +82,18 @@ MACRO_SPLIT = {"protein": 0.30, "carbs": 0.40, "fat": 0.30}
 
 def compute_targets(weight_kg: float, height_cm: float, age: int,
                     sex: str, activity_level: str) -> dict:
-    """Mifflin-St Jeor BMR, then TDEE, then a macro split in grams."""
+    """Resting energy expenditure by Mifflin-St Jeor, then TDEE, then grams.
+
+    The equation is used exactly as published. It predicts resting energy
+    expenditure, not basal metabolic rate: the two are close and are often used
+    interchangeably, but REE is what the paper measured. The local variable is
+    still called bmr, which is the more familiar name for the same figure.
+
+    Mifflin, M. D., St Jeor, S. T., Hill, L. A., Scott, B. J., Daugherty, S. A.,
+    & Koh, Y. O. (1990). A new predictive equation for resting energy
+    expenditure in healthy individuals. The American Journal of Clinical
+    Nutrition, 51(2), 241-247. https://doi.org/10.1093/ajcn/51.2.241
+    """
     bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + (5 if sex == "male" else -161)
     tdee = bmr * ACTIVITY_FACTORS[activity_level]
     return {
