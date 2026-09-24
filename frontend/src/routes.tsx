@@ -38,37 +38,16 @@ const PATHS = {
   not_found: "*",
 } as const;
 
-// The guard on the signed-in layout. A loader runs before the route's
-// component renders, which is the whole of what ADR 002 bought over a
-// component-level check: no protected content appears and is then withdrawn.
-//
-// It answers one question — is there a credential on this browser? An expired
-// credential still looks like one from here, because only the API can reject
-// it. That is why recipesLoader below keeps its own SessionExpired catch: two
-// different failures, detected in two different places.
 function requireSession() {
   if (!readToken()) {
-    // Cleared on the way out for the same reason authed() clears it: what
-    // readToken rejects is not only an absent key but an empty one, and a
-    // guard that redirects while leaving that behind has not made its own
-    // postcondition true. After this line there is definitively no credential.
     clearToken();
 
-    // Thrown, not returned. Throwing abandons the navigation at this line, so
-    // nothing below it can run and no child loader's result can be mistaken
-    // for this route's data — the same idiom recipesLoader uses.
     throw redirect(PATHS.sign_in);
   }
 
-  // A loader must return something; undefined is not allowed. Null is the
-  // conventional answer from a loader that exists for its check rather than
-  // for data, and AppLayout reads nothing from it.
   return null;
 }
 
-// This file owns every address, so it is also where an ended session becomes
-// a destination. The API layer raises SessionExpired and says nothing about
-// where to send anyone, which is what keeps it free of the router.
 async function recipesLoader(): Promise<RecipeSummary[]> {
   try {
     return await authed<RecipeSummary[]>("/recipes");
@@ -81,10 +60,6 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
   }
 }
 
-// The one place a failed call is deliberately kept off the error boundary.
-// POST /login answers 401 for an unknown username and a wrong password
-// identically, by design, so an attacker cannot discover which accounts
-// exist — which makes the server's own message the answer this form shows.
 async function signInAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const credentials: SignIn = {
@@ -98,9 +73,6 @@ async function signInAction({ request: req }: ActionFunctionArgs) {
       body: JSON.stringify(credentials),
     });
 
-    // Storage can refuse the write in a private window. Redirecting anyway
-    // would send a correctly signed-in user to a protected route with no
-    // credential, bouncing them straight back here with nothing to diagnose.
     if (!writeToken(result.token)) {
       return "Could not sign you in on this browser. Check that site data is enabled, then try again.";
     }
@@ -115,30 +87,16 @@ async function signInAction({ request: req }: ActionFunctionArgs) {
   }
 }
 
-// FR-14 asks that signing out disposes the credential rather than merely
-// ceasing to send it. There is no POST /logout to call — the token is a
-// twelve-hour JWT with no server-side revocation — so disposal is this
-// removal and nothing else. An action rather than a click handler, so the
-// client's one non-API write still goes through the router.
 function signOutAction() {
   clearToken();
 
   return redirect(PATHS.sign_in);
 }
 
-// The same address reached by typing it rather than by submitting the form.
-// It disposes of nothing: a GET that changed the session would be mutated by
-// a prefetch or a bookmark. The route has no component, so without this a
-// real address would answer with a blank page.
 function signOutLoader() {
   return redirect(PATHS.home);
 }
 
-// One pathless parent carries the error boundary for every route beneath it.
-// Two more pathless parents beneath it carry the two layouts, so which shell
-// a screen renders inside is decided by where it sits in this tree and by
-// nothing else. The catch-all stays outside both: at an unmatched address the
-// application does not know which state the visitor is in.
 const routes = [
   {
     ErrorBoundary,

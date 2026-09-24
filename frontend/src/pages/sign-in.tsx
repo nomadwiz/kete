@@ -1,9 +1,5 @@
 import { Form, useActionData } from "react-router";
 
-// Minimal on purpose. C7 (#172) owns this page — its fields, labels,
-// validation and layout. What is here is the call path that proves /login is
-// reached without the credential machinery; replace it rather than building
-// around it.
 export default function SignIn() {
   const error = useActionData() as string | undefined;
 
