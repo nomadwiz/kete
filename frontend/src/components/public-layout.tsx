@@ -1,6 +1,7 @@
 import { Link, Outlet } from "react-router";
 
 import { PATHS } from "../routes";
+
 export default function PublicLayout() {
   return (
     <>
@@ -11,7 +12,9 @@ export default function PublicLayout() {
           <Link to={PATHS.sign_up}>Sign up</Link>
         </nav>
       </header>
-      <Outlet />
+      <main>
+        <Outlet />
+      </main>
     </>
   );
 }

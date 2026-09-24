@@ -30,7 +30,9 @@ export default function AppLayout() {
           <button type="submit">Sign out</button>
         </Form>
       </header>
-      <Outlet />
+      <main>
+        <Outlet />
+      </main>
     </>
   );
 }
