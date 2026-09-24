@@ -104,6 +104,27 @@ async function signUpAction({ request: req }: ActionFunctionArgs) {
   }
 }
 
+// Where a signed-in user starts. `GET /targets` answers 404 until the body
+// measurements have been saved, which ADR 001 settles; nothing reads the
+// measurements themselves back, so that status is the only signal there is.
+async function firstScreen(): Promise<string> {
+  try {
+    await authed<unknown>("/targets");
+
+    return PATHS.dashboard;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return PATHS.measurements;
+    }
+
+    // The sign-in itself already succeeded, so nothing this probe runs into is
+    // worth holding someone on the form for. `SessionExpired` lands here too:
+    // `authed` has cleared the token by then, so the guard on the signed-in
+    // layout turns this redirect straight back into sign-in.
+    return PATHS.dashboard;
+  }
+}
+
 async function signInAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const credentials: SignIn = {
@@ -111,24 +132,32 @@ async function signInAction({ request: req }: ActionFunctionArgs) {
     password: String(form.get("password") ?? ""),
   };
 
+  let result: SignInResult;
+
+  // Its own try, so that a 404 from the probe below cannot be mistaken for
+  // something this person typed and printed above the form.
   try {
-    const result = await request<SignInResult>("/login", {
+    result = await request<SignInResult>("/login", {
       method: "POST",
       body: JSON.stringify(credentials),
     });
-
-    if (!writeToken(result.token)) {
-      return "Could not sign you in on this browser. Check that site data is enabled, then try again.";
-    }
-
-    return redirect(PATHS.dashboard);
   } catch (error) {
+    // `request` rather than `authed`, deliberately: the API answers a wrong
+    // password with 401 so that an attacker cannot learn which usernames
+    // exist, and `authed` would read that as an expired session and clear a
+    // token this person may still hold in another tab.
     if (error instanceof ApiError) {
       return error.message;
     }
 
     throw error;
   }
+
+  if (!writeToken(result.token)) {
+    return "Could not sign you in on this browser. Check that site data is enabled, then try again.";
+  }
+
+  return redirect(await firstScreen());
 }
 
 function signOutAction() {

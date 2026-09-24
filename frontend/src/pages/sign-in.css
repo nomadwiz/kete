@@ -1,32 +1,46 @@
+/* The form keeps the page column, so it starts on the same line as the brand
+   above it -- centring the block instead puts the two on different alignments,
+   which reads as an accident at any width wide enough to notice. What it gains
+   is height: the block sits in the screen rather than hanging off the header.
+   The single track is minmax(0, ...) rather than an implicit auto one, because
+   an auto track cannot shrink below its content's minimum and an input's
+   minimum is about twenty characters -- which overflows a phone. */
 .sign-in {
   --form-width: 26rem;
+  --title: clamp(var(--text-xl), 6vw, 2.75rem);
 
+  display: grid;
+  grid-template-columns: minmax(0, var(--form-width));
+  align-content: center;
+  min-height: 72svh;
   max-width: var(--column);
   margin-inline: auto;
   padding-inline: var(--gutter);
   padding-block: clamp(var(--space-12), 8vw, var(--space-16));
 
+  /* Nothing competes with it here, so the heading takes the display setting
+     home.css uses rather than the one every other page heading takes. */
   .sign-in__title {
-    font-size: var(--text-xl);
-    font-stretch: 85%;
-    letter-spacing: -0.01em;
+    font-size: var(--title);
+    font-stretch: 82%;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
   }
 
-  /* Arrived here from sign-up. Kowhai fills the rule because the account was
-     made; the error block below uses ink, so the two never read alike. */
+  /* Arrived here from sign-up. This one is a note, so it is a line of text
+     against a kowhai rule and nothing more. The error below keeps the box: the
+     two say opposite things and should not share a silhouette. The difference
+     is weight rather than hue -- there is still no red in the palette, and the
+     words carry the meaning either way. */
   .sign-in__created {
     margin-top: var(--space-6);
-    max-width: var(--form-width);
-    padding: var(--space-3) var(--space-4);
-    background: var(--muka);
-    border: 1px solid var(--straw);
+    padding-left: var(--space-4);
     border-left: 3px solid var(--kowhai);
     font-size: var(--text-sm);
   }
 
   .sign-in__error {
     margin-top: var(--space-6);
-    max-width: var(--form-width);
     padding: var(--space-3) var(--space-4);
     background: var(--muka);
     border: 1px solid var(--straw);
@@ -38,7 +52,6 @@
     display: grid;
     gap: var(--space-6);
     margin-top: var(--space-8);
-    max-width: var(--form-width);
   }
 
   .sign-in__field {
@@ -67,9 +80,21 @@
       color 120ms ease;
   }
 
-  .sign-in__submit:hover {
+  .sign-in__submit:hover:not(:disabled) {
     background: var(--ink);
     color: var(--paper);
+  }
+
+  /* Sign-in makes two requests before it can say where the visitor goes, so the
+     wait is long enough to need saying. No hue carries it: the palette has none
+     spare, and the label already says what is happening. The rule is an inset
+     shadow rather than a border because the button has none, and gaining one
+     would shift the text by a pixel. */
+  .sign-in__submit:disabled {
+    background: var(--muka);
+    box-shadow: inset 0 0 0 1px var(--ink-soft);
+    color: var(--ink-soft);
+    cursor: default;
   }
 
   .sign-in__alt {
