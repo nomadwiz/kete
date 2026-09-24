@@ -1,4 +1,10 @@
-import { Form, Link, useActionData, useSearchParams } from "react-router";
+import {
+  Form,
+  Link,
+  useActionData,
+  useNavigation,
+  useSearchParams,
+} from "react-router";
 
 import { PATHS, QUERY } from "../routes";
 import "./sign-in.css";
@@ -7,6 +13,13 @@ export default function SignIn() {
   const error = useActionData() as string | undefined;
   const [params] = useSearchParams();
   const created = params.has(QUERY.account_created);
+
+  // Not `state === "submitting"`, which goes false the moment the action
+  // returns its redirect and would drop the button back to "Sign in" while the
+  // browser is still navigating. `formAction` stays set across both phases of a
+  // submission, and stays unset when the visitor merely follows a link.
+  const navigation = useNavigation();
+  const signingIn = navigation.formAction === PATHS.sign_in;
 
   return (
     <div className="sign-in">
@@ -24,7 +37,7 @@ export default function SignIn() {
         </p>
       ) : null}
 
-      <Form className="sign-in__form" method="post">
+      <Form className="sign-in__form" method="post" aria-busy={signingIn}>
         <div className="sign-in__field">
           <label className="sign-in__label" htmlFor="username-or-email">
             Username or email
@@ -50,8 +63,8 @@ export default function SignIn() {
           />
         </div>
 
-        <button className="sign-in__submit" type="submit">
-          Sign in
+        <button className="sign-in__submit" type="submit" disabled={signingIn}>
+          {signingIn ? "Signing in…" : "Sign in"}
         </button>
       </Form>
 
