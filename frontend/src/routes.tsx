@@ -20,7 +20,12 @@ import {
   SIGN_UP,
   TARGETS,
 } from "./pages";
-import type { SignIn, SignInResult } from "./types/auth";
+import type {
+  Register,
+  RegisterResult,
+  SignIn,
+  SignInResult,
+} from "./types/auth";
 import type { RecipeSummary } from "./types/recipe";
 
 const PATHS = {
@@ -36,6 +41,13 @@ const PATHS = {
   planner: "/planner",
   account: "/account",
   not_found: "*",
+} as const;
+
+// Query keys, beside the paths and for the same reason as ADR 002 gives for
+// them: written once here, imported by the screens that read them. State a
+// visitor would expect to survive a refresh belongs in the address.
+const QUERY = {
+  account_created: "created",
 } as const;
 
 function requireSession() {
@@ -54,6 +66,38 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
   } catch (error) {
     if (error instanceof SessionExpired) {
       throw redirect(PATHS.sign_in);
+    }
+
+    throw error;
+  }
+}
+
+async function signUpAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const details: Register = {
+    first_name: String(form.get("first_name") ?? ""),
+    last_name: String(form.get("last_name") ?? ""),
+    username: String(form.get("username") ?? ""),
+    email: String(form.get("email") ?? ""),
+    password: String(form.get("password") ?? ""),
+  };
+
+  try {
+    // Unauthenticated, so this is `request` rather than `authed`. The reply
+    // carries a user id and no token, so a new account still signs in.
+    await request<RegisterResult>("/register", {
+      method: "POST",
+      body: JSON.stringify(details),
+    });
+
+    return redirect(`${PATHS.sign_in}?${QUERY.account_created}=1`);
+  } catch (error) {
+    // Anything the API answered with is something this person can act on from
+    // this page — a taken username, a rejected email — and returning it keeps
+    // the five fields they typed. Only a request that never got an answer
+    // goes to the ErrorBoundary, because there is no form left to return to.
+    if (error instanceof ApiError) {
+      return error.message;
     }
 
     throw error;
@@ -105,7 +149,7 @@ const routes = [
         Component: PublicLayout,
         children: [
           { path: PATHS.home, Component: HOME },
-          { path: PATHS.sign_up, Component: SIGN_UP },
+          { path: PATHS.sign_up, Component: SIGN_UP, action: signUpAction },
           { path: PATHS.sign_in, Component: SIGN_IN, action: signInAction },
         ],
       },
@@ -132,4 +176,4 @@ const routes = [
   },
 ];
 
-export { PATHS, routes };
+export { PATHS, QUERY, routes };

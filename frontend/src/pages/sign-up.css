@@ -1,0 +1,100 @@
+.sign-up {
+  --form-width: 26rem;
+
+  max-width: var(--column);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+  padding-block: clamp(var(--space-12), 8vw, var(--space-16));
+
+  .sign-up__title {
+    font-size: var(--text-xl);
+    font-stretch: 85%;
+    letter-spacing: -0.01em;
+  }
+
+  .sign-up__lede {
+    margin-top: var(--space-3);
+    max-width: var(--measure);
+    color: var(--ink-soft);
+  }
+
+  /* No red in the palette, and none is added for this. The message carries by
+     position and by its words, which WCAG 2.1 asks for anyway — colour is
+     never the only thing saying what happened. */
+  .sign-up__error {
+    margin-top: var(--space-6);
+    max-width: var(--form-width);
+    padding: var(--space-3) var(--space-4);
+    background: var(--muka);
+    border: 1px solid var(--straw);
+    border-left: 3px solid var(--ink);
+    font-size: var(--text-sm);
+  }
+
+  .sign-up__form {
+    display: grid;
+    gap: var(--space-6);
+    margin-top: var(--space-8);
+    max-width: var(--form-width);
+  }
+
+  /* One name, so one row — until there is not room for one. */
+  .sign-up__pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+
+  .sign-up__field {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .sign-up__label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .sign-up__field input {
+    width: 100%;
+  }
+
+  .sign-up__hint {
+    font-size: var(--text-xs);
+    color: var(--ink-soft);
+  }
+
+  .sign-up__submit {
+    justify-self: start;
+    padding: 0.7em 1.4em;
+    border: 0;
+    background: var(--kowhai);
+    color: var(--ink);
+    font-weight: 600;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .sign-up__submit:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .sign-up__alt {
+    margin-top: var(--space-8);
+    font-size: var(--text-sm);
+    color: var(--ink-soft);
+  }
+
+  .sign-up__alt a {
+    color: var(--ink);
+  }
+
+  @media (max-width: 34rem) {
+    .sign-up__pair {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-6);
+    }
+  }
+}
