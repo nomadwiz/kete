@@ -43,9 +43,6 @@ const PATHS = {
   not_found: "*",
 } as const;
 
-// Query keys, beside the paths and for the same reason as ADR 002 gives for
-// them: written once here, imported by the screens that read them. State a
-// visitor would expect to survive a refresh belongs in the address.
 const QUERY = {
   account_created: "created",
 } as const;
@@ -92,10 +89,6 @@ async function signUpAction({ request: req }: ActionFunctionArgs) {
 
     return redirect(`${PATHS.sign_in}?${QUERY.account_created}=1`);
   } catch (error) {
-    // Anything the API answered with is something this person can act on from
-    // this page — a taken username, a rejected email — and returning it keeps
-    // the five fields they typed. Only a request that never got an answer
-    // goes to the ErrorBoundary, because there is no form left to return to.
     if (error instanceof ApiError) {
       return error.message;
     }
@@ -104,9 +97,6 @@ async function signUpAction({ request: req }: ActionFunctionArgs) {
   }
 }
 
-// Where a signed-in user starts. `GET /targets` answers 404 until the body
-// measurements have been saved, which ADR 001 settles; nothing reads the
-// measurements themselves back, so that status is the only signal there is.
 async function firstScreen(): Promise<string> {
   try {
     await authed<unknown>("/targets");
@@ -117,15 +107,12 @@ async function firstScreen(): Promise<string> {
       return PATHS.measurements;
     }
 
-    // The sign-in itself already succeeded, so nothing this probe runs into is
-    // worth holding someone on the form for. `SessionExpired` lands here too:
-    // `authed` has cleared the token by then, so the guard on the signed-in
-    // layout turns this redirect straight back into sign-in.
     return PATHS.dashboard;
   }
 }
 
 async function signInAction({ request: req }: ActionFunctionArgs) {
+  console.log("hello");
   const form = await req.formData();
   const credentials: SignIn = {
     username_or_email: String(form.get("username_or_email") ?? ""),
@@ -134,18 +121,12 @@ async function signInAction({ request: req }: ActionFunctionArgs) {
 
   let result: SignInResult;
 
-  // Its own try, so that a 404 from the probe below cannot be mistaken for
-  // something this person typed and printed above the form.
   try {
     result = await request<SignInResult>("/login", {
       method: "POST",
       body: JSON.stringify(credentials),
     });
   } catch (error) {
-    // `request` rather than `authed`, deliberately: the API answers a wrong
-    // password with 401 so that an attacker cannot learn which usernames
-    // exist, and `authed` would read that as an expired session and clear a
-    // token this person may still hold in another tab.
     if (error instanceof ApiError) {
       return error.message;
     }
