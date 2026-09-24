@@ -4,7 +4,7 @@ export default function SignIn() {
   const error = useActionData() as string | undefined;
 
   return (
-    <main>
+    <>
       <h1>Sign in</h1>
       {error ? <p role="alert">{error}</p> : null}
       <Form method="post">
@@ -23,6 +23,6 @@ export default function SignIn() {
         </label>
         <button type="submit">Sign in</button>
       </Form>
-    </main>
+    </>
   );
 }

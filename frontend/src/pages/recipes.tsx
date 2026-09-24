@@ -6,7 +6,7 @@ export default function Recipes() {
   const recipes = useLoaderData() as RecipeSummary[];
 
   return (
-    <main>
+    <>
       <h1>Recipes</h1>
       {recipes.length === 0 ? (
         <p>No recipes yet.</p>
@@ -19,6 +19,6 @@ export default function Recipes() {
           ))}
         </ul>
       )}
-    </main>
+    </>
   );
 }
