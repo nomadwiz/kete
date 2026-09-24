@@ -2,10 +2,13 @@ import { Link, Outlet } from "react-router";
 
 import { PATHS } from "../routes";
 
+<<<<<<< Updated upstream
 // The signed-out shell, over the three public addresses. Static on purpose:
 // it offers "Sign in" even to a visitor who already holds a credential,
 // because what the public home page owes a signed-in user is C5 (#170)'s
 // decision and not this issue's.
+=======
+>>>>>>> Stashed changes
 export default function PublicLayout() {
   return (
     <>

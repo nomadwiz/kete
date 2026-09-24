@@ -2,6 +2,7 @@ import { Form, Link, NavLink, Outlet } from "react-router";
 
 import { PATHS } from "../routes";
 
+<<<<<<< Updated upstream
 // The signed-in shell, over the seven protected addresses. Everything it
 // draws is reachable without the API — six links and a form — which is what
 // keeps C4 (#169) free of the dependency on C3 (#168) that eleven other
@@ -12,6 +13,9 @@ export default function AppLayout() {
   // from it, so while the modules are evaluating PATHS is still in its
   // temporal dead zone and reading it would throw. Inside the function body
   // it is read at render, by which time both modules have finished.
+=======
+export default function AppLayout() {
+>>>>>>> Stashed changes
   const areas = [
     { to: PATHS.dashboard, label: "Dashboard" },
     { to: PATHS.measurements, label: "Measurements" },
@@ -34,9 +38,13 @@ export default function AppLayout() {
             ))}
           </ul>
         </nav>
+<<<<<<< Updated upstream
         {/* A form rather than a button with a click handler, so that the one
             write this shell performs goes through the router like every
             other write in the client. */}
+=======
+
+>>>>>>> Stashed changes
         <Form method="post" action={PATHS.sign_out}>
           <button type="submit">Sign out</button>
         </Form>
