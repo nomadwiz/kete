@@ -27,6 +27,7 @@ const PATHS = {
   home: "/",
   sign_up: "/sign-up",
   sign_in: "/sign-in",
+  sign_out: "/sign-out",
   measurements: "/measurements",
   targets: "/targets",
   dashboard: "/dashboard",
@@ -114,6 +115,25 @@ async function signInAction({ request: req }: ActionFunctionArgs) {
   }
 }
 
+// FR-14 asks that signing out disposes the credential rather than merely
+// ceasing to send it. There is no POST /logout to call — the token is a
+// twelve-hour JWT with no server-side revocation — so disposal is this
+// removal and nothing else. An action rather than a click handler, so the
+// client's one non-API write still goes through the router.
+function signOutAction() {
+  clearToken();
+
+  return redirect(PATHS.sign_in);
+}
+
+// The same address reached by typing it rather than by submitting the form.
+// It disposes of nothing: a GET that changed the session would be mutated by
+// a prefetch or a bookmark. The route has no component, so without this a
+// real address would answer with a blank page.
+function signOutLoader() {
+  return redirect(PATHS.home);
+}
+
 // One pathless parent carries the error boundary for every route beneath it.
 // Two more pathless parents beneath it carry the two layouts, so which shell
 // a screen renders inside is decided by where it sits in this tree and by
@@ -143,6 +163,11 @@ const routes = [
           { path: PATHS.planner, Component: PLANNER },
           { path: PATHS.account, Component: ACCOUNT },
         ],
+      },
+      {
+        path: PATHS.sign_out,
+        action: signOutAction,
+        loader: signOutLoader,
       },
       { path: PATHS.not_found, Component: NOT_FOUND },
     ],

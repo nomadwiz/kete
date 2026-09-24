@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from "react-router";
+import { Form, Link, NavLink, Outlet } from "react-router";
 
 import { PATHS } from "../routes";
 
@@ -34,6 +34,12 @@ export default function AppLayout() {
             ))}
           </ul>
         </nav>
+        {/* A form rather than a button with a click handler, so that the one
+            write this shell performs goes through the router like every
+            other write in the client. */}
+        <Form method="post" action={PATHS.sign_out}>
+          <button type="submit">Sign out</button>
+        </Form>
       </header>
       <Outlet />
     </>
