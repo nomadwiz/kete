@@ -13,11 +13,6 @@ export default function SignIn() {
   const error = useActionData() as string | undefined;
   const [params] = useSearchParams();
   const created = params.has(QUERY.account_created);
-
-  // Not `state === "submitting"`, which goes false the moment the action
-  // returns its redirect and would drop the button back to "Sign in" while the
-  // browser is still navigating. `formAction` stays set across both phases of a
-  // submission, and stays unset when the visitor merely follows a link.
   const navigation = useNavigation();
   const signingIn = navigation.formAction === PATHS.sign_in;
 
