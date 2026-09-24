@@ -4,13 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one route error boundary catches what loaders and actions throw, and two screens are wired through them: `/recipes` loads its list and `/sign-in` posts to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. The remaining pages render their own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one route error boundary catches what loaders and actions throw, and two screens are wired through them: `/recipes` loads its list and `/sign-in` posts to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/` is built and styled, and calls no API. The remaining pages render their own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| Nine of the eleven pages are placeholders                        | #170–#184                        |
+| Eight of the eleven pages are placeholders                       | #171–#184                        |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | No tests of the client's security behaviour                      | C22 (#236)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
@@ -52,11 +52,12 @@ Sign out is a route action at `/sign-out` rather than a click handler, so the on
 
 | Path              | What belongs there                                                                                                                                                                                       |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.css`   | The tokens every screen is styled from, a light reset, and base element styling. The one global stylesheet; nothing page-specific belongs in it (C5, #170)                                               |
 | `src/routes.tsx`  | Every path string, once; the route objects; their loaders and actions                                                                                                                                    |
-| `src/pages/`      | One file per page                                                                                                                                                                                        |
+| `src/pages/`      | One file per page, and beside it that page's stylesheet                                                                                                                                                  |
 | `src/api/`        | Talking to the API: `http.ts` the transport, `session.ts` the credential and what an ended session means, `token.ts` its storage, `errors.ts` the error shapes. Nothing here knows the router (C2, #167) |
 | `src/types/`      | Types matching the FastAPI schema, added as a screen needs one rather than up front (C2, #167; C21, #235)                                                                                                |
-| `src/components/` | The route error boundary, the two layouts, and shared presentational pieces — including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178)                          |
+| `src/components/` | The route error boundary, the two layouts and their stylesheets, and shared presentational pieces — including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178)    |
 
 ## Talking to the API
 
