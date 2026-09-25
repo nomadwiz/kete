@@ -4,13 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one route error boundary catches what loaders and actions throw, and four screens are wired through them: `/recipes` loads its list, and `/sign-in`, `/sign-up` and `/measurements` each post to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in` and `/measurements` are built and styled. The remaining pages render their own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one route error boundary catches what loaders and actions throw, and five screens are wired through them: `/recipes` and `/targets` load through a loader, and `/sign-in`, `/sign-up` and `/measurements` each post to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements` and `/targets` are built and styled. The remaining pages render their own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| Six of the eleven pages are placeholders                         | #174–#184                        |
+| Five of the eleven pages are placeholders                        | #175–#184                        |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | No tests of the client's security behaviour                      | C22 (#236)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
@@ -63,6 +63,16 @@ Sign out is a route action at `/sign-out` rather than a click handler, so the on
 **Validation is the browser's, and it mirrors the server.** `required` on every field, `type="email"`, and `minLength={8}` against `Field(min_length=8)` on `RegisterIn` in [`../backend/main.py`](../backend/main.py); on `/measurements`, `type="number"` with the `min`, `max` and `step` of each bound on `MetricsIn` in the same file, and a `<select>` per enumeration so a value outside it cannot be typed. Change one side of any of those pairs and the other is now wrong. The password rule is also written on screen and tied to the input with `aria-describedby`, so it is known before submitting rather than after.
 
 **`PublicLayout`'s header drops its account links on `/sign-up` and `/sign-in`.** Each of those two already links to the other beneath its own button, which is where someone who picked the wrong one looks; the brand stays, so there is always a way back to `/`.
+
+## The targets screen
+
+`/targets` reads through `targetsLoader` in [`src/routes.tsx`](src/routes.tsx) and renders what it is given. It computes nothing: each figure is printed as the API sent it, and the only arithmetic on the screen is turning a timestamp into a date.
+
+**A 404 from `GET /targets` is a state, not a failure.** The endpoint answers it until measurements have been saved — `firstScreen` relies on the same fact to decide where a fresh sign-in lands. So the loader catches that one status, answers `null`, and the screen renders a panel pointing at `/measurements`. The alternative was to rethrow and let the `ErrorBoundary` have it, which was declined for a reason worth knowing: the boundary sits on the outermost pathless parent, so it replaces `AppLayout` and the navigation with it (#243), and a person who has simply not filled the form in yet would be told something went wrong and left with no link to the form. Where that check belongs for a returning user who still holds a valid token is a routing question, and it is #248's to answer rather than this screen's.
+
+**The date is formatted on a fixed locale, not the reader's.** `en-NZ`, assembled from `formatToParts` because that locale's own separator is a slash, so the line reads `dd-mm-yyyy HH:MM` on any machine. A screenshot of this screen goes in the report, and a browser set to `en-US` would otherwise put `09/25/2026` in front of a marker reading documents that say `25-09-2026`. An unparseable value drops the line rather than throwing, because losing the four figures over the note beneath them is the wrong trade.
+
+**The note says where the figures come from and stops before saying how energy is divided.** `MACRO_SPLIT` in [`../backend/main.py`](../backend/main.py) carries `TODO: team to confirm the split`, and the proportions are marked `[CITE]` in `doc/design/product.md` in the documents repository `nomadwiz/kete-doc`. A proportion printed here would read, on screen and later in a screenshot, exactly like a sourced figure — which is the reasoning `/measurements` used for leaving its activity levels undescribed. The activity factors and the four-and-nine gram conversions stand on the same footing.
 
 ## Where things go
 
