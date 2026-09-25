@@ -28,6 +28,7 @@ import type {
 } from "./types/auth";
 import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
 import type { RecipeSummary } from "./types/recipe";
+import type { Targets } from "./types/targets";
 
 const PATHS = {
   home: "/",
@@ -64,6 +65,29 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
   } catch (error) {
     if (error instanceof SessionExpired) {
       throw redirect(PATHS.sign_in);
+    }
+
+    throw error;
+  }
+}
+
+// Null is a state and not a failure. GET /targets answers 404 until
+// measurements have been saved, which ADR 002's sibling ADR 001 records and
+// which firstScreen() below already relies on, so the screen renders its own
+// empty panel for it. Rethrowing would reach the error boundary, and the
+// boundary sits on the outermost parent -- it would take AppLayout and the
+// navigation with it (nomadwiz/kete#243), leaving a user who has simply not
+// filled the form yet with no way to reach it.
+async function targetsLoader(): Promise<Targets | null> {
+  try {
+    return await authed<Targets>("/targets");
+  } catch (error) {
+    if (error instanceof SessionExpired) {
+      throw redirect(PATHS.sign_in);
+    }
+
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
     }
 
     throw error;
@@ -212,7 +236,7 @@ const routes = [
             Component: MEASUREMENT,
             action: measurementsAction,
           },
-          { path: PATHS.targets, Component: TARGETS },
+          { path: PATHS.targets, Component: TARGETS, loader: targetsLoader },
           { path: PATHS.recipes, Component: RECIPES, loader: recipesLoader },
           { path: PATHS.recipe, Component: RECIPE_DETAIL },
           { path: PATHS.planner, Component: PLANNER },
