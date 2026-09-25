@@ -26,6 +26,7 @@ import type {
   SignIn,
   SignInResult,
 } from "./types/auth";
+import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
 import type { RecipeSummary } from "./types/recipe";
 
 const PATHS = {
@@ -67,6 +68,44 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
 
     throw error;
   }
+}
+
+async function measurementsAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+
+  // The two casts assert what the selects offer and the server enforces: each
+  // is a Literal in backend/main.py, so a value from anywhere else is answered
+  // 422 rather than silently computing a target from the wrong factor. The
+  // numbers need no such guard -- Number(null) is 0, which the server rejects.
+  const metrics: Metrics = {
+    weight_kg: Number(form.get("weight_kg")),
+    height_cm: Number(form.get("height_cm")),
+    age: Number(form.get("age")),
+    sex: String(form.get("sex") ?? "") as Sex,
+    activity_level: String(form.get("activity_level") ?? "") as ActivityLevel,
+  };
+
+  try {
+    // The response carries the targets this save computed. They are discarded:
+    // the screen this redirects to reads them from GET /targets, so there is
+    // one place that renders them rather than two that can disagree.
+    await authed<unknown>("/profile/metrics", {
+      method: "POST",
+      body: JSON.stringify(metrics),
+    });
+  } catch (error) {
+    if (error instanceof SessionExpired) {
+      throw redirect(PATHS.sign_in);
+    }
+
+    if (error instanceof ApiError) {
+      return error.message;
+    }
+
+    throw error;
+  }
+
+  return redirect(PATHS.targets);
 }
 
 async function signUpAction({ request: req }: ActionFunctionArgs) {
@@ -168,7 +207,11 @@ const routes = [
         loader: requireSession,
         children: [
           { path: PATHS.dashboard, Component: DASHBOARD },
-          { path: PATHS.measurements, Component: MEASUREMENT },
+          {
+            path: PATHS.measurements,
+            Component: MEASUREMENT,
+            action: measurementsAction,
+          },
           { path: PATHS.targets, Component: TARGETS },
           { path: PATHS.recipes, Component: RECIPES, loader: recipesLoader },
           { path: PATHS.recipe, Component: RECIPE_DETAIL },
