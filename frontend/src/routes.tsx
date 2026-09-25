@@ -72,12 +72,12 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
 }
 
 // Null is a state and not a failure. GET /targets answers 404 until
-// measurements have been saved, which ADR 002's sibling ADR 001 records and
-// which firstScreen() below already relies on, so the screen renders its own
-// empty panel for it. Rethrowing would reach the error boundary, and the
-// boundary sits on the outermost parent -- it would take AppLayout and the
-// navigation with it (nomadwiz/kete#243), leaving a user who has simply not
-// filled the form yet with no way to reach it.
+// measurements have been saved, which ADR 001 records and which firstScreen()
+// below already relies on, so the screen renders its own empty panel for it
+// rather than rethrowing. The error boundary now renders inside AppLayout, so
+// a rethrow would no longer cost the navigation -- but it would still tell a
+// user who has simply not filled the form in yet that something went wrong,
+// which is the wrong answer whatever survives around it.
 async function targetsLoader(): Promise<Targets | null> {
   try {
     return await authed<Targets>("/targets");
@@ -229,17 +229,37 @@ const routes = [
         Component: AppLayout,
         loader: requireSession,
         children: [
-          { path: PATHS.dashboard, Component: DASHBOARD },
+          // The same ErrorBoundary as the one above, mounted a second time on a
+          // route with no path and no component of its own. React Router renders
+          // a boundary at the route carrying it, so the outer mount replaces
+          // AppLayout and the navigation with it; this one is nested inside
+          // AppLayout, so a failed page renders into its outlet and the
+          // navigation survives. Putting the boundary on AppLayout itself does
+          // not work -- that route would be the one it replaces. ADR 003.
           {
-            path: PATHS.measurements,
-            Component: MEASUREMENT,
-            action: measurementsAction,
+            ErrorBoundary,
+            children: [
+              { path: PATHS.dashboard, Component: DASHBOARD },
+              {
+                path: PATHS.measurements,
+                Component: MEASUREMENT,
+                action: measurementsAction,
+              },
+              {
+                path: PATHS.targets,
+                Component: TARGETS,
+                loader: targetsLoader,
+              },
+              {
+                path: PATHS.recipes,
+                Component: RECIPES,
+                loader: recipesLoader,
+              },
+              { path: PATHS.recipe, Component: RECIPE_DETAIL },
+              { path: PATHS.planner, Component: PLANNER },
+              { path: PATHS.account, Component: ACCOUNT },
+            ],
           },
-          { path: PATHS.targets, Component: TARGETS, loader: targetsLoader },
-          { path: PATHS.recipes, Component: RECIPES, loader: recipesLoader },
-          { path: PATHS.recipe, Component: RECIPE_DETAIL },
-          { path: PATHS.planner, Component: PLANNER },
-          { path: PATHS.account, Component: ACCOUNT },
         ],
       },
       {
