@@ -157,6 +157,14 @@ class MetricsIn(BaseModel):
     activity_level: Activity
 
 
+class MetricsOut(BaseModel):
+    weight_kg: float
+    height_cm: float
+    age: int
+    sex: Sex
+    activity_level: Activity
+
+
 class TargetsOut(BaseModel):
     energy_kcal: int
     protein_g: int
@@ -372,6 +380,27 @@ def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
                       carbs_g=int(target.carbs_g),
                       fat_g=int(target.fat_g),
                       computed_at=target.computed_at)
+
+
+@app.get("/profile/metrics", response_model=MetricsOut, tags=["profile"])
+def get_metrics(user_id: int = Depends(current_user_id),
+                db: Session = Depends(get_db)):
+    """Read back the saved body metrics, so the form can prefill.
+
+    Separate from GET /profile on purpose: `profiles` is the most sensitive
+    table in the system, and the account screen has no use for it. These five
+    figures travel only when something asks for them by name.
+    """
+    profile = db.query(models.Profile).filter_by(user_id=user_id).first()
+    if profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No measurements yet — save your body metrics first")
+    return MetricsOut(weight_kg=float(profile.weight_kg),
+                      height_cm=float(profile.height_cm),
+                      age=int(profile.age),
+                      sex=profile.sex,
+                      activity_level=profile.activity_level)
 
 
 @app.get("/targets", response_model=TargetsOut, tags=["profile"])
