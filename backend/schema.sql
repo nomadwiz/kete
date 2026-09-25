@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS plan_slots (
                    REFERENCES users(user_id) ON DELETE CASCADE,
     recipe_id      INTEGER NOT NULL
                    REFERENCES recipes(recipe_id) ON DELETE CASCADE,
-    week           VARCHAR(20) NOT NULL,          -- ISO week or week-start date
+    week           VARCHAR(20) NOT NULL           -- ISO 8601 week, e.g. 2026-W39
+                   CONSTRAINT ck_slot_week
+                   CHECK (week ~ '^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$'),
     day_of_week    VARCHAR(10) NOT NULL CHECK (day_of_week IN
                        ('Mon','Tue','Wed','Thu','Fri','Sat','Sun')),
     meal_position  VARCHAR(20) NOT NULL CHECK (meal_position IN

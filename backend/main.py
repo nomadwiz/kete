@@ -19,7 +19,8 @@ Interactive docs: http://localhost:8000/docs
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, File
+from fastapi import (Depends, FastAPI, HTTPException, Path, Query, Response,
+                     UploadFile, File)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
@@ -111,6 +112,11 @@ Sex = Literal["male", "female"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 MealPosition = Literal["breakfast", "lunch", "dinner"]
 Day = Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+# ISO 8601 week, e.g. 2026-W39. Weeks run 01 to 53, so 00 and 54 are refused.
+# One definition for all four places a week enters, and the same expression is
+# repeated as a database check so the two tiers cannot disagree about it.
+WEEK_PATTERN = r"^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$"
 
 
 class RegisterIn(BaseModel):
@@ -220,7 +226,7 @@ class PlanSlotOut(BaseModel):
 
 class PlanSlotIn(BaseModel):
     recipe_id: int
-    week: str
+    week: str = Field(pattern=WEEK_PATTERN)
     day_of_week: Day
     meal_position: MealPosition
 
@@ -230,7 +236,7 @@ class PlanSlotCreatedOut(BaseModel):
 
 
 class GenerateIn(BaseModel):
-    week: str
+    week: str = Field(pattern=WEEK_PATTERN)
 
 
 class GenerateOut(BaseModel):
@@ -550,7 +556,8 @@ def _slot_out(s: models.PlanSlot) -> PlanSlotOut:
 
 
 @app.get("/mealplan", response_model=list[PlanSlotOut], tags=["mealplan"])
-def get_mealplan(week: str, user_id: int = Depends(current_user_id),
+def get_mealplan(week: str = Query(pattern=WEEK_PATTERN),
+                 user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)):
     """The week's plan, each slot with its recipe and its per-serving nutrition.
 
@@ -634,7 +641,8 @@ def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
 
 
 @app.delete("/mealplan/week/{week}", status_code=204, tags=["mealplan"])
-def clear_week(week: str, user_id: int = Depends(current_user_id),
+def clear_week(week: str = Path(pattern=WEEK_PATTERN),
+               user_id: int = Depends(current_user_id),
                db: Session = Depends(get_db)):
     """Empty an entire week. Recipes themselves are untouched."""
     db.query(models.PlanSlot).filter_by(user_id=user_id, week=week).delete()
