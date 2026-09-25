@@ -175,7 +175,6 @@ async function firstScreen(): Promise<string> {
 }
 
 async function signInAction({ request: req }: ActionFunctionArgs) {
-  console.log("hello");
   const form = await req.formData();
   const credentials: SignIn = {
     username_or_email: String(form.get("username_or_email") ?? ""),
