@@ -4,13 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one route error boundary catches what loaders and actions throw, and three screens are wired through them: `/recipes` loads its list, and `/sign-in` and `/sign-up` each post to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up` and `/sign-in` are built and styled. The remaining pages render their own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one route error boundary catches what loaders and actions throw, and four screens are wired through them: `/recipes` loads its list, and `/sign-in`, `/sign-up` and `/measurements` each post to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in` and `/measurements` are built and styled. The remaining pages render their own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| Seven of the eleven pages are placeholders                       | #172–#184                        |
+| Six of the eleven pages are placeholders                         | #174–#184                        |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | No tests of the client's security behaviour                      | C22 (#236)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
@@ -48,19 +48,21 @@ Sign out is a route action at `/sign-out` rather than a click handler, so the on
 
 `AppLayout` calls no API. Naming the signed-in user there would mean `GET /profile`, and the shell would then need a reachable API to render at all.
 
-## The two form screens
+## The form screens
 
-`/sign-up` and `/sign-in` are the same shape, and each is a `Form` posting to an action in [`src/routes.tsx`](src/routes.tsx). Neither reads the API any other way, which is what ADR 002 asks of every screen.
+`/sign-up`, `/sign-in` and `/measurements` are the same shape, and each is a `Form` posting to an action in [`src/routes.tsx`](src/routes.tsx). None reads the API any other way, which is what ADR 002 asks of every screen.
 
 **Registering does not sign anyone in.** `POST /register` answers with a user id and no token, so `signUpAction` redirects to `/sign-in` rather than to the dashboard. The alternative was to chain a second `POST /login` inside the same action and land on `/dashboard`; it saves one step and was declined, because a register that succeeds followed by a login that fails leaves an account made and the person reading an error on the page that asked them to make it.
+
+**Saving measurements discards what the save answered with.** `POST /profile/metrics` writes the five figures and returns the targets computed from them, in one transaction. `measurementsAction` throws that body away and redirects to `/targets`, which reads them through `GET /targets` — one screen renders a target rather than two that can disagree, and the cost is the second request. The five figures are sent every time because the endpoint takes no partial update.
 
 **The confirmation travels in the address, not in memory.** That redirect carries `?created=1`, and `/sign-in` renders "Account created. Sign in to start." when it is present. The key is a named constant exported from `src/routes.tsx` beside the paths, for the reason ADR 002 gives for the paths themselves, and it holds a flag rather than the new username — a name in the address is a name in browser history and in every log between here and the host.
 
 **What the action returns and what it throws decide which surface the person sees.** A failure the API answered with is returned, so `useActionData` puts the server's own message above the form and the typed fields survive; the 409 that `POST /register` raises for a taken username or email arrives this way, and `messageFrom` in [`src/api/errors.ts`](src/api/errors.ts) has already flattened both of the API's `detail` shapes into text. A request that got no answer at all is rethrown to the `ErrorBoundary`, because there is no form left to return to.
 
-**Validation is the browser's, and it mirrors the server.** `required` on every field, `type="email"`, and `minLength={8}` against `Field(min_length=8)` on `RegisterIn` in [`../backend/main.py`](../backend/main.py). Change one of those two and the other is now wrong. The password rule is also written on screen and tied to the input with `aria-describedby`, so it is known before submitting rather than after.
+**Validation is the browser's, and it mirrors the server.** `required` on every field, `type="email"`, and `minLength={8}` against `Field(min_length=8)` on `RegisterIn` in [`../backend/main.py`](../backend/main.py); on `/measurements`, `type="number"` with the `min`, `max` and `step` of each bound on `MetricsIn` in the same file, and a `<select>` per enumeration so a value outside it cannot be typed. Change one side of any of those pairs and the other is now wrong. The password rule is also written on screen and tied to the input with `aria-describedby`, so it is known before submitting rather than after.
 
-**The header drops its account links on both of these screens.** Each form already links to the other beneath its own button, which is where someone who picked the wrong one looks; the brand stays, so there is always a way back to `/`.
+**`PublicLayout`'s header drops its account links on `/sign-up` and `/sign-in`.** Each of those two already links to the other beneath its own button, which is where someone who picked the wrong one looks; the brand stays, so there is always a way back to `/`.
 
 ## Where things go
 
