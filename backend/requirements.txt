@@ -1,18 +1,33 @@
-# Minimum versions rather than exact pins, so pip picks a build that matches
-# whatever Python version you have.
+# Exact pins. These are the versions the API has actually been run and tested
+# against, so a clean environment gets the same behaviour rather than whatever
+# has been released since.
+#
+# The extras matter as much as the versions: uvicorn[standard] brings the fast
+# HTTP and file-watching implementations, and pydantic[email] brings the
+# validator behind EmailStr. Dropping either bracket silently changes what is
+# installed while the version still looks right.
+#
+# Only the nine direct dependencies are pinned. Their own dependencies are left
+# to pip, which keeps this file readable and keeps platform-specific packages —
+# colorama and the rest of uvicorn[standard]'s Windows-side extras — out of what
+# the Linux server installs. If a transitive release ever breaks a build, the
+# answer is a separate lock file, not more lines here.
+#
+# Read from a working environment on 25-09-2026, Python 3.14 on Windows. The
+# deployment target runs a different Python, so confirm wheels exist for it when
+# the instance is built (K4, nomadwiz/kete#190).
 
 # API
-fastapi>=0.115
-uvicorn[standard]>=0.30
-pydantic[email]>=2.9
-PyJWT>=2.9
-python-multipart>=0.0.9
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic[email]==2.13.4
+PyJWT==2.13.0
+python-multipart==0.0.32
 
 # Database
-SQLAlchemy>=2.0
-psycopg2-binary>=2.9
-python-dotenv>=1.0
+SQLAlchemy==2.0.52
+psycopg2-binary==2.9.12
+python-dotenv==1.2.3
 
 # Cloud storage
-
-boto3>=1.35
+boto3==1.43.94
