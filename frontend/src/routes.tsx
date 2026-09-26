@@ -71,13 +71,19 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
   }
 }
 
+// Shared by /targets and /dashboard, which ask the same question of the same
+// endpoint. One function rather than two copies, although this is only the
+// second occurrence and the house rule extracts on the third: what is shared
+// is the knowledge that a 404 here means no measurements saved, and ADR 004
+// requires that rule live in one place.
+//
 // Null is a state and not a failure. GET /targets answers 404 until
-// measurements have been saved, which ADR 002's sibling ADR 001 records and
-// which firstScreen() below already relies on, so the screen renders its own
-// empty panel for it. Rethrowing would reach the error boundary, and the
-// boundary sits on the outermost parent -- it would take AppLayout and the
-// navigation with it (nomadwiz/kete#243), leaving a user who has simply not
-// filled the form yet with no way to reach it.
+// measurements have been saved, which ADR 001 records, so a screen renders its
+// own empty panel for it rather than rethrowing. The error boundary now
+// renders inside AppLayout, so a rethrow would no longer cost the navigation
+// -- but it would still tell a user who has simply not filled the form in yet
+// that something went wrong, which is the wrong answer whatever survives
+// around it.
 async function targetsLoader(): Promise<Targets | null> {
   try {
     return await authed<Targets>("/targets");
@@ -160,20 +166,6 @@ async function signUpAction({ request: req }: ActionFunctionArgs) {
   }
 }
 
-async function firstScreen(): Promise<string> {
-  try {
-    await authed<unknown>("/targets");
-
-    return PATHS.dashboard;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      return PATHS.measurements;
-    }
-
-    return PATHS.dashboard;
-  }
-}
-
 async function signInAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const credentials: SignIn = {
@@ -200,7 +192,11 @@ async function signInAction({ request: req }: ActionFunctionArgs) {
     return "Could not sign you in on this browser. Check that site data is enabled, then try again.";
   }
 
-  return redirect(await firstScreen());
+  // Unconditionally. A user with no saved measurements is told so by the
+  // dashboard rather than routed around it -- ADR 004 -- which covers the
+  // returning user who still holds a valid token and never reaches this
+  // action at all. It also drops a round trip the destination repeats.
+  return redirect(PATHS.dashboard);
 }
 
 function signOutAction() {
@@ -229,17 +225,41 @@ const routes = [
         Component: AppLayout,
         loader: requireSession,
         children: [
-          { path: PATHS.dashboard, Component: DASHBOARD },
+          // The same ErrorBoundary as the one above, mounted a second time on a
+          // route with no path and no component of its own. React Router renders
+          // a boundary at the route carrying it, so the outer mount replaces
+          // AppLayout and the navigation with it; this one is nested inside
+          // AppLayout, so a failed page renders into its outlet and the
+          // navigation survives. Putting the boundary on AppLayout itself does
+          // not work -- that route would be the one it replaces. ADR 003.
           {
-            path: PATHS.measurements,
-            Component: MEASUREMENT,
-            action: measurementsAction,
+            ErrorBoundary,
+            children: [
+              {
+                path: PATHS.dashboard,
+                Component: DASHBOARD,
+                loader: targetsLoader,
+              },
+              {
+                path: PATHS.measurements,
+                Component: MEASUREMENT,
+                action: measurementsAction,
+              },
+              {
+                path: PATHS.targets,
+                Component: TARGETS,
+                loader: targetsLoader,
+              },
+              {
+                path: PATHS.recipes,
+                Component: RECIPES,
+                loader: recipesLoader,
+              },
+              { path: PATHS.recipe, Component: RECIPE_DETAIL },
+              { path: PATHS.planner, Component: PLANNER },
+              { path: PATHS.account, Component: ACCOUNT },
+            ],
           },
-          { path: PATHS.targets, Component: TARGETS, loader: targetsLoader },
-          { path: PATHS.recipes, Component: RECIPES, loader: recipesLoader },
-          { path: PATHS.recipe, Component: RECIPE_DETAIL },
-          { path: PATHS.planner, Component: PLANNER },
-          { path: PATHS.account, Component: ACCOUNT },
         ],
       },
       {
