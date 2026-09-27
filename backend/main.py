@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 import models
@@ -252,6 +253,42 @@ class GenerateOut(BaseModel):
 
 
 # ==========================================================================
+# Conflicts
+# ==========================================================================
+UNIQUE_VIOLATION = "23505"   # PostgreSQL's SQLSTATE for a unique-constraint clash
+
+
+def _commit_or_409(db: Session, detail) -> None:
+    """Commit, answering a unique-constraint clash with 409 rather than a 500.
+
+    Every endpoint that can clash checks first, for a friendly message. The
+    check alone is not enough: two requests can both pass it before either
+    commits, and then the database's constraint refuses the second. Without
+    this, that refusal escapes as an unhandled IntegrityError — a 500.
+
+    `detail` is the message, or a function of the constraint's name when the
+    message depends on which constraint fired. Only a unique clash becomes a
+    409; a foreign-key or check failure is a bug, and still surfaces as one.
+    """
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if getattr(exc.orig, "pgcode", None) != UNIQUE_VIOLATION:
+            raise
+        constraint = exc.orig.diag.constraint_name or ""
+        raise HTTPException(
+            status_code=409,
+            detail=detail(constraint) if callable(detail) else detail) from exc
+
+
+def _taken(constraint: str) -> str:
+    """The pre-check's wording, from users_username_key or users_email_key."""
+    field = "email" if "email" in constraint else "username"
+    return f"That {field} is already taken"
+
+
+# ==========================================================================
 # 1-2  Auth  (PUBLIC — no token)
 # ==========================================================================
 @app.post("/register", response_model=RegisterOut, status_code=201, tags=["auth"])
@@ -272,9 +309,9 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
         email=body.email,
         password_hash=hash_password(body.password),
     )
-    db.add(user)       # stage the new row
-    db.commit()        # actually write it
-    db.refresh(user)   # read back what the database assigned (user_id)
+    db.add(user)                 # stage the new row
+    _commit_or_409(db, _taken)   # actually write it; a racing duplicate is a 409
+    db.refresh(user)             # read back what the database assigned (user_id)
     return RegisterOut(user_id=user.user_id)
 
 
@@ -330,7 +367,7 @@ def update_profile(body: ProfileIn, user_id: int = Depends(current_user_id),
     user.last_name = body.last_name
     user.username = body.username
     user.email = body.email
-    db.commit()
+    _commit_or_409(db, _taken)
     db.refresh(user)
     return ProfileOut(first_name=user.first_name, last_name=user.last_name,
                       username=user.username, email=user.email)
@@ -607,19 +644,18 @@ def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id),
     """Put one recipe in one day-and-meal slot."""
     _owned_recipe(db, body.recipe_id, user_id)   # 404 if not yours
 
+    filled = f"{body.day_of_week} {body.meal_position} is already filled"
     taken = db.query(models.PlanSlot).filter_by(
         user_id=user_id, week=body.week,
         day_of_week=body.day_of_week, meal_position=body.meal_position).first()
     if taken:
-        raise HTTPException(
-            status_code=409,
-            detail=f"{body.day_of_week} {body.meal_position} is already filled")
+        raise HTTPException(status_code=409, detail=filled)
 
     slot = models.PlanSlot(user_id=user_id, recipe_id=body.recipe_id,
                            week=body.week, day_of_week=body.day_of_week,
                            meal_position=body.meal_position)
     db.add(slot)
-    db.commit()
+    _commit_or_409(db, filled)   # uq_plan_slot, if another request got there first
     db.refresh(slot)
     return PlanSlotCreatedOut(slot_id=slot.slot_id)
 
@@ -665,7 +701,9 @@ def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
                 week=body.week, day_of_week=day, meal_position=meal))
             created += 1
 
-    db.commit()
+    # Pressing Generate week twice runs two of these at once: both clear the
+    # week, both deal 21 slots, and uq_plan_slot refuses the second.
+    _commit_or_409(db, "That week changed while it was being generated — try again")
     return GenerateOut(created=created)
 
 
