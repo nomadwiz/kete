@@ -13,6 +13,13 @@ is not configured rather than pretending to have stored anything.
 **The request and response shapes are the contract the client is built
 against.** If a field has to change, tell the team before you commit it.
 
+The contract is [`openapi.json`](openapi.json), the schema FastAPI generates
+from `main.py`, frozen under S1 (#138). It is exported, never hand-edited: after
+any change to a request or response shape, run `python export_openapi.py` and
+commit the result in the same pull request, so the diff shows the contract
+change to the reviewer. The running API serves the same document at
+`/openapi.json`.
+
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap | Issue |
