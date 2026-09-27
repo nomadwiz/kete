@@ -18,12 +18,8 @@ Known gaps, each tracked as an issue rather than left in this file:
 | Gap | Issue |
 | --- | --- |
 | Only the conflict tests exist — none yet for the nutrition engine or cross-user access | B10 (#160), B11 (#164) |
-| Numeric inputs are unbounded — a bad value can be a 500, not a 422 | B14 (#153) |
-| `requirements.txt` pins minimum versions, not exact ones | B7 (#159) |
 | `JWT_SECRET` falls back to a published default instead of refusing to start | B9 (#162) |
 | `allow_origins=["*"]` | B8 (#161) |
-| A week view costs 22 queries, and plan slots carry no nutrition | B2 (#151) |
-| Saved measurements cannot be read back | B3 (#152) |
 
 ## Run it
 

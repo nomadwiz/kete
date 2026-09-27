@@ -17,7 +17,7 @@ Interactive docs: http://localhost:8000/docs
 """
 
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 from fastapi import (Depends, FastAPI, HTTPException, Path, Query, Response,
                      UploadFile, File)
@@ -258,7 +258,7 @@ class GenerateOut(BaseModel):
 UNIQUE_VIOLATION = "23505"   # PostgreSQL's SQLSTATE for a unique-constraint clash
 
 
-def _commit_or_409(db: Session, detail) -> None:
+def _commit_or_409(db: Session, detail: str | Callable[[str], str]) -> None:
     """Commit, answering a unique-constraint clash with 409 rather than a 500.
 
     Every endpoint that can clash checks first, for a friendly message. The
@@ -283,7 +283,13 @@ def _commit_or_409(db: Session, detail) -> None:
 
 
 def _taken(constraint: str) -> str:
-    """The pre-check's wording, from users_username_key or users_email_key."""
+    """The pre-check's wording, from users_username_key or users_email_key.
+
+    Those names are not written anywhere: PostgreSQL gives an inline UNIQUE the
+    name <table>_<column>_key, and schema.sql relies on that default. Name the
+    constraints explicitly, or rename either column, and this must change with
+    them — test_conflicts.py races both fields, so it will fail if it does not.
+    """
     field = "email" if "email" in constraint else "username"
     return f"That {field} is already taken"
 

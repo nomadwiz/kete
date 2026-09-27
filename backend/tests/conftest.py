@@ -13,16 +13,25 @@ import sys
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, make_url, text
 from sqlalchemy.orm import sessionmaker
 
 # The backend is a folder of modules rather than a package, so put it on the
 # path the way running `uvicorn main:app` from inside it would.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import database  # noqa: E402
 import models  # noqa: E402
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+
+
+def _same_database(a: str, b: str) -> bool:
+    """True when two URLs name the same database on the same server."""
+    x, y = make_url(a), make_url(b)
+    local = {"localhost", "127.0.0.1", "::1", None}
+    same_host = x.host == y.host or (x.host in local and y.host in local)
+    return same_host and (x.port or 5432) == (y.port or 5432) and x.database == y.database
 
 
 @pytest.fixture(scope="session")
@@ -30,7 +39,14 @@ def engine():
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not set — see backend/README.md")
     # Every test truncates every table. Refuse outright rather than trust
-    # whoever set the variable to have pointed it somewhere disposable.
+    # whoever set the variable to have pointed it somewhere disposable. The
+    # likely slip is the database the API itself uses — the local `kete` you
+    # develop against — so compare with that first. The RDS check is a
+    # substring test and misses RDS reached through a tunnel or port-forward,
+    # which the first check catches only if .env points the API there too.
+    if _same_database(TEST_DATABASE_URL, database.DATABASE_URL):
+        pytest.exit("TEST_DATABASE_URL is the API's own database (.env); "
+                    "the tests would wipe it. Use a throwaway one.")
     if ".rds.amazonaws.com" in TEST_DATABASE_URL:
         pytest.exit("TEST_DATABASE_URL points at RDS; the tests wipe the database")
 

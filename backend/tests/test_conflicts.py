@@ -23,6 +23,7 @@ import time
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 import main
 import models
@@ -155,6 +156,24 @@ def test_update_profile_race_on_username_is_409(engine, Session):
     _assert_409(outcome, "That username is already taken")
 
 
+# Not a copy of the register email race: update_profile's own check works out
+# the field differently (it compares only the username), so the constraint's
+# name is the only thing that can get this message right.
+def test_update_profile_race_on_email_is_409(engine, Session):
+    with Session() as db:
+        me = _user(db, "me", "me@example.com").user_id
+        db.commit()
+
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _user(a, "someone", "wanted@example.com"),
+        act=lambda b: main.update_profile(main.ProfileIn(
+            first_name="M", last_name="E", username="me",
+            email="wanted@example.com"), user_id=me, db=b))
+
+    _assert_409(outcome, "That email is already taken")
+
+
 def test_update_profile_ordinary_duplicate_is_still_409(Session):
     with Session() as db:
         me = _user(db, "me", "me@example.com").user_id
@@ -234,3 +253,46 @@ def test_generate_week_twice_in_turn_refills_the_week(Session):
 
     assert again.created == 21
     assert stored == 21
+
+
+# --------------------------------------------------------------------------
+# _commit_or_409 itself — the two promises no endpoint test observes
+# --------------------------------------------------------------------------
+def test_a_clash_leaves_the_session_usable(Session):
+    """After a 409 the session has been rolled back, not left aborted.
+
+    PostgreSQL refuses every later statement in a transaction that has failed,
+    so without the rollback the next query on this session would raise too.
+    """
+    user_id, recipe_id = _seed_user_with_recipe(Session)
+    slot = dict(user_id=user_id, recipe_id=recipe_id, week=WEEK,
+                day_of_week="Mon", meal_position="breakfast")
+    with Session() as db:
+        db.add(models.PlanSlot(**slot))
+        db.commit()
+
+    with Session() as db:
+        db.add(models.PlanSlot(**slot))
+        with pytest.raises(HTTPException) as caught:
+            main._commit_or_409(db, "taken")
+
+        assert caught.value.status_code == 409
+        assert db.execute(text("SELECT 1")).scalar() == 1
+
+
+def test_a_failure_that_is_not_a_clash_is_not_a_409(Session):
+    """A check-constraint failure is a bug and must still surface as one.
+
+    Answering it 409 would tell the user they had done something wrong, and a
+    409 looks enough like user error that nobody would go looking for the bug.
+    """
+    user_id, recipe_id = _seed_user_with_recipe(Session)
+
+    with Session() as db:
+        db.add(models.PlanSlot(user_id=user_id, recipe_id=recipe_id, week=WEEK,
+                               day_of_week="Mon", meal_position="brunch"))
+        with pytest.raises(IntegrityError) as caught:
+            main._commit_or_409(db, "taken")
+
+        assert "ck_slot_meal" in str(caught.value)
+        assert db.execute(text("SELECT 1")).scalar() == 1
