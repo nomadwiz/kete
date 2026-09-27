@@ -158,6 +158,11 @@ class PlanSlot(Base):
         # one recipe per day/meal slot per user — stops double-booking
         UniqueConstraint("user_id", "week", "day_of_week", "meal_position",
                          name="uq_plan_slot"),
+        # ISO 8601 week. Kept identical to WEEK_PATTERN in main.py: the
+        # uniqueness constraint above compares week as text, so two spellings
+        # of one week would not collide and a slot could be double-booked.
+        CheckConstraint(r"week ~ '^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$'",
+                        name="ck_slot_week"),
         CheckConstraint(
             "day_of_week IN ('Mon','Tue','Wed','Thu','Fri','Sat','Sun')",
             name="ck_slot_day"),
