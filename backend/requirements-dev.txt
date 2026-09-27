@@ -1,0 +1,6 @@
+# What the tests need on top of the API itself. Kept out of requirements.txt so
+# the server installs nothing it does not run. Exact pins, for the reason that
+# file gives.
+-r requirements.txt
+
+pytest==9.1.1
