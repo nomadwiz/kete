@@ -119,7 +119,7 @@ export default function RecipeDetail() {
   // a recipe]. Fetching a week to count them would be a second read for a
   // number that would still be wrong for every other week, so the sentence is
   // written to be true without one.
-  const emptiesEveryPositionHoldingIt = `Delete ${recipe.name}?\n\nThe recipe goes from your library, and every position in every week that is holding it is emptied too. There is no undo.`;
+  const emptiesEveryPositionUsingIt = `Delete ${recipe.name}?\n\nThe recipe goes from your library, and every position in every week that is holding it is emptied too. There is no undo.`;
 
   return (
     <div className="recipe">
@@ -248,33 +248,21 @@ export default function RecipeDetail() {
               three lines to say what the router already knows -- and PATHS
               .recipe is the pattern /recipes/:id, so every one of those lines
               existed only to put the id back into it. */}
+          {/* Not refused while a delete runs, although Cancel is refused
+              while a save runs: opening the form costs nothing typed, and a
+              save made from it is answered 404, which lands on the not-found
+              panel saying the recipe may have been deleted. */}
           <Link className="recipe__edit" to={`?${QUERY.recipe_edit}`}>
             Edit this recipe
           </Link>
 
-          {/* Not gated on `saving`, although Cancel inside the form is gated
-              on it, and the asymmetry is deliberate. Cancel is refused because
-              leaving during a save discards nine typed fields and any refusal
-              coming back, and nothing afterwards says whether the recipe was
-              saved. Opening the form during a delete costs nothing typed, and
-              the case resolves itself: the delete lands, and a save made from
-              the form it opened is answered 404, which recipeAction sends to
-              the not-found panel saying the recipe may have been deleted.
-              Making this refusable would also mean making it a button, which
-              costs the edit view the address ADR 002 gives it. */}
-
-          {/* Here rather than on /recipes, and the reason is ADR 002's rule
-              about path strings: a delete offered from the list would post to
-              this route, which means an `action` prop carrying a literal
-              /recipes/<id> outside routes.tsx. This page already owns the
-              action and already knows which record is in view, so it needs
-              neither.
-
-              No `action` prop for the same rule, so this posts to the address
-              the page is at and recipeAction reads the intent. The hidden
-              field is what selects the branch: RecipeForm deliberately
-              declares none, which is what makes a submission carrying no
-              intent the save. */}
+          {/* On this page and not on the list, because a delete offered from
+              /recipes would post to this route and so need an `action` prop
+              carrying a literal path, which ADR 002 keeps out of everything
+              but routes.tsx. For the same rule this Form declares no `action`
+              and posts to the address the page is at; the hidden field selects
+              the branch, RecipeForm declaring none being what makes a
+              submission carrying no intent the save. */}
           <Form
             method="post"
             aria-busy={saving}
@@ -282,7 +270,7 @@ export default function RecipeDetail() {
               // react-router's Form runs this handler and then returns on a
               // prevented default, so a declined confirmation sends no
               // request at all rather than one whose answer is thrown away.
-              if (!window.confirm(emptiesEveryPositionHoldingIt)) {
+              if (!window.confirm(emptiesEveryPositionUsingIt)) {
                 event.preventDefault();
               }
             }}
