@@ -10,3 +10,26 @@ afterEach(() => {
   cleanup();
   window.localStorage.clear();
 });
+
+// jsdom 30 parses <dialog> and gives it no behaviour: HTMLDialogElement
+// carries neither showModal nor close, so calling either throws and takes the
+// route that called it to the error boundary. The recipe list opens its
+// creation modal with showModal(), which is the only way to get the top layer,
+// the backdrop, the focus trap and Escape, so without this every test of that
+// screen fails for a reason that has nothing to do with the screen.
+//
+// What this supplies is the open flag and the `close` event, which is the part
+// the recipe list's own logic turns on -- it opens and closes the dialog from
+// the address and listens for `close` to put the address back. The four things
+// showModal() is chosen for are the browser's and are not modelled here, so no
+// test in this project asserts them; they stay manual checks.
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.open = true;
+  };
+
+  HTMLDialogElement.prototype.close = function close() {
+    this.open = false;
+    this.dispatchEvent(new Event("close"));
+  };
+}
