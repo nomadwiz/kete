@@ -4,7 +4,7 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and six screens are wired through them: `/recipes`, `/targets` and `/dashboard` load through a loader, and `/sign-in`, `/sign-up` and `/measurements` each post to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets` and `/dashboard` are built and styled. The remaining pages render their own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and six screens are wired through them: `/recipes`, `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements` does both — a loader to prefill it and an action to save it. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets` and `/dashboard` are built and styled. The remaining pages render their own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
@@ -59,11 +59,15 @@ The outer mount stays, because a failure in the public tree — and a throw from
 
 ## The form screens
 
-`/sign-up`, `/sign-in` and `/measurements` are the same shape, and each is a `Form` posting to an action in [`src/routes.tsx`](src/routes.tsx). None reads the API any other way, which is what ADR 002 asks of every screen.
+`/sign-up`, `/sign-in` and `/measurements` are the same shape, and each is a `Form` posting to an action in [`src/routes.tsx`](src/routes.tsx). None reads the API any other way, which is what ADR 002 asks of every screen — including the one read among them, which is `/measurements` prefilling through a loader rather than an effect.
 
 **Registering does not sign anyone in.** `POST /register` answers with a user id and no token, so `signUpAction` redirects to `/sign-in` rather than to the dashboard. The alternative was to chain a second `POST /login` inside the same action and land on `/dashboard`; it saves one step and was declined, because a register that succeeds followed by a login that fails leaves an account made and the person reading an error on the page that asked them to make it.
 
 **Saving measurements discards what the save answered with.** `POST /profile/metrics` writes the five figures and returns the targets computed from them, in one transaction. `measurementsAction` throws that body away and redirects to `/targets`, which reads them through `GET /targets` — one screen renders a target rather than two that can disagree, and the cost is the second request. The five figures are sent every time because the endpoint takes no partial update.
+
+**The measurements form opens on what was saved last time.** `metricsLoader` reads `GET /profile/metrics` — the endpoint that exists for this and answers the five figures rather than the targets computed from them — and the five controls carry them as `defaultValue`, so the fields stay uncontrolled. React reads a default only at mount, which this screen wants twice: a figure the person overtypes stays overtyped, and a submission the API refused re-renders the component without remounting it, so the typed values survive above the message saying why. Holding the five in state would mean a change handler per field and a second copy of the form to keep in step with the first.
+
+**A 404 from `GET /profile/metrics` is a state, not a failure**, on the same terms as the one from `GET /targets`: it means nothing has been saved, so the loader answers `null` and the form draws empty. Sending a first-time visitor to the error boundary instead would put a failure in front of the person on the very screen they were sent here to fill in.
 
 **The confirmation travels in the address, not in memory.** That redirect carries `?created=1`, and `/sign-in` renders "Account created. Sign in to start." when it is present. The key is a named constant exported from `src/routes.tsx` beside the paths, for the reason ADR 002 gives for the paths themselves, and it holds a flag rather than the new username — a name in the address is a name in browser history and in every log between here and the host.
 
