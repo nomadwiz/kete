@@ -254,15 +254,21 @@ describe("placing a recipe", () => {
     );
   });
 
-  // The other half of the narrowing: only 409 and 422 come back as a message.
-  // A 404 means the recipe has gone or was never this account's, which no
-  // second Add can put right, so printing it above the grid would invite one.
-  it("sends a failure the grid cannot answer to the error boundary", async () => {
+  // The 404 on this route is "No such recipe, or it belongs to another
+  // account" -- one stale row, with the session and the week both intact, and
+  // the revalidation that follows repairs the grid by itself. So it belongs
+  // above the grid with the other two and not at the error boundary, which
+  // would take the whole week away because a recipe was deleted in a second
+  // tab. It is not the 404 profileAction sends to the boundary.
+  it("keeps a stale recipe on the page rather than at the error boundary", async () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
       "/recipes": async () => jsonResponse(200, LIBRARY),
-      "/mealplan": async () => jsonResponse(404, { detail: "No such recipe" }),
+      "/mealplan": async () =>
+        jsonResponse(404, {
+          detail: "No such recipe, or it belongs to another account",
+        }),
     });
 
     renderAt(`/planner?week=${WEEK}`);
@@ -277,7 +283,40 @@ describe("placing a recipe", () => {
       screen.getByRole("button", { name: "Add a recipe to Monday breakfast" }),
     );
 
-    expect(await screen.findByText("Status 404.")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No such recipe, or it belongs to another account",
+    );
+
+    // The grid is still there and still offers the position.
+    expect(
+      screen.getByLabelText("Recipe for Monday breakfast"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
+  });
+
+  // And a status the contract does not declare still goes to the boundary, so
+  // the widening above is three named codes and not a shrug.
+  it("sends an undeclared failure to the error boundary", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, []),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      "/mealplan": async () => jsonResponse(500, { detail: "Server error" }),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    const user = userEvent.setup();
+
+    await user.selectOptions(
+      await screen.findByLabelText("Recipe for Monday breakfast"),
+      "3",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add a recipe to Monday breakfast" }),
+    );
+
+    expect(await screen.findByText("Status 500.")).toBeInTheDocument();
 
     // Inside the shell, per ADR 003: the boundary mounted within AppLayout is
     // what keeps the navigation under a failed page.
@@ -326,10 +365,18 @@ describe("a week with nothing in it", () => {
 });
 
 describe("moving between weeks", () => {
+  // The clock is pinned because the middle link addresses whichever week is
+  // current. Thursday 24 September 2026 is in 2026-W39, which
+  // ../api/week.test.ts pins.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 24));
+  });
+
   // 2026-W52 is the week before a 53rd, which is the step a week number
   // incremented by hand gets wrong. The page and the helper agree here or the
   // links point a year away.
-  it("steps to the week either side, in the address", async () => {
+  it("steps to the week either side, and back to the current one", async () => {
     signedIn();
     stubFetch({
       "/mealplan?week=2026-W52": async () => jsonResponse(200, []),
@@ -344,7 +391,11 @@ describe("moving between weeks", () => {
       within(weeks)
         .getAllByRole("link")
         .map((link) => link.getAttribute("href")),
-    ).toEqual(["/planner?week=2026-W51", "/planner?week=2026-W53"]);
+    ).toEqual([
+      "/planner?week=2026-W51",
+      `/planner?week=${WEEK}`,
+      "/planner?week=2026-W53",
+    ]);
   });
 });
 

@@ -63,6 +63,14 @@
     color: var(--ink-soft);
   }
 
+  .planner__today {
+    display: inline-block;
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-decoration-thickness: 2px;
+  }
+
   /* The error box the form screens share: --muka with a 3px --ink edge. This
      one carries the server's own sentence, most often that the position was
      filled by something else first. */

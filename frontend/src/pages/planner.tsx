@@ -6,7 +6,7 @@ import {
   useNavigation,
 } from "react-router";
 
-import { datesOf, shiftWeek } from "../api/week";
+import { datesOf, isoWeek, shiftWeek } from "../api/week";
 import { PATHS, QUERY } from "../routes";
 import type { DayOfWeek, MealPosition, PlanWeek } from "../types/plan";
 import "./planner.css";
@@ -113,6 +113,18 @@ export default function Planner() {
                 keeps the month and the year when the week crosses one. */}
             {WEEK_RANGE.formatRange(dates[0], dates[6])}
           </span>
+
+          {/* Always, rather than only when you have wandered off. A link back
+              to the week you are already on costs nothing and does nothing,
+              and the branch that hides it would have to ask what day it is
+              during a render -- which is a second place computing the current
+              week, and the one thing this screen has to get right. */}
+          <Link
+            className="planner__today"
+            to={{ search: `?${QUERY.week}=${isoWeek(new Date())}` }}
+          >
+            This week
+          </Link>
         </p>
 
         <Link
