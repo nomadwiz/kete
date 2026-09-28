@@ -4,13 +4,13 @@ import {
   Link,
   useActionData,
   useLoaderData,
-  useNavigation,
   useSearchParams,
 } from "react-router";
 
 import RecipeForm from "../components/recipe-form";
 import { PATHS, QUERY } from "../routes";
 import type { RecipeSummary } from "../types/recipe";
+import { useSubmitting } from "../use-submitting";
 import "./recipes.css";
 
 export default function Recipes() {
@@ -29,20 +29,13 @@ export default function Recipes() {
   // to return rather than throw, so it is shown inside the modal above what
   // the person typed; a thrown failure never arrives here at all.
   const error = useActionData() as string | undefined;
-  const navigation = useNavigation();
 
-  // Both halves matter, and this screen is the one that needs both. The path
-  // is compared without its query string because useFormAction copies the
-  // current search into a Form declaring no action, so under this modal the
-  // whole formAction reads /recipes?new and an equality against PATHS.recipes
-  // would be false for the entire submission. The method is compared because
-  // this page carries two Forms: the search below is a GET and also sets
-  // formAction, which would otherwise put the modal into a saving state while
-  // somebody searched. C25 (nomadwiz/kete#277) is lifting the first half out
-  // across the screens that get it wrong; take its helper over this.
-  const saving =
-    navigation.formMethod === "POST" &&
-    navigation.formAction?.split("?")[0] === PATHS.recipes;
+  // This screen is the one that needs both halves of it. Under the modal the
+  // whole formAction reads /recipes?new, and the search below is a GET that
+  // sets formAction just as a POST does -- so a check on either half alone
+  // puts the modal into a saving state that nothing is saving.
+  // src/use-submitting.ts says why.
+  const saving = useSubmitting("POST");
 
   // The address that opens the modal, built in the component body rather than
   // at module scope: routes.tsx imports this page through the pages barrel and

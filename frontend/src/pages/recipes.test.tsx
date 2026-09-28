@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -299,5 +299,65 @@ describe("the recipe list", () => {
     expect(openDialog()!.open).toBe(true);
     expect(screen.getByLabelText("Name")).toHaveValue("Laksa");
     expect(screen.getByLabelText("Energy (kcal)")).toHaveValue(1240);
+  });
+});
+
+// C25 (nomadwiz/kete#277). A GET submission sets navigation.formAction just as
+// a POST does, so a busy check on the address alone puts the creation modal
+// into a saving state while somebody is merely searching. This page is the one
+// that carries both kinds of Form, so it is the only place the method half of
+// useSubmitting can be observed at all.
+describe("a search running underneath the creation modal", () => {
+  it("leaves the modal's save control alone, because the search is a GET", async () => {
+    signedIn();
+
+    // The search loader is held open, because what is under test is the state
+    // during the navigation rather than what it answers.
+    let answerSearch = () => {};
+    const held = new Promise<void>((resolve) => {
+      answerSearch = resolve;
+    });
+
+    stubFetch({
+      "/recipes": async () => jsonResponse(200, RECIPES),
+      "/recipes?q=laksa": async () => {
+        await held;
+
+        return jsonResponse(200, [RECIPES[0]]);
+      },
+    });
+
+    const { router } = renderAt("/recipes?new");
+    const user = userEvent.setup();
+
+    await user.type(
+      await screen.findByLabelText("Search your recipes"),
+      "laksa",
+    );
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    try {
+      await waitFor(() =>
+        expect(router.state.navigation.state).toBe("loading"),
+      );
+
+      // Spelled upper case, which is the whole of the second trap: react-router
+      // reports the method this way whatever the markup said, so a comparison
+      // against "post" never matches and reads exactly like the address defect.
+      expect(router.state.navigation.formMethod).toBe("GET");
+
+      // Matched on a prefix that both labels share, so a modal wrongly in the
+      // saving state is found and then fails on what is wrong with it, rather
+      // than not being found at all.
+      const save = screen.getByRole("button", { name: /^Sav/ });
+
+      expect(save).toBeEnabled();
+      expect(save).toHaveTextContent("Save recipe");
+      expect(save.closest("form")).toHaveAttribute("aria-busy", "false");
+    } finally {
+      answerSearch();
+    }
+
+    await screen.findByRole("heading", { name: "Laksa" });
   });
 });

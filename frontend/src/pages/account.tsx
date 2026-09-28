@@ -1,13 +1,8 @@
-import {
-  Form,
-  Link,
-  useActionData,
-  useLoaderData,
-  useNavigation,
-} from "react-router";
+import { Form, Link, useActionData, useLoaderData } from "react-router";
 
 import { PATHS } from "../routes";
 import type { Profile } from "../types/profile";
+import { useSubmitting } from "../use-submitting";
 import "./account.css";
 
 export default function Account() {
@@ -25,17 +20,11 @@ export default function Account() {
   // submitted, a string is a refusal to show, and null is a save that worked.
   const result = useActionData() as string | null | undefined;
   const error = typeof result === "string" ? result : null;
-  const navigation = useNavigation();
 
-  // The path alone, not the whole formAction. A <Form> declaring no action
-  // prop does not submit to the bare path: useFormAction in react-router 8.4.0
-  // copies the current query string into it, so at an address carrying one an
-  // equality against PATHS.account would be false for the whole submission and
-  // the button would stay live under a save already in flight. Nothing sends a
-  // query string to /account today, which is exactly why the wrong version
-  // would look right here. C25 (#277) fixes the two screens that compare the
-  // whole thing; take its helper when it lands rather than keeping this.
-  const saving = navigation.formAction?.split("?")[0] === PATHS.account;
+  // Nothing sends a query string to /account today, which is exactly why an
+  // equality against the whole formAction would look right here. C25
+  // (nomadwiz/kete#277) and src/use-submitting.ts say why it is not.
+  const saving = useSubmitting("POST");
 
   return (
     <div className="account">
