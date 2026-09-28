@@ -9,6 +9,7 @@ import { ApiError, SessionExpired } from "./api/errors";
 import { request } from "./api/http";
 import { authed } from "./api/session";
 import { clearToken, readToken, writeToken } from "./api/token";
+import { isoWeek, isWeek } from "./api/week";
 import AppLayout from "./components/app-layout";
 import ErrorBoundary from "./components/error-boundary";
 import PublicLayout from "./components/public-layout";
@@ -32,6 +33,13 @@ import type {
   SignInResult,
 } from "./types/auth";
 import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
+import type {
+  DayOfWeek,
+  MealPosition,
+  PlanSlot,
+  PlanSlotIn,
+  PlanWeek,
+} from "./types/plan";
 import type { Profile } from "./types/profile";
 import type { RecipeIn, RecipeSummary } from "./types/recipe";
 import type { Targets } from "./types/targets";
@@ -62,6 +70,11 @@ const QUERY = {
   // "new" is three chances to disagree.
   new_recipe: "new",
   recipe_search: "q",
+
+  // Which week the planner is showing. ADR 002 puts view state a refresh
+  // should survive in the address, and a person who steps to next week and
+  // then reloads is looking at next week.
+  week: "week",
 } as const;
 
 function requireSession() {
@@ -283,6 +296,148 @@ function metricsLoader(): Promise<Metrics | null> {
   });
 }
 
+// The week the address names, its filled positions, and the library a recipe
+// is placed from. Two requests rather than one because the grid offers a
+// choice of recipe in every empty position, and GET /mealplan answers only
+// what is already placed. They go together rather than in turn: neither needs
+// the other's answer.
+//
+// The week is returned alongside the slots because a PlanSlotOut carries no
+// week field -- backend/openapi.json declares slot_id, day_of_week,
+// meal_position and recipe, and nothing else -- so the answer cannot say which
+// week it is an answer about, and the address need not have named one.
+async function plannerLoader({
+  request: req,
+}: LoaderFunctionArgs): Promise<PlanWeek> {
+  const asked = new URL(req.url).searchParams.get(QUERY.week);
+  const thisWeek = isoWeek(new Date());
+
+  // A week typed into the address that is not a week would be answered 422 and
+  // reach the error boundary. Sending the reader to the week they will in fact
+  // be shown is the better answer, and it leaves the address telling the truth
+  // rather than drawing this week under a heading that says something else.
+  //
+  // isWeek and not the pattern alone: the pattern admits a 53rd week in every
+  // year, and a POST from a screen drawn for 2025-W53 would write slots into a
+  // bucket that no link can reach a second time, over seven days that another
+  // address already owns.
+  if (asked !== null && !isWeek(asked)) {
+    throw redirect(`${PATHS.planner}?${QUERY.week}=${thisWeek}`);
+  }
+
+  const week = asked ?? thisWeek;
+
+  return withSession(async () => {
+    const [slots, recipes] = await Promise.all([
+      authed<PlanSlot[]>(`/mealplan?${QUERY.week}=${week}`),
+      authed<RecipeSummary[]>("/recipes"),
+    ]);
+
+    return { week, slots, recipes };
+  });
+}
+
+// One action for the whole screen, branching on a hidden `intent` field rather
+// than giving each verb a route of its own -- the shape C15 uses on
+// /recipes/:id. C17 (nomadwiz/kete#181) adds generating a week and clearing
+// one as two more branches here, POST /mealplan/generate and DELETE
+// /mealplan/week/{week}, rather than rewriting this.
+//
+// A branch answers null when the server accepted the change and the server's
+// own sentence when it did not. Either way the grid is redrawn from the
+// loader, because React Router revalidates after an action -- so no branch
+// returns the new state and nothing here holds a second copy of the week.
+//
+// Three things C17's two branches need, all read off backend/openapi.json
+// rather than assumed from the pair already here:
+//
+//   - Clearing a week declares no 404 at all. Emptying a week that is already
+//     empty is a success, so there is no missing-row case to answer.
+//   - Generating declares 400, "The recipe library is empty", which is
+//     recoverable in the same sense the statuses below are -- the answer is to
+//     write a recipe -- so the catch widens to 400 for that branch.
+//   - Both take the week, and DELETE /mealplan/week/{week} takes it in the
+//     path. It travels as a hidden field from the grid, the way `place` takes
+//     it below, rather than being recomputed here: a week recomputed in an
+//     action is a different week from the one the person was looking at.
+async function plannerAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const intent = String(form.get("intent") ?? "");
+
+  return withSession(async () => {
+    try {
+      if (intent === "remove") {
+        // 204 with no body. http.ts answers undefined for that status, so
+        // nothing here reads a result: asking for one would parse an empty
+        // body as JSON and throw on a request that succeeded.
+        await authed<void>(`/mealplan/${Number(form.get("slot_id"))}`, {
+          method: "DELETE",
+        });
+      } else if (intent === "place") {
+        // The two casts assert what the grid's own hidden fields carry, both
+        // of which are enums in backend/main.py, so anything else is answered
+        // 422 rather than filling the wrong position.
+        const placement: PlanSlotIn = {
+          recipe_id: Number(form.get("recipe_id")),
+          week: String(form.get("week") ?? ""),
+          day_of_week: String(form.get("day_of_week") ?? "") as DayOfWeek,
+          meal_position: String(
+            form.get("meal_position") ?? "",
+          ) as MealPosition,
+        };
+
+        // The reply carries the new slot_id. It is discarded: the loader
+        // redraws the week, so there is one place that knows what is in it.
+        await authed<unknown>("/mealplan", {
+          method: "POST",
+          body: JSON.stringify(placement),
+        });
+      } else {
+        // Not a shrug. Every form on the grid carries an intent, so an
+        // unrecognised one is a typo in a hidden field -- which, returned as
+        // null, is indistinguishable from success: the loader revalidates and
+        // the grid redraws unchanged. C17 (nomadwiz/kete#181) adds its two
+        // branches above this one.
+        throw new Error(`Unknown planner intent: ${intent}`);
+      }
+    } catch (error) {
+      // Three statuses come back as a message and everything else goes to the
+      // boundary. Which three is decided by what backend/openapi.json says
+      // each code *means* on these two routes, not by the number: the same
+      // code means different things elsewhere, and the difference is the whole
+      // rule.
+      //
+      //   409, "That day and meal is already filled" -- another tab got there
+      //   first. The revalidation shows what is actually in the position.
+      //
+      //   404, "No such recipe, or it belongs to another account" on POST, and
+      //   "No such plan slot, or it belongs to another account" on DELETE. One
+      //   referenced row is stale. The session is intact, the week is intact,
+      //   and React Router's revalidation repairs the view on its own -- so
+      //   taking the whole grid to the boundary because a recipe was deleted
+      //   in another tab is the wrong trade.
+      //
+      //   422 -- a value the enums refuse, answered by choosing again.
+      //
+      // Do not "correct" this to match measurementsAction. The 404 that
+      // profileAction and measurementsAction send to the boundary is a
+      // different sentence -- "The account behind the token no longer exists"
+      // -- and nothing on those screens can ever succeed after it. C26
+      // (nomadwiz/kete#279) is about that one, not this one.
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 409 || error.status === 422)
+      ) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    return null;
+  });
+}
+
 async function measurementsAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
 
@@ -440,7 +595,12 @@ const routes = [
                 action: recipesAction,
               },
               { path: PATHS.recipe, Component: RECIPE_DETAIL },
-              { path: PATHS.planner, Component: PLANNER },
+              {
+                path: PATHS.planner,
+                Component: PLANNER,
+                loader: plannerLoader,
+                action: plannerAction,
+              },
               {
                 path: PATHS.account,
                 Component: ACCOUNT,

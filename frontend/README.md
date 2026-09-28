@@ -4,13 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and seven screens are wired through them: `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements`, `/account` and `/recipes` each do both — a loader to read, an action to write. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets`, `/dashboard`, `/account` and `/recipes` are built and styled. The recipe detail and the planner render their own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and eight screens are wired through them: `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements`, `/account`, `/recipes` and `/planner` each do both — a loader to read, an action to write. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets`, `/dashboard`, `/account`, `/recipes` and `/planner` are built and styled. The recipe detail renders its own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| Two of the eleven pages are unbuilt                              | #177–#182, #184                  |
+| The recipe detail page is unbuilt                                | C12 (#177)                       |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
 
