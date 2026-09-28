@@ -42,7 +42,7 @@ import type {
   PlanWeek,
 } from "./types/plan";
 import type { Profile } from "./types/profile";
-import type { RecipeIn, RecipeSummary } from "./types/recipe";
+import type { RecipeDetail, RecipeIn, RecipeSummary } from "./types/recipe";
 import type { Targets } from "./types/targets";
 
 const PATHS = {
@@ -71,6 +71,13 @@ const QUERY = {
   // "new" is three chances to disagree.
   new_recipe: "new",
   recipe_search: "q",
+
+  // The key /recipes/:id is edited at. ADR 002 puts the view-to-edit switch in
+  // the query string on the same test the two keys above pass: a person who
+  // has retyped half a method and then refreshes would be surprised to lose
+  // it. It is a bare key with no value, as `new` is -- its presence is the
+  // whole message, and `?edit=1` would be a second spelling of the same thing.
+  recipe_edit: "edit",
 
   // Which week the planner is showing. ADR 002 puts view state a refresh
   // should survive in the address, and a person who steps to next week and
@@ -243,6 +250,137 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
     // person came from rather than to ?new, which would reopen an empty form
     // one click from writing the same recipe twice.
     return replace(PATHS.recipes);
+  });
+}
+
+// The one recipe the address names, for both the read view and the edit form
+// drawn over the same record. GET /recipes/{recipe_id} declares 401, 404 and
+// 422.
+//
+// Null is the 404, and it is not the null targetsLoader answers. There the
+// status means a form has not been filled in yet; here backend/openapi.json
+// says "No such recipe, or it belongs to another account", which means the
+// address names nothing this account may read. That is still not a failure of
+// the system, and it is not what the error boundary says: "Something went
+// wrong" is false for a recipe deleted in another tab, and the boundary offers
+// no way onward from an address that will never answer. So the loader answers
+// null and recipe.tsx draws a not-found panel that links back to the library,
+// which is the one thing the person can do about it. The contract's own
+// sentence is not shown -- "or it belongs to another account" invites a reader
+// to wonder whose, and the endpoint answers 404 rather than 403 precisely so
+// that it does not confirm someone else's record exists.
+//
+// An id that is not a whole number is answered the same way without a request.
+// The API would refuse /recipes/NaN with a 422 about the path parameter, which
+// is a sentence about the address rather than about the recipe, and this screen
+// already owns the right answer for an address that names nothing. The test is
+// the raw segment and not Number(): "3.5", " 3", "0x10" and "1e3" all survive
+// Number() and none of them is a recipe id.
+function recipeLoader({
+  params,
+}: LoaderFunctionArgs): Promise<RecipeDetail | null> {
+  if (!/^\d+$/.test(params.id ?? "")) {
+    return Promise.resolve(null);
+  }
+
+  return withSession(async () => {
+    try {
+      return await authed<RecipeDetail>(`/recipes/${params.id}`);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
+
+      throw error;
+    }
+  });
+}
+
+// One action for the whole screen, branching on a submitted intent rather than
+// giving each verb a route of its own -- ADR 002, and the shape plannerAction
+// uses. A submission carrying no intent is the save, which is the convention
+// C13 (nomadwiz/kete#178) set when it left RecipeForm with no intent field:
+// the delete C15 (nomadwiz/kete#179) adds is its own Form carrying
+// `intent=delete`, so its branch slots in beside this one and each branch owns
+// its own destination -- a save lands back on the record, a delete cannot.
+//
+// PUT /recipes/{recipe_id} is a full replace and takes no partial update, so
+// all nine RecipeIn fields travel whether or not they changed. The same nine
+// are assembled in recipesAction above; the house rule extracts on the third
+// repetition and there is no third -- a delete sends no body.
+async function recipeAction({ params, request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const intent = String(form.get("intent") ?? "");
+
+  return withSession(async () => {
+    try {
+      if (intent === "") {
+        const recipe: RecipeIn = {
+          name: String(form.get("name") ?? ""),
+          cuisine: String(form.get("cuisine") ?? ""),
+          ingredients: String(form.get("ingredients") ?? ""),
+          steps: String(form.get("steps") ?? ""),
+          servings: Number(form.get("servings")),
+          energy_kcal: Number(form.get("energy_kcal")),
+          protein_g: Number(form.get("protein_g")),
+          carbs_g: Number(form.get("carbs_g")),
+          fat_g: Number(form.get("fat_g")),
+        };
+
+        // The reply is the saved RecipeDetail and is discarded, as every other
+        // write here discards its reply: the loader revalidates once this
+        // returns, so the screen reads the record in one place rather than two
+        // that can disagree.
+        await authed<unknown>(`/recipes/${params.id}`, {
+          method: "PUT",
+          body: JSON.stringify(recipe),
+        });
+      } else {
+        // Not a shrug. A submission from this screen carries either no intent
+        // or one this branch knows, so an unrecognised one is a typo in a
+        // hidden field -- which, returned as null, is indistinguishable from
+        // the save that worked: the loader revalidates and the record redraws
+        // unchanged.
+        throw new Error(`Unknown recipe intent: ${intent}`);
+      }
+    } catch (error) {
+      // 422 and nothing else, and the rule is what the contract says the
+      // status means on this route rather than the number -- C26
+      // (nomadwiz/kete#279), as corrected. PUT /recipes/{recipe_id} declares
+      // 401, 404 and 422. The 401 is withSession's.
+      //
+      // The 404 is the interesting one, and it is not the planner's. There a
+      // 404 meant one stale row in a grid of twenty others, the revalidation
+      // repaired the view, and the person could choose again -- so
+      // plannerAction returns it. Here it means the record being edited no
+      // longer exists, and returning it would print the server's sentence into
+      // a form that is about to be unmounted: the revalidation that follows
+      // any returned string re-reads GET /recipes/{recipe_id}, which 404s in
+      // turn, and the not-found panel replaces the page with the message and
+      // the nine typed fields gone and nothing saying why. The boundary is the
+      // honest surface for that, because the edit cannot be retried and there
+      // is no form left to return to.
+      //
+      // A second intent is not a reason to make this the planner's
+      // intent-keyed table. C15 (nomadwiz/kete#179) decides what DELETE's own
+      // statuses mean on its own branch, and two rows is when a table starts
+      // paying for itself.
+      if (error instanceof ApiError && error.status === 422) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    // Back to the record just saved, which is what closes the edit view: the
+    // form is drawn exactly while `edit` is in the address, so dropping the key
+    // puts the read view back showing what the save wrote.
+    //
+    // replace rather than redirect, for the reason recipesAction gives: opening
+    // the edit view is a link, so that entry is already in the history, and
+    // pushing here would put Back one click from reopening a form over a record
+    // that has just been saved.
+    return replace(PATHS.recipe.replace(":id", String(params.id)));
   });
 }
 
@@ -650,7 +788,12 @@ const routes = [
                 loader: recipesLoader,
                 action: recipesAction,
               },
-              { path: PATHS.recipe, Component: RECIPE_DETAIL },
+              {
+                path: PATHS.recipe,
+                Component: RECIPE_DETAIL,
+                loader: recipeLoader,
+                action: recipeAction,
+              },
               {
                 path: PATHS.planner,
                 Component: PLANNER,
