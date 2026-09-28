@@ -50,10 +50,9 @@
     width: 100%;
   }
 
-  /* A textarea is inline by default, so it sits on a text baseline and leaves
-     a few pixels under it that no gap accounts for. */
+  /* Height only. A textarea dragged wider would break out of the column the
+     host gave the form, and the two of them are already full width. */
   .recipe-form__field textarea {
-    display: block;
     resize: vertical;
   }
 
