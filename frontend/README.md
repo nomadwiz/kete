@@ -4,7 +4,7 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and six screens are wired through them: `/recipes`, `/targets` and `/dashboard` load through a loader, and `/sign-in`, `/sign-up` and `/measurements` each post to an action. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets` and `/dashboard` are built and styled. The remaining pages render their own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and six screens are wired through them: `/recipes`, `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements` does both — a loader to prefill it and an action to save it. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets` and `/dashboard` are built and styled. The remaining pages render their own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
@@ -31,6 +31,22 @@ The `.env` step is not optional. `VITE_API_BASE_URL` is the only address the cli
 
 The dev server listens on **5173** and the API on **8000**, so development is already cross-origin — which is why the API enables CORS from the outset rather than as a deployment afterthought. Start the API first; [`../backend/README.md`](../backend/README.md) has the commands.
 
+## Serving the build
+
+`npm run build` writes `dist/`, and that directory is the whole deployable — `index.html`, fingerprinted files under `assets/`, and everything in `public/` copied unchanged. There is no application server: the host stores files, and the browser reaches the API itself. What follows is what that bundle requires of whoever builds the hosting, written here because each of these is cheaper to read than to discover during a deployment.
+
+**Any request whose path does not match a stored object must be answered with this `index.html` and a `200` status.** Addresses are ordinary paths with no `#` fragment, which ADR 002 decided, so `/recipes/3` typed in, refreshed or opened from a bookmark is a real request to the host — and the router that would resolve it does not exist until a document has been served and the bundle has started. **The status matters as much as the body, and it is the part a static host is most likely to get wrong.** Amazon S3's static website hosting substitutes a configured error document for an absent object but keeps the `404` on the response, so the application renders correctly while the response tells every cache, crawler and monitor that the page is not there. Which service supplies the 200 is the cloud lane's to choose and to document — K6 (#192).
+
+**`VITE_API_BASE_URL` is read when the bundle is built, not when it is served**, so the deployed API's address has to be known at build time. Vite substitutes the value into the JavaScript it emits — the warning above about secrets is the same mechanism described for a different reason — so afterwards there is no file on the host to edit and no environment variable the host can set. One artefact cannot therefore be built once and promoted to a second API address; pointing the client elsewhere means building again, which is a constraint on the pipeline rather than a detail of it (K9, #195).
+
+**The build context is the repository, not the `frontend/` directory.** The type generation added by C21 (#235) runs ahead of `build`, `test` and `dev` and reads `../backend/openapi.json` — the schema exported by S1 (#138), a path above this folder — so a job that checks out, copies or uploads `frontend/` on its own fails before the compiler runs. Taking the repository root as the build context costs nothing and avoids it.
+
+**`index.html` must not be cached hard, while everything under `assets/` may be.** Vite fingerprints each bundled file, so `assets/index-<hash>.js` can be served as immutable and a later deploy writes different names. `index.html` carries no fingerprint and is the only file naming the current ones, so a hard-cached copy goes on asking for the previous deploy's filenames until it expires, whether or not the host still stores them. `public/` is copied verbatim and keeps its names too, which puts `favicon.svg` on `index.html`'s side of that line.
+
+Vite's `base` is left at its default `/`, which is what serving from the root of a bucket or a distribution needs, and every asset reference in `dist/index.html` is accordingly an absolute path. Serving the application from a sub-path instead would mean setting `base` and rebuilding.
+
+`npm run preview` applies the fallback rule itself, which is why the Scripts table below sends you there to check a deep link against a real build. It models the deployed host in that one respect and in no other — it sends `Cache-Control: no-cache` on everything, hashed assets included, so it says nothing about the headers above.
+
 ## Design
 
 How routing and data loading work, what may not be written where, and what the host must do for a deep link, are settled in ADR 002 — the documents repository `nomadwiz/kete-doc`, at [`doc/design/decisions/adr/002-client-routing.md`](../../doc/design/decisions/adr/002-client-routing.md). Read it before adding a screen. That link resolves once both repositories are cloned in the layout `nomadwiz/kete-doc`'s own `README.md` sets out.
@@ -41,7 +57,7 @@ The API contract is the schema FastAPI generates from [`../backend/main.py`](../
 
 Which layout a screen renders inside is decided by where it sits in the route tree in [`src/routes.tsx`](src/routes.tsx), and by nothing else. One pathless parent carries the error boundary; two pathless parents beneath it carry the layouts. A third pathless parent, inside `AppLayout`, carries the **same** error boundary component a second time — see [The error surface](#the-error-surface) below, and do not remove it as a duplicate. `PublicLayout` wraps `/`, `/sign-up` and `/sign-in`. `AppLayout` wraps the seven protected addresses and carries the navigation and sign out. The catch-all sits outside both, because at an unmatched address the application cannot tell which state the visitor is in.
 
-`AppLayout`'s `loader` is the guard. It reads the credential through `src/api/token.ts` and throws a `redirect` to `/sign-in` when there is none. A loader runs before the route's component renders, so no protected content appears and is then withdrawn — which is what ADR 002 chose over a component-level check. It answers one question only: whether a credential is present. An expired one still looks present from there, because only the API can reject it, which is why `recipesLoader` keeps its own `SessionExpired` catch.
+`AppLayout`'s `loader` is the guard. It reads the credential through `src/api/token.ts` and throws a `redirect` to `/sign-in` when there is none. A loader runs before the route's component renders, so no protected content appears and is then withdrawn — which is what ADR 002 chose over a component-level check. It answers one question only: whether a credential is present. An expired one still looks present from there, because only the API can reject it, which is why every loader and action that reaches the API runs its work through `withSession`, and a 401 coming back from one of them is what sends the person to sign in.
 
 Sign out is a route action at `/sign-out` rather than a click handler, so the one write this shell performs goes through the router like every other write. There is no `POST /logout` to call — the token is a twelve-hour JWT with no server-side revocation — so signing out disposes the stored credential and nothing else. A GET to that address disposes of nothing and redirects home, because a session that a prefetch or a bookmark could end is not a session.
 
@@ -59,11 +75,15 @@ The outer mount stays, because a failure in the public tree — and a throw from
 
 ## The form screens
 
-`/sign-up`, `/sign-in` and `/measurements` are the same shape, and each is a `Form` posting to an action in [`src/routes.tsx`](src/routes.tsx). None reads the API any other way, which is what ADR 002 asks of every screen.
+`/sign-up`, `/sign-in` and `/measurements` are the same shape, and each is a `Form` posting to an action in [`src/routes.tsx`](src/routes.tsx). None reads the API any other way, which is what ADR 002 asks of every screen — including the one read among them, which is `/measurements` prefilling through a loader rather than an effect.
 
 **Registering does not sign anyone in.** `POST /register` answers with a user id and no token, so `signUpAction` redirects to `/sign-in` rather than to the dashboard. The alternative was to chain a second `POST /login` inside the same action and land on `/dashboard`; it saves one step and was declined, because a register that succeeds followed by a login that fails leaves an account made and the person reading an error on the page that asked them to make it.
 
 **Saving measurements discards what the save answered with.** `POST /profile/metrics` writes the five figures and returns the targets computed from them, in one transaction. `measurementsAction` throws that body away and redirects to `/targets`, which reads them through `GET /targets` — one screen renders a target rather than two that can disagree, and the cost is the second request. The five figures are sent every time because the endpoint takes no partial update.
+
+**The measurements form opens on what was saved last time.** `metricsLoader` reads `GET /profile/metrics` — the endpoint that exists for this and answers the five figures rather than the targets computed from them — and the five controls carry them as `defaultValue`, so the fields stay uncontrolled. React reads a default only at mount, which this screen wants twice: a figure the person overtypes stays overtyped, and a submission the API refused re-renders the component without remounting it, so the typed values survive above the message saying why. Holding the five in state would mean a change handler per field and a second copy of the form to keep in step with the first.
+
+**A 404 from `GET /profile/metrics` is a state, not a failure**, on the same terms as the one from `GET /targets`: it means nothing has been saved, so the loader answers `null` and the form draws empty. Sending a first-time visitor to the error boundary instead would put a failure in front of the person on the very screen they were sent here to fill in.
 
 **The confirmation travels in the address, not in memory.** That redirect carries `?created=1`, and `/sign-in` renders "Account created. Sign in to start." when it is present. The key is a named constant exported from `src/routes.tsx` beside the paths, for the reason ADR 002 gives for the paths themselves, and it holds a flag rather than the new username — a name in the address is a name in browser history and in every log between here and the host.
 
@@ -99,28 +119,35 @@ The outer mount stays, because a failure in the public tree — and a throw from
 
 ## Where things go
 
-| Path              | What belongs there                                                                                                                                                                                                                 |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/index.css`   | The tokens every screen is styled from, a light reset, and base element styling — including how a form control looks, so every form screen inherits one. The one global stylesheet; nothing page-specific belongs in it (C5, #170) |
-| `src/routes.tsx`  | Every path string, once; the route objects; their loaders and actions                                                                                                                                                              |
-| `src/pages/`      | One file per page, and beside it that page's stylesheet                                                                                                                                                                            |
-| `src/api/`        | Talking to the API: `http.ts` the transport, `session.ts` the credential and what an ended session means, `token.ts` its storage, `errors.ts` the error shapes. Nothing here knows the router (C2, #167)                           |
-| `src/types/`      | Types matching the FastAPI schema, added as a screen needs one rather than up front (C2, #167; C21, #235)                                                                                                                          |
-| `src/components/` | The route error boundary, the two layouts and their stylesheets, and shared presentational pieces — including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178)                              |
-| `src/test/`       | The Vitest setup file, and the helpers that render the real route array against a stubbed `fetch`. Tests themselves sit beside what they test (C22, #236)                                                                          |
+| Path              | What belongs there                                                                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.css`   | The tokens every screen is styled from, a light reset, and base element styling — including how a form control looks, so every form screen inherits one. The one global stylesheet; nothing page-specific belongs in it (C5, #170)        |
+| `src/routes.tsx`  | Every path string, once; the route objects; their loaders and actions                                                                                                                                                                     |
+| `src/pages/`      | One file per page, and beside it that page's stylesheet                                                                                                                                                                                   |
+| `src/api/`        | Talking to the API: `http.ts` the transport, `session.ts` the credential and what an ended session means, `token.ts` its storage, `errors.ts` the error shapes. Nothing here knows the router (C2, #167)                                  |
+| `src/types/`      | `api.ts`, generated from the API's schema and never edited; beside it one small file per subject aliasing the schemas a screen needs, so a page imports `Targets` rather than `components["schemas"]["TargetsOut"]` (C2, #167; C21, #235) |
+| `src/components/` | The route error boundary, the two layouts and their stylesheets, and shared presentational pieces — including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178)                                     |
+| `src/test/`       | The Vitest setup file, and the helpers that render the real route array against a stubbed `fetch`. Tests themselves sit beside what they test (C22, #236)                                                                                 |
 
 ## Talking to the API
 
 The enum spellings the API validates, the endpoint list and the authentication scheme are in [`../backend/README.md`](../backend/README.md), and the code that enforces them is [`../backend/main.py`](../backend/main.py). Where a description and the code disagree, the code is right — so read the code rather than copying either into this file.
 
+**The types are generated from the contract, not written against it.** [`../backend/openapi.json`](../backend/openapi.json) is the schema FastAPI builds from [`../backend/main.py`](../backend/main.py), exported by `../backend/export_openapi.py` and committed so that a build needs no running API. `openapi-typescript` turns it into [`src/types/api.ts`](src/types/api.ts), and `npm run dev`, `npm run build` and `npm test` each regenerate that file before they start — so a field renamed or dropped in `main.py` reaches the screens that read it as a type error rather than as an empty space on the page.
+
+**Never edit `src/types/api.ts`, and never add a hand-written type beside it.** Change `main.py`, run `python export_openapi.py`, and the next build carries the change through. The four files beside it are aliases and hold no field names of their own: `auth.ts`, `measurement.ts`, `recipe.ts` and `targets.ts` each name the schema a screen wants under the name that screen already imports, because the wire names differ in three places — `RegisterIn`, `LoginIn` and `LoginOut` for the two auth pairs, `MetricsIn` for the measurement form, `TargetsOut` for the figures. Add an alias when a screen needs one; `RecipeIn` serves both writing a recipe and editing one, so there is no create-and-update pair to look for.
+
+`api.ts` is committed so that a clone can be read and linted without generating anything first, but nothing trusts the committed copy: every script that type-checks rewrites it first, so a stale one is overwritten rather than believed. The other side of the contract is held by `../backend/tests/test_contract.py`, which fails when `openapi.json` stops describing `main.py` — together the two mean a rename in `main.py` cannot reach a screen unnoticed.
+
 ## Scripts
 
-| Script                 | What it does                                                    |
-| ---------------------- | --------------------------------------------------------------- |
-| `npm run dev`          | Vite dev server on 5173, with hot reload                        |
-| `npm run build`        | Type-checks, then writes the deployable bundle to `dist/`       |
-| `npm run preview`      | Serves `dist/` — use it to test deep links against a real build |
-| `npm test`             | Vitest over `src`, once, in jsdom                               |
-| `npm run lint`         | ESLint over the project, config files included                  |
-| `npm run format`       | Rewrites files with Prettier                                    |
-| `npm run format:check` | Reports without rewriting; this is the one CI runs              |
+| Script                   | What it does                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `npm run dev`            | Regenerates the types, then the Vite dev server on 5173, with hot reload         |
+| `npm run generate:types` | Rewrites `src/types/api.ts` from `../backend/openapi.json`                       |
+| `npm run build`          | Regenerates the types, type-checks, then writes the deployable bundle to `dist/` |
+| `npm run preview`        | Serves `dist/` — use it to test deep links against a real build                  |
+| `npm test`               | Regenerates the types, then Vitest over `src`, once, in jsdom                    |
+| `npm run lint`           | ESLint over the project, config files included                                   |
+| `npm run format`         | Rewrites files with Prettier                                                     |
+| `npm run format:check`   | Reports without rewriting; this is the one CI runs                               |

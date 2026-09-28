@@ -1,20 +1,23 @@
-// The two enumerations the API validates, spelled as backend/main.py declares
-// them. The activity factors themselves never cross the wire: the client sends
-// the word and the server multiplies by it, so a misspelling here is a 422
-// rather than a target computed from the wrong factor.
-export type Sex = "male" | "female";
+import type { components } from "./api";
 
-export type ActivityLevel =
-  "sedentary" | "light" | "moderate" | "active" | "very_active";
+// POST /profile/metrics takes all five every time; there is no partial update.
+// This is the request shape, MetricsIn.
+//
+// GET /profile/metrics answers MetricsOut, which the measurements form
+// prefills from (B3, nomadwiz/kete#152). MetricsOut declares the same five
+// fields, so metricsLoader in routes.tsx reads the prefill through this type
+// rather than a second alias -- but nothing checks that the two stay
+// identical, because a field on one and not the other is absent rather than a
+// type error. Alias MetricsOut here the moment they differ. POST's own reply
+// is the targets it computed rather than the metrics it was given, so that one
+// is Targets.
+export type Metrics = components["schemas"]["MetricsIn"];
 
-// POST /profile/metrics takes all five every time. There is no partial update,
-// and nothing reads the saved values back -- GET /profile answers name,
-// username and email, and this endpoint answers the computed targets rather
-// than the metrics it was given (B3, nomadwiz/kete#152).
-export interface Metrics {
-  weight_kg: number;
-  height_cm: number;
-  age: number;
-  sex: Sex;
-  activity_level: ActivityLevel;
-}
+// The two enumerations the API validates, read off the schema rather than
+// retyped from it. The activity factors themselves never cross the wire: the
+// client sends the word and the server multiplies by it, so a value from
+// outside the enumeration is a 422 rather than a target computed from the
+// wrong factor.
+export type Sex = Metrics["sex"];
+
+export type ActivityLevel = Metrics["activity_level"];
