@@ -260,6 +260,19 @@ async function plannerLoader({
 // own sentence when it did not. Either way the grid is redrawn from the
 // loader, because React Router revalidates after an action -- so no branch
 // returns the new state and nothing here holds a second copy of the week.
+//
+// Three things C17's two branches need, all read off backend/openapi.json
+// rather than assumed from the pair already here:
+//
+//   - Clearing a week declares no 404 at all. Emptying a week that is already
+//     empty is a success, so there is no missing-row case to answer.
+//   - Generating declares 400, "The recipe library is empty", which is
+//     recoverable in the same sense the statuses below are -- the answer is to
+//     write a recipe -- so the catch widens to 400 for that branch.
+//   - Both take the week, and DELETE /mealplan/week/{week} takes it in the
+//     path. It travels as a hidden field from the grid, the way `place` takes
+//     it below, rather than being recomputed here: a week recomputed in an
+//     action is a different week from the one the person was looking at.
 async function plannerAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const intent = String(form.get("intent") ?? "");
@@ -301,20 +314,32 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
         throw new Error(`Unknown planner intent: ${intent}`);
       }
     } catch (error) {
-      // Two of the statuses these routes declare, and only those two, on the
-      // reasoning profileAction records. A 409 means the position was filled
-      // while this screen was looking at it, and a 422 that a value the enums
-      // refuse arrived: both are answered by the grid redrawing and the person
-      // choosing again, which is what they are standing in front of.
+      // Three statuses come back as a message and everything else goes to the
+      // boundary. Which three is decided by what backend/openapi.json says
+      // each code *means* on these two routes, not by the number: the same
+      // code means different things elsewhere, and the difference is the whole
+      // rule.
       //
-      // The 404s are not among them. POST /mealplan answers one for a recipe
-      // that has gone or belongs to someone else, and DELETE for a slot that
-      // has, and neither is something a second Add can put right -- so they go
-      // to the boundary rather than being printed as though the person had
-      // mistyped something.
+      //   409, "That day and meal is already filled" -- another tab got there
+      //   first. The revalidation shows what is actually in the position.
+      //
+      //   404, "No such recipe, or it belongs to another account" on POST, and
+      //   "No such plan slot, or it belongs to another account" on DELETE. One
+      //   referenced row is stale. The session is intact, the week is intact,
+      //   and React Router's revalidation repairs the view on its own -- so
+      //   taking the whole grid to the boundary because a recipe was deleted
+      //   in another tab is the wrong trade.
+      //
+      //   422 -- a value the enums refuse, answered by choosing again.
+      //
+      // Do not "correct" this to match measurementsAction. The 404 that
+      // profileAction and measurementsAction send to the boundary is a
+      // different sentence -- "The account behind the token no longer exists"
+      // -- and nothing on those screens can ever succeed after it. C26
+      // (nomadwiz/kete#279) is about that one, not this one.
       if (
         error instanceof ApiError &&
-        (error.status === 409 || error.status === 422)
+        (error.status === 404 || error.status === 409 || error.status === 422)
       ) {
         return error.message;
       }
