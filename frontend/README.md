@@ -8,11 +8,11 @@ The project, the router and eleven routed pages exist. `src/api/http.ts` talks t
 
 Known gaps, each tracked as an issue rather than left in this file:
 
-| Gap                                                      | Issue                            |
-| -------------------------------------------------------- | -------------------------------- |
-| Four of the eleven pages are placeholders                | #176–#184                        |
-| One of C22's three security behaviours still has no test | C22 (#236)                       |
-| The production build is not wired to a host              | C20 (#185), K6 (#192), K9 (#195) |
+| Gap                                                              | Issue                            |
+| ---------------------------------------------------------------- | -------------------------------- |
+| Four of the eleven pages are placeholders                        | #176–#184                        |
+| Types are hand-written rather than generated from the API schema | C21 (#235)                       |
+| The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
 
 ## Run it
 
