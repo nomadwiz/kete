@@ -4,13 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and six screens are wired through them: `/recipes`, `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements` does both — a loader to prefill it and an action to save it. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets` and `/dashboard` are built and styled. The remaining pages render their own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and seven screens are wired through them: `/recipes`, `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements` and `/account` each do both — a loader to prefill the form and an action to save it. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets`, `/dashboard` and `/account` are built and styled. The recipe detail and the planner render their own name and nothing else, and `/recipes` lists what it loaded without a stylesheet of its own.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| Four of the eleven pages are placeholders                        | #176–#184                        |
+| Three of the eleven pages are unbuilt or unstyled                | #176–#182, #184                  |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
 
@@ -90,6 +90,12 @@ The outer mount stays, because a failure in the public tree — and a throw from
 **What the action returns and what it throws decide which surface the person sees.** A failure the API answered with is returned, so `useActionData` puts the server's own message above the form and the typed fields survive; the 409 that `POST /register` raises for a taken username or email arrives this way, and `messageFrom` in [`src/api/errors.ts`](src/api/errors.ts) has already flattened both of the API's `detail` shapes into text. A request that got no answer at all is rethrown to the `ErrorBoundary`, because there is no form left to return to.
 
 **Validation is the browser's, and it mirrors the server.** `required` on every field, `type="email"`, and `minLength={8}` against `Field(min_length=8)` on `RegisterIn` in [`../backend/main.py`](../backend/main.py); on `/measurements`, `type="number"` with the `min`, `max` and `step` of each bound on `MetricsIn` in the same file, and a `<select>` per enumeration so a value outside it cannot be typed. Change one side of any of those pairs and the other is now wrong. The password rule is also written on screen and tied to the input with `aria-describedby`, so it is known before submitting rather than after.
+
+**The account screen posts every field it holds, changed or not.** `PUT /profile` replaces the account rather than patching it — `ProfileIn` declares all four fields required and there is no partial update — so a form sending only what changed would blank the rest. It reads through `profileLoader` and writes through `profileAction`, both in [`src/routes.tsx`](src/routes.tsx), and the four controls carry the loaded values as `defaultValue` on the same terms as `/measurements`. The 409 for a username or email already taken is returned rather than thrown, so it appears above the form with the typed values intact.
+
+**A 404 from `GET /profile` is a failure, unlike the two the other loaders catch.** It means the account behind a token that still parses no longer exists, so `profileLoader` carries no rule of its own and the error boundary has it. `profileAction` answers `null` when the save worked, and the screen reads that as the confirmation: React Router gives `undefined` until an action has run, so the three states — never submitted, refused, saved — are told apart without a second flag.
+
+**The account screen points at `/measurements` rather than drawing it.** The body measurements are a different endpoint with a different failure mode, and `GET /profile` answers nothing about them; [`../backend/main.py`](../backend/main.py) keeps the two apart deliberately, so the forms stay apart too.
 
 **`PublicLayout`'s header drops its account links on `/sign-up` and `/sign-in`.** Each of those two already links to the other beneath its own button, which is where someone who picked the wrong one looks; the brand stays, so there is always a way back to `/`.
 

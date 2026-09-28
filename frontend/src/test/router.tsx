@@ -24,23 +24,34 @@ export function jsonResponse(status: number, body: unknown): Response {
 // One fetch stub, keyed on the path. An unlisted path fails the test loudly
 // rather than returning a plausible empty answer, because a screen quietly
 // rendering from a request nobody meant to allow is the thing worth catching.
-export function stubFetch(byPath: Record<string, () => Promise<Response>>) {
+//
+// The handler is given the request's own init, so a path a screen both reads
+// and writes -- /profile, which the account screen GETs and PUTs -- can answer
+// each method differently. Ignoring it is fine and most stubs do. `calls`
+// still records the path alone, so a test that needs the method or the body
+// reads fetchStub.mock.calls; widening `calls` would reword every assertion
+// already written against it.
+export function stubFetch(
+  byPath: Record<string, (init?: RequestInit) => Promise<Response>>,
+) {
   const calls: string[] = [];
 
-  const fetchStub = vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input);
-    const path = url.replace("http://api.test", "");
+  const fetchStub = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const path = url.replace("http://api.test", "");
 
-    calls.push(path);
+      calls.push(path);
 
-    const handler = byPath[path];
+      const handler = byPath[path];
 
-    if (!handler) {
-      throw new Error(`No stub for ${path}`);
-    }
+      if (!handler) {
+        throw new Error(`No stub for ${path}`);
+      }
 
-    return handler();
-  });
+      return handler(init);
+    },
+  );
 
   vi.stubGlobal("fetch", fetchStub);
 

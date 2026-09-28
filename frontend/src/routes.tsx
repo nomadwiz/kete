@@ -39,6 +39,7 @@ import type {
   PlanSlotIn,
   PlanWeek,
 } from "./types/plan";
+import type { Profile } from "./types/profile";
 import type { RecipeSummary } from "./types/recipe";
 import type { Targets } from "./types/targets";
 
@@ -92,6 +93,65 @@ async function withSession<T>(work: () => Promise<T>): Promise<T> {
 
     throw error;
   }
+}
+
+// The signed-in user's account details, and no rule of its own for any
+// status. GET /profile declares 401 and 404: the 401 is withSession's, and the
+// 404 means the account behind a token that still parses no longer exists,
+// which is a failure and belongs to the error boundary -- unlike the 404s the
+// two loaders below catch, which mean a form has not been filled in yet.
+function profileLoader(): Promise<Profile> {
+  return withSession(() => authed<Profile>("/profile"));
+}
+
+// PUT /profile is a full replace and takes no partial update, so all four
+// fields travel whether or not they changed.
+async function profileAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const details: Profile = {
+    first_name: String(form.get("first_name") ?? ""),
+    last_name: String(form.get("last_name") ?? ""),
+    username: String(form.get("username") ?? ""),
+    email: String(form.get("email") ?? ""),
+  };
+
+  return withSession(async () => {
+    try {
+      // The reply is the saved account and is discarded, as
+      // measurementsAction discards the targets its save computed: the loader
+      // revalidates after this returns, so the screen reads the account in
+      // one place rather than two that can disagree.
+      await authed<unknown>("/profile", {
+        method: "PUT",
+        body: JSON.stringify(details),
+      });
+    } catch (error) {
+      // Two of the four statuses PUT /profile declares, and only those two.
+      // A 409 means the username or email is already somebody else's and a
+      // 422 that a field is malformed: both are answered by typing something
+      // different, so the message goes back to the form the person is still
+      // standing in with what they typed, which the boundary would take the
+      // page and the typed values with it.
+      //
+      // The 404 is not among them. It means the account behind the token no
+      // longer exists, which profileLoader sends to the boundary -- returning
+      // it here would print "the account no longer exists" as though it were
+      // a validation message and invite another Save that cannot work.
+      if (
+        error instanceof ApiError &&
+        (error.status === 409 || error.status === 422)
+      ) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    // Null rather than a redirect: the person stays where they are, and
+    // account.tsx reads null as the save that worked, since React Router
+    // answers undefined until an action has run.
+    return null;
+  });
 }
 
 function recipesLoader(): Promise<RecipeSummary[]> {
@@ -419,7 +479,12 @@ const routes = [
                 loader: plannerLoader,
                 action: plannerAction,
               },
-              { path: PATHS.account, Component: ACCOUNT },
+              {
+                path: PATHS.account,
+                Component: ACCOUNT,
+                loader: profileLoader,
+                action: profileAction,
+              },
             ],
           },
         ],
