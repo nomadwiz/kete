@@ -1,9 +1,27 @@
-import { Form, useActionData, useNavigation } from "react-router";
+import {
+  Form,
+  useActionData,
+  useLoaderData,
+  useNavigation,
+} from "react-router";
 
 import { PATHS } from "../routes";
+import type { Metrics } from "../types/measurement";
 import "./measurement.css";
 
 export default function Measurement() {
+  // What was saved last time, or null when nothing has been -- the 404 the
+  // loader catches. Either way the same form is drawn: the difference is
+  // whether each control opens on a figure or on nothing.
+  //
+  // defaultValue rather than value, so the fields stay uncontrolled. React
+  // reads a default only when the control mounts, which is what this screen
+  // wants twice over: a saved figure the person overtypes stays overtyped, and
+  // a submission the API refused re-renders this component without remounting
+  // it, so what they had typed survives above the message saying why. Holding
+  // the five in state instead would mean a change handler per field and a
+  // second copy of the form to keep in step with the first.
+  const saved = useLoaderData() as Metrics | null;
   const error = useActionData() as string | undefined;
   const navigation = useNavigation();
   const saving = navigation.formAction === PATHS.measurements;
@@ -34,6 +52,7 @@ export default function Measurement() {
               id="weight-kg"
               name="weight_kg"
               type="number"
+              defaultValue={saved?.weight_kg ?? ""}
               min="0.01"
               max="635"
               step="0.01"
@@ -49,6 +68,7 @@ export default function Measurement() {
               id="height-cm"
               name="height_cm"
               type="number"
+              defaultValue={saved?.height_cm ?? ""}
               min="0.01"
               max="272"
               step="0.01"
@@ -66,6 +86,7 @@ export default function Measurement() {
               id="age"
               name="age"
               type="number"
+              defaultValue={saved?.age ?? ""}
               min="1"
               max="129"
               step="1"
@@ -77,7 +98,12 @@ export default function Measurement() {
             <label className="measurement__label" htmlFor="sex">
               Sex
             </label>
-            <select id="sex" name="sex" required>
+            <select
+              id="sex"
+              name="sex"
+              defaultValue={saved?.sex ?? ""}
+              required
+            >
               <option value="">Choose one</option>
               <option value="female">Female</option>
               <option value="male">Male</option>
@@ -89,7 +115,12 @@ export default function Measurement() {
           <label className="measurement__label" htmlFor="activity-level">
             Activity level
           </label>
-          <select id="activity-level" name="activity_level" required>
+          <select
+            id="activity-level"
+            name="activity_level"
+            defaultValue={saved?.activity_level ?? ""}
+            required
+          >
             <option value="">Choose one</option>
             <option value="sedentary">Sedentary</option>
             <option value="light">Light</option>

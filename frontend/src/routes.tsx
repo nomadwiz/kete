@@ -109,6 +109,32 @@ function targetsLoader(): Promise<Targets | null> {
   });
 }
 
+// The saved figures, so the form can offer them back rather than asking a
+// returning user to remember what they last typed. GET /profile/metrics exists
+// for that and for nothing else -- it is separate from GET /profile because
+// these five travel only when something asks for them by name.
+//
+// Null is the same state targetsLoader answers for, at the other end of the
+// same pair: this endpoint answers 404 until measurements have been saved, and
+// backend/main.py declares that status as a state rather than a failure. So a
+// first visit renders the empty form, which is the screen the person was sent
+// here to fill in, rather than the error boundary telling them something went
+// wrong. The 404 clause sits inside the work withSession runs, not beside it:
+// SessionExpired is not an ApiError, so this clause cannot swallow one.
+function metricsLoader(): Promise<Metrics | null> {
+  return withSession(async () => {
+    try {
+      return await authed<Metrics>("/profile/metrics");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
+
+      throw error;
+    }
+  });
+}
+
 async function measurementsAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
 
@@ -251,6 +277,7 @@ const routes = [
               {
                 path: PATHS.measurements,
                 Component: MEASUREMENT,
+                loader: metricsLoader,
                 action: measurementsAction,
               },
               {
