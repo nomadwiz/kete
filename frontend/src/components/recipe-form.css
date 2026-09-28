@@ -1,0 +1,122 @@
+/* The form only, and no page around it. Width, gutter and centring are the
+   host's to set -- C11 (nomadwiz/kete#176) draws this inside a modal on
+   /recipes and C12 (nomadwiz/kete#177) in place on /recipes/:id, and a block
+   that set its own max-width would fight the narrower of the two. So this
+   sheet styles the controls and their rhythm, and takes whatever column it is
+   given. That is also why it is the same single column as measurement.css
+   without measurement.css's page frame.
+
+   It is also why the one breakpoint below asks a container query rather than a
+   media query, which is a pattern no other sheet here uses yet. A media query
+   asks the viewport, and the viewport does not know how wide the modal is: on
+   a wide screen a 26rem modal would report 90rem and keep the pairs two-up,
+   squeezing the eight controls, which is the case this block exists to
+   survive. */
+.recipe-form {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--space-6);
+
+  .recipe-form__error {
+    padding: var(--space-3) var(--space-4);
+    background: var(--muka);
+    border: 1px solid var(--straw);
+    border-left: 3px solid var(--ink);
+    font-size: var(--text-sm);
+  }
+
+  /* Cuisine with servings, then energy with protein and carbohydrate with fat.
+     The nutrition pairs are the four figures the weekly comparison reads, laid
+     out two by two so the group reads as one block rather than a column of
+     eight controls the eye has to count. */
+  .recipe-form__pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+
+  .recipe-form__field {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .recipe-form__label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .recipe-form__field input,
+  .recipe-form__field textarea {
+    width: 100%;
+  }
+
+  /* Height only. A textarea dragged wider would break out of the column the
+     host gave the form, and the two of them are already full width. */
+  .recipe-form__field textarea {
+    resize: vertical;
+  }
+
+  /* A fieldset carries a border, padding and a margin from the user agent, and
+     all three are reset here so the group is marked by its rule above and by
+     its own spacing rather than by a box nothing else on the form has. */
+  .recipe-form__nutrition {
+    display: grid;
+    gap: var(--space-4);
+    margin: 0;
+    padding: var(--space-6) 0 0;
+    border: 0;
+    border-top: 1px solid var(--straw);
+  }
+
+  /* A legend is positioned into the border by default. With the border gone
+     from three sides it would sit on the rule above, so it is taken out of
+     that treatment and laid out as the first row of the grid. */
+  .recipe-form__legend {
+    float: left;
+    padding: 0;
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+
+  .recipe-form__note {
+    font-size: var(--text-sm);
+    color: var(--ink-soft);
+    max-width: var(--measure);
+  }
+
+  .recipe-form__submit {
+    justify-self: start;
+    padding: 0.7em 1.4em;
+    border: 0;
+    background: var(--kowhai);
+    color: var(--ink);
+    font-weight: 600;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .recipe-form__submit:hover:not(:disabled) {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  /* measurement.css's pending treatment, and sign-in.css records why the rule
+     is an inset shadow rather than a border. */
+  .recipe-form__submit:disabled {
+    background: var(--muka);
+    box-shadow: inset 0 0 0 1px var(--ink-soft);
+    color: var(--ink-soft);
+    cursor: default;
+  }
+
+  /* The pairs break at the width measurement.css breaks at, but measured
+     across the form rather than across the window, for the reason at the top
+     of this file. */
+  @container (max-width: 34rem) {
+    .recipe-form__pair {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-6);
+    }
+  }
+}
