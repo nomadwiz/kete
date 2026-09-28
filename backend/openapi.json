@@ -1,0 +1,1938 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kete API",
+    "description": "Nutrition-aware meal planner. Record your measurements once, write your own recipes, arrange them into a week, and see the week's totals against your computed targets.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register",
+        "description": "Create a user row. The password is hashed; the plain text is never stored.",
+        "operationId": "register_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That username or email is already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Find the user, check the password, hand back a token.",
+        "operationId": "login_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Incorrect username or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile",
+        "description": "Return the signed-in user. user_id comes from the token, never the client.",
+        "operationId": "get_profile_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Update Profile",
+        "description": "Update the signed-in user's account details.",
+        "operationId": "update_profile_profile_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That username or email is already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/profile/metrics": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Metrics",
+        "description": "Read back the saved body metrics, so the form can prefill.\n\nSeparate from GET /profile on purpose: `profiles` is the most sensitive\ntable in the system, and the account screen has no use for it. These five\nfigures travel only when something asks for them by name.",
+        "operationId": "get_metrics_profile_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No measurements saved yet. A state, not a failure: the form offers an empty prefill.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Save Metrics",
+        "description": "One request, two tables.\n\n1. Save the raw body metrics into `profiles`.\n2. Run the nutrition engine on them.\n3. Save the computed result into `nutrition_targets`.\n\nBoth writes happen in a single transaction, so either both land or neither\ndoes. That matters: stored targets must never disagree with the metrics\nthey came from.",
+        "operationId": "save_metrics_profile_metrics_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetricsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/targets": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Targets",
+        "description": "Read the computed targets.\n\nNote this reads `nutrition_targets` only. It never touches `profiles`, so\nthe sensitive body metrics are not re-read every time a screen loads.",
+        "operationId": "get_targets_targets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No targets yet. A state, not a failure: the dashboard shows an empty panel.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/recipes": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "List Recipes",
+        "description": "Browse and search. Scoped to the signed-in user by the token.",
+        "operationId": "list_recipes_recipes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecipeSummary"
+                  },
+                  "title": "Response List Recipes Recipes Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Create Recipe",
+        "operationId": "create_recipe_recipes_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeCreatedOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recipes/{recipe_id}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Get Recipe",
+        "operationId": "get_recipe_recipes__recipe_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recipe Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Update Recipe",
+        "operationId": "update_recipe_recipes__recipe_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recipe Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Delete Recipe",
+        "description": "Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE).",
+        "operationId": "delete_recipe_recipes__recipe_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recipe Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recipes/{recipe_id}/photo": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Upload Photo",
+        "description": "Store a recipe photograph in S3 and keep only its key in the database.\n\nThe bucket is private, so the response carries a time-limited link rather\nthan a permanent URL.",
+        "operationId": "upload_photo_recipes__recipe_id__photo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recipe Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_photo_recipes__recipe_id__photo_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The uploaded file is empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Image is larger than the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported image type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The image could not be stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Photo storage is not configured on this server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mealplan": {
+      "get": {
+        "tags": [
+          "mealplan"
+        ],
+        "summary": "Get Mealplan",
+        "description": "The week's plan, each slot with its recipe and its per-serving nutrition.\n\njoinedload fetches the recipes in the same statement, so a full week costs\none query rather than one more per distinct recipe.",
+        "operationId": "get_mealplan_mealplan_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "week",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
+              "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December.",
+              "title": "Week"
+            },
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlanSlotOut"
+                  },
+                  "title": "Response Get Mealplan Mealplan Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "mealplan"
+        ],
+        "summary": "Add Plan Slot",
+        "description": "Put one recipe in one day-and-meal slot.",
+        "operationId": "add_plan_slot_mealplan_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanSlotIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanSlotCreatedOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That day and meal is already filled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mealplan/{slot_id}": {
+      "delete": {
+        "tags": [
+          "mealplan"
+        ],
+        "summary": "Remove Plan Slot",
+        "operationId": "remove_plan_slot_mealplan__slot_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Slot Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such plan slot, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mealplan/generate": {
+      "post": {
+        "tags": [
+          "mealplan"
+        ],
+        "summary": "Generate Week",
+        "description": "Fill a whole week from the user's recipe library.\n\nClears the week first, then deals recipes round-robin across all 21 slots,\nso the same recipe does not land twice in a row while the library is small.\n\nChoosing recipes to best hit the nutrition targets is future work; this\nversion just fills the week.",
+        "operationId": "generate_week_mealplan_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The recipe library is empty. Add at least one recipe before generating a week.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The week changed while it was being generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/mealplan/week/{week}": {
+      "delete": {
+        "tags": [
+          "mealplan"
+        ],
+        "summary": "Clear Week",
+        "description": "Empty an entire week. Recipes themselves are untouched.",
+        "operationId": "clear_week_mealplan_week__week__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "week",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
+              "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December.",
+              "title": "Week"
+            },
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Health",
+        "description": "Liveness only: is the process up and serving?\n\nDeliberately does not touch the database. A health check that fails when\nthe database is unreachable is a readiness check, and behind a load\nbalancer it takes the instance out of service for a fault it cannot fix\nby restarting. If a database probe is wanted, it belongs at its own path.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_upload_photo_recipes__recipe_id__photo_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_photo_recipes__recipe_id__photo_post"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorDetail",
+        "description": "The shape of every error this application raises.\n\nFastAPI's own request validation answers 422 with `detail` as a list of\nfield errors instead, so a client cannot read the two the same way. The\nrule is stated in doc/design/implementation.md section 3 in the\ndocuments repository, nomadwiz/kete-doc."
+      },
+      "GenerateIn": {
+        "properties": {
+          "week": {
+            "type": "string",
+            "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
+            "title": "Week",
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
+          }
+        },
+        "type": "object",
+        "required": [
+          "week"
+        ],
+        "title": "GenerateIn"
+      },
+      "GenerateOut": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created"
+        ],
+        "title": "GenerateOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthOut"
+      },
+      "LoginIn": {
+        "properties": {
+          "username_or_email": {
+            "type": "string",
+            "title": "Username Or Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username_or_email",
+          "password"
+        ],
+        "title": "LoginIn"
+      },
+      "LoginOut": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "user_id"
+        ],
+        "title": "LoginOut"
+      },
+      "MetricsIn": {
+        "properties": {
+          "weight_kg": {
+            "type": "number",
+            "maximum": 635.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Weight Kg"
+          },
+          "height_cm": {
+            "type": "number",
+            "maximum": 272.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Height Cm"
+          },
+          "age": {
+            "type": "integer",
+            "exclusiveMaximum": 130.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Age"
+          },
+          "sex": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female"
+            ],
+            "title": "Sex"
+          },
+          "activity_level": {
+            "type": "string",
+            "enum": [
+              "sedentary",
+              "light",
+              "moderate",
+              "active",
+              "very_active"
+            ],
+            "title": "Activity Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weight_kg",
+          "height_cm",
+          "age",
+          "sex",
+          "activity_level"
+        ],
+        "title": "MetricsIn"
+      },
+      "MetricsOut": {
+        "properties": {
+          "weight_kg": {
+            "type": "number",
+            "title": "Weight Kg"
+          },
+          "height_cm": {
+            "type": "number",
+            "title": "Height Cm"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          },
+          "sex": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female"
+            ],
+            "title": "Sex"
+          },
+          "activity_level": {
+            "type": "string",
+            "enum": [
+              "sedentary",
+              "light",
+              "moderate",
+              "active",
+              "very_active"
+            ],
+            "title": "Activity Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weight_kg",
+          "height_cm",
+          "age",
+          "sex",
+          "activity_level"
+        ],
+        "title": "MetricsOut"
+      },
+      "PhotoOut": {
+        "properties": {
+          "photo_url": {
+            "type": "string",
+            "title": "Photo Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "photo_url"
+        ],
+        "title": "PhotoOut"
+      },
+      "PlanRecipe": {
+        "properties": {
+          "recipe_id": {
+            "type": "integer",
+            "title": "Recipe Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "energy_kcal": {
+            "type": "integer",
+            "title": "Energy Kcal"
+          },
+          "protein_g": {
+            "type": "integer",
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "integer",
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "integer",
+            "title": "Fat G"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe_id",
+          "name",
+          "energy_kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g"
+        ],
+        "title": "PlanRecipe"
+      },
+      "PlanSlotCreatedOut": {
+        "properties": {
+          "slot_id": {
+            "type": "integer",
+            "title": "Slot Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot_id"
+        ],
+        "title": "PlanSlotCreatedOut"
+      },
+      "PlanSlotIn": {
+        "properties": {
+          "recipe_id": {
+            "type": "integer",
+            "title": "Recipe Id"
+          },
+          "week": {
+            "type": "string",
+            "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
+            "title": "Week",
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
+          },
+          "day_of_week": {
+            "type": "string",
+            "enum": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri",
+              "Sat",
+              "Sun"
+            ],
+            "title": "Day Of Week"
+          },
+          "meal_position": {
+            "type": "string",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe_id",
+          "week",
+          "day_of_week",
+          "meal_position"
+        ],
+        "title": "PlanSlotIn"
+      },
+      "PlanSlotOut": {
+        "properties": {
+          "slot_id": {
+            "type": "integer",
+            "title": "Slot Id"
+          },
+          "day_of_week": {
+            "type": "string",
+            "enum": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri",
+              "Sat",
+              "Sun"
+            ],
+            "title": "Day Of Week"
+          },
+          "meal_position": {
+            "type": "string",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal Position"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/PlanRecipe"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot_id",
+          "day_of_week",
+          "meal_position",
+          "recipe"
+        ],
+        "title": "PlanSlotOut"
+      },
+      "ProfileIn": {
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "last_name": {
+            "type": "string",
+            "title": "Last Name"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name",
+          "username",
+          "email"
+        ],
+        "title": "ProfileIn"
+      },
+      "ProfileOut": {
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "last_name": {
+            "type": "string",
+            "title": "Last Name"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name",
+          "username",
+          "email"
+        ],
+        "title": "ProfileOut"
+      },
+      "RecipeCreatedOut": {
+        "properties": {
+          "recipe_id": {
+            "type": "integer",
+            "title": "Recipe Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe_id"
+        ],
+        "title": "RecipeCreatedOut"
+      },
+      "RecipeDetail": {
+        "properties": {
+          "recipe_id": {
+            "type": "integer",
+            "title": "Recipe Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "cuisine": {
+            "type": "string",
+            "title": "Cuisine"
+          },
+          "energy_kcal": {
+            "type": "integer",
+            "title": "Energy Kcal"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "ingredients": {
+            "type": "string",
+            "title": "Ingredients"
+          },
+          "steps": {
+            "type": "string",
+            "title": "Steps"
+          },
+          "servings": {
+            "type": "integer",
+            "title": "Servings"
+          },
+          "protein_g": {
+            "type": "integer",
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "integer",
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "integer",
+            "title": "Fat G"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe_id",
+          "name",
+          "cuisine",
+          "energy_kcal",
+          "ingredients",
+          "steps",
+          "servings",
+          "protein_g",
+          "carbs_g",
+          "fat_g"
+        ],
+        "title": "RecipeDetail"
+      },
+      "RecipeIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "cuisine": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Cuisine"
+          },
+          "ingredients": {
+            "type": "string",
+            "title": "Ingredients"
+          },
+          "steps": {
+            "type": "string",
+            "title": "Steps"
+          },
+          "servings": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Servings"
+          },
+          "energy_kcal": {
+            "type": "integer",
+            "maximum": 99999.0,
+            "minimum": 0.0,
+            "title": "Energy Kcal"
+          },
+          "protein_g": {
+            "type": "integer",
+            "maximum": 9999.0,
+            "minimum": 0.0,
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "integer",
+            "maximum": 9999.0,
+            "minimum": 0.0,
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "integer",
+            "maximum": 9999.0,
+            "minimum": 0.0,
+            "title": "Fat G"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "cuisine",
+          "ingredients",
+          "steps",
+          "servings",
+          "energy_kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g"
+        ],
+        "title": "RecipeIn"
+      },
+      "RecipeSummary": {
+        "properties": {
+          "recipe_id": {
+            "type": "integer",
+            "title": "Recipe Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "cuisine": {
+            "type": "string",
+            "title": "Cuisine"
+          },
+          "energy_kcal": {
+            "type": "integer",
+            "title": "Energy Kcal"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe_id",
+          "name",
+          "cuisine",
+          "energy_kcal"
+        ],
+        "title": "RecipeSummary"
+      },
+      "RegisterIn": {
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "last_name": {
+            "type": "string",
+            "title": "Last Name"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name",
+          "username",
+          "email",
+          "password"
+        ],
+        "title": "RegisterIn"
+      },
+      "RegisterOut": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "RegisterOut"
+      },
+      "TargetsOut": {
+        "properties": {
+          "energy_kcal": {
+            "type": "integer",
+            "title": "Energy Kcal"
+          },
+          "protein_g": {
+            "type": "integer",
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "integer",
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "integer",
+            "title": "Fat G"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "energy_kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g"
+        ],
+        "title": "TargetsOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
