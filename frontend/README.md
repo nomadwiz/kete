@@ -12,7 +12,6 @@ Known gaps, each tracked as an issue rather than left in this file:
 | ---------------------------------------------------------------- | -------------------------------- |
 | Four of the eleven pages are placeholders                        | #176–#184                        |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
-| One of C22's three security behaviours still has no test         | C22 (#236)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
 
 ## Run it

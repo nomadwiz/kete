@@ -23,9 +23,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Two of the three behaviours C22 (nomadwiz/kete#236) names. The third -- that
-// a 401 from POST /login does not trigger the global sign-out redirect --
-// stays with that issue.
+// The first two of the three behaviours C22 (nomadwiz/kete#236) names. The
+// third is "a sign-in the API rejects", below.
 describe("the guard on the signed-in layout", () => {
   it("turns a signed-out visitor away from the dashboard without calling the API", async () => {
     const { calls } = stubFetch({});
@@ -114,5 +113,30 @@ describe("where a fresh sign-in lands", () => {
       ),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).not.toBe("/dashboard");
+  });
+});
+
+// C22's third behaviour, and the half of the pair the dashboard's "signs the
+// user out on a 401" test leaves: POST /login answers 401 by design, so that
+// an attacker cannot learn which usernames exist. The assertion is the form's
+// own role="alert" and not the message text -- ErrorBoundary prints the same
+// sentence, so a check for the text alone still passes against an action that
+// rethrows, which is the defect this test exists to catch.
+describe("a sign-in the API rejects", () => {
+  it("keeps the user on the page with the server's own message, rather than treating the 401 as an ended session", async () => {
+    stubFetch({
+      "/login": async () =>
+        jsonResponse(401, { detail: "Incorrect username or password" }),
+    });
+
+    const { router } = renderAt("/sign-in");
+
+    await signIn();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Incorrect username or password",
+    );
+    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(window.localStorage.getItem("kete.token")).toBeNull();
   });
 });
