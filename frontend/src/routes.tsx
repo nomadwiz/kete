@@ -27,6 +27,7 @@ import type {
   SignInResult,
 } from "./types/auth";
 import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
+import type { Profile } from "./types/profile";
 import type { RecipeSummary } from "./types/recipe";
 import type { Targets } from "./types/targets";
 
@@ -76,6 +77,53 @@ async function withSession<T>(work: () => Promise<T>): Promise<T> {
 
     throw error;
   }
+}
+
+// The signed-in user's account details, and no rule of its own for any
+// status. GET /profile declares 401 and 404: the 401 is withSession's, and the
+// 404 means the account behind a token that still parses no longer exists,
+// which is a failure and belongs to the error boundary -- unlike the 404s the
+// two loaders below catch, which mean a form has not been filled in yet.
+function profileLoader(): Promise<Profile> {
+  return withSession(() => authed<Profile>("/profile"));
+}
+
+// PUT /profile is a full replace and takes no partial update, so all four
+// fields travel whether or not they changed. The reply is the saved account
+// and is discarded: the loader revalidates after this returns, so there is one
+// read of the account rather than two answers that can disagree.
+async function profileAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const details: Profile = {
+    first_name: String(form.get("first_name") ?? ""),
+    last_name: String(form.get("last_name") ?? ""),
+    username: String(form.get("username") ?? ""),
+    email: String(form.get("email") ?? ""),
+  };
+
+  return withSession(async () => {
+    try {
+      await authed<Profile>("/profile", {
+        method: "PUT",
+        body: JSON.stringify(details),
+      });
+    } catch (error) {
+      // The 409 this exists for -- the username or email is already somebody
+      // else's -- returned rather than thrown, so the message lands above the
+      // form the person is still standing in with what they typed. The
+      // boundary would take the page and the typed values with it.
+      if (error instanceof ApiError) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    // Null rather than a redirect: the person stays where they are, and
+    // account.tsx reads null as the save that worked, since React Router
+    // answers undefined until an action has run.
+    return null;
+  });
 }
 
 function recipesLoader(): Promise<RecipeSummary[]> {
@@ -290,7 +338,12 @@ const routes = [
               },
               { path: PATHS.recipe, Component: RECIPE_DETAIL },
               { path: PATHS.planner, Component: PLANNER },
-              { path: PATHS.account, Component: ACCOUNT },
+              {
+                path: PATHS.account,
+                Component: ACCOUNT,
+                loader: profileLoader,
+                action: profileAction,
+              },
             ],
           },
         ],
