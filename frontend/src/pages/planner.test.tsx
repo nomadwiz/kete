@@ -224,6 +224,12 @@ describe("placing a recipe", () => {
       screen.getByRole("button", { name: "Add a recipe to Sunday dinner" }),
     ).toBeDisabled();
 
+    // And the whole-week action above the grid, which would otherwise discard
+    // the placement now in flight.
+    expect(
+      screen.getByRole("button", { name: "Fill the week from your library" }),
+    ).toBeDisabled();
+
     answer();
     await vi.waitFor(() => expect(add()).toBeEnabled());
   });
@@ -343,6 +349,14 @@ describe("a week with nothing in it", () => {
     // An empty week is an empty array and not a 404, so nothing here is an
     // error and the grid is still the thing you fill the week from.
     expect(screen.getAllByRole("combobox")).toHaveLength(21);
+
+    // Filling it is offered; clearing what is not there is not.
+    expect(
+      screen.getByRole("button", { name: "Fill the week from your library" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear the week" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -359,8 +373,12 @@ describe("a week with nothing in it", () => {
       await screen.findByRole("link", { name: "Write your first recipe" }),
     ).toHaveAttribute("href", "/recipes");
 
-    // Offering twenty-one choices of nothing is worse than offering none.
+    // Offering twenty-one choices of nothing is worse than offering none,
+    // and so is a button that fills a week from a library with nothing in it.
     expect(screen.queryAllByRole("combobox")).toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: "Fill the week from your library" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -455,8 +473,9 @@ const FULL_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].flatMap(
       slot_id: d * 3 + m + 1,
       day_of_week: day,
       meal_position: meal,
-      // Alternating, because the server deals the library out in turn rather
-      // than choosing -- which is the one thing the confirmation promises.
+      // Alternating only so the two fixtures both appear. Nothing here
+      // asserts the order: the server does the dealing, and a client-side
+      // assertion about it would assert the fixture.
       recipe: (d * 3 + m) % 2 === 0 ? SOUP : FRITTERS,
     })),
 );
@@ -675,5 +694,87 @@ describe("clearing a week", () => {
 
     expect(asked).toContain(WEEK);
     expect(asked).toMatch(/recipes are not touched/);
+  });
+});
+
+describe("more of what filling a week answers for", () => {
+  // The other half of generate's row, and the status the confirmation's own
+  // double click produces. Without it the row could lose its 409 and every
+  // other test would still pass.
+  it("shows the server's own sentence when the week moved under the request", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, []),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      "/mealplan/generate": async () =>
+        jsonResponse(409, {
+          detail: "The week changed while it was being generated",
+        }),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", {
+        name: "Fill the week from your library",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The week changed while it was being generated",
+    );
+  });
+});
+
+describe("what clearing a week answers for", () => {
+  // DELETE /mealplan/week/{week} declares 401 and 422 and nothing else, so 422
+  // is the whole of that intent's row. Untested, the row could be empty and
+  // every other test would still pass.
+  it("keeps a refused week on the page rather than at the error boundary", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      [`/mealplan/week/${WEEK}`]: async () =>
+        jsonResponse(422, { detail: "week: string does not match pattern" }),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Clear the week" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "does not match pattern",
+    );
+    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
+  });
+
+  it("sends an undeclared failure to the error boundary", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      [`/mealplan/week/${WEEK}`]: async () =>
+        jsonResponse(500, { detail: "Server error" }),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Clear the week" }));
+
+    expect(await screen.findByText("Status 500.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Main" }),
+    ).toBeInTheDocument();
   });
 });

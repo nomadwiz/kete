@@ -281,7 +281,10 @@ async function plannerLoader({
 //
 //   remove, DELETE /mealplan/{slot_id}
 //     404 "No such plan slot, or it belongs to another account", and the same
-//     409 and 422.
+//     422. No 409: that route declares 204, 401, 404 and 422 and nothing else.
+//     The flat tuple this table replaced answered a 409 here, which the same
+//     rule that made this a table forbids -- an undeclared failure printed
+//     above the grid invites another go at something that cannot work.
 //
 //   generate, POST /mealplan/generate
 //     400 "The recipe library is empty. Add at least one recipe before
@@ -302,12 +305,17 @@ async function plannerLoader({
 // whole grid to the boundary. Do not flatten these into one set: 400 on
 // `place` and 404 on `generate` are undeclared, and an undeclared failure
 // printed above the grid invites another go at something that cannot work.
-const RECOVERABLE: Record<string, readonly number[]> = {
-  place: [404, 409, 422],
-  remove: [404, 409, 422],
-  generate: [400, 409, 422],
-  clear: [422],
-};
+// A Map rather than an object literal, because an object literal typed
+// Record<string, ...> promises a row for every string and has one: "constructor"
+// finds Object through the prototype, whose .includes is undefined and would
+// replace a real ApiError with a TypeError inside the catch. A Map has no
+// inherited keys and its get() is honestly optional.
+const RECOVERABLE = new Map<string, readonly number[]>([
+  ["place", [404, 409, 422]],
+  ["remove", [404, 422]],
+  ["generate", [400, 409, 422]],
+  ["clear", [422]],
+]);
 
 async function plannerAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
@@ -357,7 +365,16 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
       } else if (intent === "clear") {
         // 204 with no body, as `remove` is. The week travels in the path on
         // this one route rather than in a body or a query.
-        await authed<void>(`/mealplan/week/${week}`, { method: "DELETE" });
+        // encodeURIComponent, which no other call here needs: this is the
+        // only route that puts a form value in a path. The loader has already
+        // refused a week that is not one, so nothing reaches here through the
+        // screen -- but a hand-edited hidden field of "../profile" would
+        // otherwise aim the DELETE at another endpoint under the same bearer
+        // token, and a malformed one would become a different address instead
+        // of the 422 this intent's row exists to answer.
+        await authed<void>(`/mealplan/week/${encodeURIComponent(week)}`, {
+          method: "DELETE",
+        });
       } else {
         // Not a shrug. Every form on the grid carries an intent, so an
         // unrecognised one is a typo in a hidden field -- which, returned as
@@ -366,9 +383,10 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
         throw new Error(`Unknown planner intent: ${intent}`);
       }
     } catch (error) {
-      // The table above decides this, and the branch that throws on an
-      // unknown intent is what makes the lookup safe: an intent with no row
-      // never reaches the API, so nothing it could throw is an ApiError.
+      // The table above decides this. An intent with no row never reaches the
+      // API -- the branch below throws on one before any call is made -- so a
+      // missing row cannot arrive here with an ApiError beside it, and the ??
+      // is the type being honest rather than a case anyone has seen.
       //
       // Do not "correct" this to match measurementsAction. The 404 that
       // profileAction and measurementsAction send to the boundary is a
@@ -377,7 +395,7 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
       // (nomadwiz/kete#279) is about that one, not this one.
       if (
         error instanceof ApiError &&
-        RECOVERABLE[intent].includes(error.status)
+        (RECOVERABLE.get(intent) ?? []).includes(error.status)
       ) {
         return error.message;
       }

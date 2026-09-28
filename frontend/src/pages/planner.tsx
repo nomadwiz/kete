@@ -101,7 +101,11 @@ export default function Planner() {
   // here would be exercised against a polyfill instead of against the element.
   // C11 (nomadwiz/kete#176) is landing a <dialog> modal on /recipes; when it
   // does, this is the application's second confirmation and the two should
-  // become one.
+  // become one. Its ceiling until then: a browser whose "prevent this page
+  // from creating further dialogues" box has been ticked answers confirm()
+  // false without showing anything, and the button then does nothing at all.
+  // That fails closed, which is the right direction for a control that
+  // discards a week, but it reads as a broken button.
   //
   // What the first of them has to say is the whole reason the action is
   // confirmed at all. backend/main.py empties the week before it deals, and
@@ -219,20 +223,30 @@ export default function Planner() {
             </button>
           </Form>
 
-          <Form
-            method="post"
-            onSubmit={(event) => {
-              if (!window.confirm(emptiesTheWeek)) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <input type="hidden" name="intent" value="clear" />
-            <input type="hidden" name="week" value={week} />
-            <button className="planner__clear" type="submit" disabled={busy}>
-              Clear the week
-            </button>
-          </Form>
+          {/* Gated on the week having something in it, which the button to
+              its left is deliberately not gated on, and the asymmetry is the
+              contract's. Clearing an empty week is a declared success, so a
+              loader copy that says empty and is not costs a reload and
+              nothing else -- whereas an emptied library is the 400's whole
+              subject. Offering "Clear everything planned for this week, and
+              there is no undo" directly under a line saying nothing is
+              planned is the worse of the two readings. */}
+          {slots.length > 0 ? (
+            <Form
+              method="post"
+              onSubmit={(event) => {
+                if (!window.confirm(emptiesTheWeek)) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              <input type="hidden" name="intent" value="clear" />
+              <input type="hidden" name="week" value={week} />
+              <button className="planner__clear" type="submit" disabled={busy}>
+                Clear the week
+              </button>
+            </Form>
+          ) : null}
         </div>
       ) : null}
 
