@@ -697,6 +697,36 @@ describe("clearing a week", () => {
   });
 });
 
+// The one row of the table this change altered outside its own two branches.
+// DELETE /mealplan/{slot_id} declares 204, 401, 404 and 422 and no 409, so a
+// 409 from it is a failure nobody predicted rather than a position somebody
+// else filled -- and the sentence that would otherwise be printed above the
+// grid invites a second Remove that cannot work either.
+describe("removing a slot", () => {
+  it("sends an undeclared 409 to the error boundary", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      "/mealplan/7": async () =>
+        jsonResponse(409, { detail: "That day and meal is already filled" }),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", {
+        name: "Remove Kumara and lentil soup from Tuesday lunch",
+      }),
+    );
+
+    expect(await screen.findByText("Status 409.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Main" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("more of what filling a week answers for", () => {
   // The other half of generate's row, and the status the confirmation's own
   // double click produces. Without it the row could lose its 409 and every
