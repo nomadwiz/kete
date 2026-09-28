@@ -1,14 +1,9 @@
-import {
-  Form,
-  Link,
-  useActionData,
-  useLoaderData,
-  useNavigation,
-} from "react-router";
+import { Form, Link, useActionData, useLoaderData } from "react-router";
 
 import { datesOf, isoWeek, shiftWeek } from "../api/week";
 import { PATHS, QUERY } from "../routes";
 import type { DayOfWeek, MealPosition, PlanWeek } from "../types/plan";
+import { useSubmitting } from "../use-submitting";
 import "./planner.css";
 
 // A table, not a grid of divs, and the trade is worth stating because the
@@ -66,21 +61,15 @@ const WEEK_RANGE = new Intl.DateTimeFormat("en-NZ", {
 export default function Planner() {
   const { week, slots, recipes } = useLoaderData() as PlanWeek;
   const error = useActionData() as string | null | undefined;
-  const navigation = useNavigation();
-
   // Whether anything is in flight. Both kinds of submit below are disabled
   // while it is: a second click on Add places the same recipe again and is
   // answered 409, a second Remove is answered 404, and either way the person
   // is shown a failure for an operation that in fact succeeded.
   //
-  // The path alone, not the whole formAction, and account.tsx says why: a
-  // <Form> declaring no action prop does not submit to the bare path, because
-  // useFormAction in react-router 8.4.0 copies the current query string into
-  // it. This is the screen that puts the week in the query string, so the
-  // equality against the whole thing would be false for every submission this
-  // page ever makes. C25 (nomadwiz/kete#277) is landing a shared helper; take
-  // it when it does.
-  const busy = navigation.formAction?.split("?")[0] === PATHS.planner;
+  // This is the screen that puts the week in the query string, so comparing
+  // the whole formAction against PATHS.planner would be false for every
+  // submission this page ever makes. src/use-submitting.ts says why.
+  const busy = useSubmitting("POST");
 
   // One pass over the answer rather than a scan of it in each of twenty-one
   // cells. The key pairs the two axes because neither identifies a position on

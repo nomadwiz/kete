@@ -1,7 +1,8 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { QUERY } from "./routes";
 import { jsonResponse, renderAt, stubFetch, TARGETS_BODY } from "./test/router";
 
 function signedIn() {
@@ -138,5 +139,52 @@ describe("a sign-in the API rejects", () => {
     );
     expect(router.state.location.pathname).toBe("/sign-in");
     expect(window.localStorage.getItem("kete.token")).toBeNull();
+  });
+});
+
+// C25 (nomadwiz/kete#277). The address is the substance of this test. Every
+// sign-in test above drives the bare /sign-in, where comparing
+// navigation.formAction against PATHS.sign_in happens to hold; signUpAction
+// sends a new account to /sign-in?created=1, and a react-router Form that
+// declares no `action` submits to the current address including its search, so
+// on that address the comparison is false for the whole submission and neither
+// the disabled button nor aria-busy ever turns on.
+describe("a sign-in from the address a new account lands on", () => {
+  it("disables the button and marks the form busy while the submission is in flight", async () => {
+    // POST /login is held open, because what is under test is the state during
+    // the submission rather than where it lands. Nothing else can observe that
+    // window: the action resolving immediately would close it before the test
+    // could look.
+    let answerLogin = () => {};
+    const held = new Promise<void>((resolve) => {
+      answerLogin = resolve;
+    });
+
+    stubFetch({
+      "/login": async () => {
+        await held;
+
+        return jsonResponse(200, { token: "a-token" });
+      },
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+    });
+
+    renderAt(`/sign-in?${QUERY.account_created}=1`);
+
+    await signIn();
+
+    const submit = () => screen.getByRole("button", { name: /^Sign(ing)? in/ });
+
+    // Released in a finally, so a failed assertion above does not leave the
+    // request hanging and the router updating a tree the next test has
+    // replaced -- which would report this defect as a failure in that test.
+    try {
+      await waitFor(() => expect(submit()).toBeDisabled());
+      expect(submit().closest("form")).toHaveAttribute("aria-busy", "true");
+    } finally {
+      answerLogin();
+    }
+
+    await screen.findByText("2,480 kcal");
   });
 });
