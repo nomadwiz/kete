@@ -34,6 +34,7 @@ import type {
 import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
 import type {
   DayOfWeek,
+  GenerateIn,
   MealPosition,
   PlanSlot,
   PlanSlotIn,
@@ -252,30 +253,74 @@ async function plannerLoader({
 
 // One action for the whole screen, branching on a hidden `intent` field rather
 // than giving each verb a route of its own -- the shape C15 uses on
-// /recipes/:id. C17 (nomadwiz/kete#181) adds generating a week and clearing
-// one as two more branches here, POST /mealplan/generate and DELETE
-// /mealplan/week/{week}, rather than rewriting this.
+// /recipes/:id. C17 (nomadwiz/kete#181) added filling a whole week and
+// clearing one as two more branches, POST /mealplan/generate and DELETE
+// /mealplan/week/{week}, rather than routes of their own.
 //
 // A branch answers null when the server accepted the change and the server's
 // own sentence when it did not. Either way the grid is redrawn from the
 // loader, because React Router revalidates after an action -- so no branch
 // returns the new state and nothing here holds a second copy of the week.
 //
-// Three things C17's two branches need, all read off backend/openapi.json
-// rather than assumed from the pair already here:
+// The week is read once, at the top, because three of the four branches send
+// it and the house rule extracts on the third. It is read off the hidden field
+// the grid carries and never recomputed here: a week recomputed in an action
+// is a different week from the one the person was looking at.
+
+// Which failures this screen answers above the grid, per intent; everything
+// else goes to the error boundary. Keyed by the intent and not by the status,
+// because the same number means different things on the four routes and the
+// meaning is what decides the surface -- the rule C26 (nomadwiz/kete#279) was
+// corrected to. In backend/openapi.json's own words:
 //
-//   - Clearing a week declares no 404 at all. Emptying a week that is already
-//     empty is a success, so there is no missing-row case to answer.
-//   - Generating declares 400, "The recipe library is empty", which is
-//     recoverable in the same sense the statuses below are -- the answer is to
-//     write a recipe -- so the catch widens to 400 for that branch.
-//   - Both take the week, and DELETE /mealplan/week/{week} takes it in the
-//     path. It travels as a hidden field from the grid, the way `place` takes
-//     it below, rather than being recomputed here: a week recomputed in an
-//     action is a different week from the one the person was looking at.
+//   place, POST /mealplan
+//     404 "No such recipe, or it belongs to another account" -- one stale row.
+//     409 "That day and meal is already filled" -- another tab got there
+//     first.
+//     422 -- a value the enums refuse, answered by choosing again.
+//
+//   remove, DELETE /mealplan/{slot_id}
+//     404 "No such plan slot, or it belongs to another account", and the same
+//     422. No 409: that route declares 204, 401, 404 and 422 and nothing else.
+//     The flat tuple this table replaced answered a 409 here, which the same
+//     rule that made this a table forbids -- an undeclared failure printed
+//     above the grid invites another go at something that cannot work.
+//
+//   generate, POST /mealplan/generate
+//     400 "The recipe library is empty. Add at least one recipe before
+//     generating a week." -- the library was there when the loader read it and
+//     is not now, and the sentence names the thing to do about it.
+//     409 "The week changed while it was being generated" -- the double click.
+//     This route declares no 404 at all.
+//
+//   clear, DELETE /mealplan/week/{week}
+//     declares 401 and 422 and nothing else -- no 404, because emptying a week
+//     that is already empty is a success rather than a missing row, and no
+//     409. Its 422 could come only from a malformed week, which plannerLoader
+//     refuses before the screen is drawn, so this is the list that is nearly
+//     empty, and that is the contract's doing rather than an oversight.
+//
+// In all four the session is intact, the week is intact, and the revalidation
+// that follows repairs the view by itself, which is why none of them takes the
+// whole grid to the boundary. Do not flatten these into one set: 400 on
+// `place` and 404 on `generate` are undeclared, and an undeclared failure
+// printed above the grid invites another go at something that cannot work.
+// A Map rather than an object literal, because an object literal typed
+// Record<string, ...> promises a row for every string and has one: "constructor"
+// finds Object through the prototype, whose .includes is undefined and would
+// replace a real ApiError with a TypeError inside the catch. A Map has no
+// inherited keys and its get() is honestly optional.
+const RECOVERABLE = new Map<string, readonly number[]>([
+  ["place", [404, 409, 422]],
+  ["remove", [404, 422]],
+  ["generate", [400, 409, 422]],
+  ["clear", [422]],
+]);
+
 async function plannerAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const intent = String(form.get("intent") ?? "");
+  const week = String(form.get("week") ?? "");
 
   return withSession(async () => {
     try {
@@ -292,7 +337,7 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
         // 422 rather than filling the wrong position.
         const placement: PlanSlotIn = {
           recipe_id: Number(form.get("recipe_id")),
-          week: String(form.get("week") ?? ""),
+          week,
           day_of_week: String(form.get("day_of_week") ?? "") as DayOfWeek,
           meal_position: String(
             form.get("meal_position") ?? "",
@@ -305,32 +350,43 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
           method: "POST",
           body: JSON.stringify(placement),
         });
+      } else if (intent === "generate") {
+        // Destructive, and the screen says so before it gets here:
+        // backend/main.py empties the week and then deals the library out
+        // across all twenty-one positions, so whatever was planned is gone.
+        const whole: GenerateIn = { week };
+
+        // The reply is GenerateOut, whose `created` is always 21 for that
+        // reason. Discarded like the slot_id above, for the same reason.
+        await authed<unknown>("/mealplan/generate", {
+          method: "POST",
+          body: JSON.stringify(whole),
+        });
+      } else if (intent === "clear") {
+        // 204 with no body, as `remove` is. The week travels in the path on
+        // this one route rather than in a body or a query.
+        // encodeURIComponent, which no other call here needs: this is the
+        // only route that puts a form value in a path. The loader has already
+        // refused a week that is not one, so nothing reaches here through the
+        // screen -- but a hand-edited hidden field of "../profile" would
+        // otherwise aim the DELETE at another endpoint under the same bearer
+        // token, and a malformed one would become a different address instead
+        // of the 422 this intent's row exists to answer.
+        await authed<void>(`/mealplan/week/${encodeURIComponent(week)}`, {
+          method: "DELETE",
+        });
       } else {
         // Not a shrug. Every form on the grid carries an intent, so an
         // unrecognised one is a typo in a hidden field -- which, returned as
         // null, is indistinguishable from success: the loader revalidates and
-        // the grid redraws unchanged. C17 (nomadwiz/kete#181) adds its two
-        // branches above this one.
+        // the grid redraws unchanged.
         throw new Error(`Unknown planner intent: ${intent}`);
       }
     } catch (error) {
-      // Three statuses come back as a message and everything else goes to the
-      // boundary. Which three is decided by what backend/openapi.json says
-      // each code *means* on these two routes, not by the number: the same
-      // code means different things elsewhere, and the difference is the whole
-      // rule.
-      //
-      //   409, "That day and meal is already filled" -- another tab got there
-      //   first. The revalidation shows what is actually in the position.
-      //
-      //   404, "No such recipe, or it belongs to another account" on POST, and
-      //   "No such plan slot, or it belongs to another account" on DELETE. One
-      //   referenced row is stale. The session is intact, the week is intact,
-      //   and React Router's revalidation repairs the view on its own -- so
-      //   taking the whole grid to the boundary because a recipe was deleted
-      //   in another tab is the wrong trade.
-      //
-      //   422 -- a value the enums refuse, answered by choosing again.
+      // The table above decides this. An intent with no row never reaches the
+      // API -- the branch below throws on one before any call is made -- so a
+      // missing row cannot arrive here with an ApiError beside it, and the ??
+      // is the type being honest rather than a case anyone has seen.
       //
       // Do not "correct" this to match measurementsAction. The 404 that
       // profileAction and measurementsAction send to the boundary is a
@@ -339,7 +395,7 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
       // (nomadwiz/kete#279) is about that one, not this one.
       if (
         error instanceof ApiError &&
-        (error.status === 404 || error.status === 409 || error.status === 422)
+        (RECOVERABLE.get(intent) ?? []).includes(error.status)
       ) {
         return error.message;
       }

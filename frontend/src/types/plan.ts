@@ -33,3 +33,10 @@ export type PlanWeek = {
   slots: PlanSlot[];
   recipes: RecipeSummary[];
 };
+
+// The body POST /mealplan/generate takes. One field, and it is the week --
+// which the screen already holds, so the action never recomputes it. There is
+// no alias for the 201's GenerateOut: it carries `created`, which is always 21
+// because the endpoint fills every position, and the action discards it the
+// way it discards the slot_id a placement answers with.
+export type GenerateIn = components["schemas"]["GenerateIn"];

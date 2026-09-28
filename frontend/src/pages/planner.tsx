@@ -93,6 +93,37 @@ export default function Planner() {
   const dates = datesOf(week);
   const library = recipes.length > 0;
 
+  // The two sentences put in front of the whole-week actions, written here
+  // rather than inside the handlers so the pair can be read against each
+  // other. Both are the platform's own confirmation rather than a <dialog>:
+  // window.confirm is modal, focus-trapped and dismissible from the keyboard
+  // for no code at all, and jsdom 30 implements no showModal, so a <dialog>
+  // here would be exercised against a polyfill instead of against the element.
+  // C11 (nomadwiz/kete#176) is landing a <dialog> modal on /recipes; when it
+  // does, this is the application's second confirmation and the two should
+  // become one. Its ceiling until then: a browser whose "prevent this page
+  // from creating further dialogues" box has been ticked answers confirm()
+  // false without showing anything, and the button then does nothing at all.
+  // That fails closed, which is the right direction for a control that
+  // discards a week, but it reads as a broken button.
+  //
+  // What the first of them has to say is the whole reason the action is
+  // confirmed at all. backend/main.py empties the week before it deals, and
+  // answers created: 21 whichever week it was given, so a planned week is
+  // discarded by a button whose label otherwise reads like an addition. And it
+  // deals the library out in turn without reading the targets -- the
+  // 15-09-2026 decision puts choosing recipes to hit them out of scope, and
+  // product.md section 5 says the built version does not -- so any word here
+  // suggesting the week is balanced, optimised or chosen for the person would
+  // be a claim about a system that does not do it.
+  const replacesTheWeek = `Fill every position in ${week} from your library?\n\nWhatever is already planned for this week is replaced. Recipes are dealt out from your library in turn, and none is chosen to meet your targets.`;
+
+  // Clearing destroys as much as filling does and has no undo either, and the
+  // API offers no way back, so it is asked the same question rather than a
+  // lighter one. What differs is what survives it, which the server's own
+  // description of that route says: "Recipes themselves are untouched."
+  const emptiesTheWeek = `Clear everything planned for ${week}?\n\nThe whole week is emptied and there is no undo. Your recipes are not touched.`;
+
   return (
     <div className="planner">
       <h1 className="planner__title">Planner</h1>
@@ -156,6 +187,67 @@ export default function Planner() {
           Nothing is planned for this week yet. Choose a recipe in any position
           below.
         </p>
+      ) : null}
+
+      {/* Both of these act on the whole week rather than on a position, so
+          they sit above the grid rather than in it.
+
+          Only when there is a library. With none there is nothing to fill the
+          week from, nothing can have been placed in it to clear, and the
+          paragraph above already says where to go instead. Nothing here reads
+          the library a second time to disable the button, though: the loader's
+          copy of it can be stale, and a library emptied in another tab is
+          precisely what the 400 answers.
+
+          "Fill the week from your library" and not "Generate": the label says
+          where the recipes come from, which is the library and not a
+          calculation, and it is read by everyone who never opens the
+          confirmation. */}
+      {library ? (
+        <div className="planner__actions">
+          <Form
+            method="post"
+            onSubmit={(event) => {
+              // react-router's Form runs this handler first and stops on a
+              // prevented default, so a declined confirmation sends no
+              // request at all rather than one that is thrown away.
+              if (!window.confirm(replacesTheWeek)) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <input type="hidden" name="intent" value="generate" />
+            <input type="hidden" name="week" value={week} />
+            <button className="planner__fill" type="submit" disabled={busy}>
+              Fill the week from your library
+            </button>
+          </Form>
+
+          {/* Gated on the week having something in it, which the button to
+              its left is deliberately not gated on, and the asymmetry is the
+              contract's. Clearing an empty week is a declared success, so a
+              loader copy that says empty and is not costs a reload and
+              nothing else -- whereas an emptied library is the 400's whole
+              subject. Offering "Clear everything planned for this week, and
+              there is no undo" directly under a line saying nothing is
+              planned is the worse of the two readings. */}
+          {slots.length > 0 ? (
+            <Form
+              method="post"
+              onSubmit={(event) => {
+                if (!window.confirm(emptiesTheWeek)) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              <input type="hidden" name="intent" value="clear" />
+              <input type="hidden" name="week" value={week} />
+              <button className="planner__clear" type="submit" disabled={busy}>
+                Clear the week
+              </button>
+            </Form>
+          ) : null}
+        </div>
       ) : null}
 
       <table className="planner__grid" aria-busy={busy}>
