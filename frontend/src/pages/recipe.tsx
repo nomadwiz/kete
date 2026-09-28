@@ -2,7 +2,6 @@ import {
   Link,
   useActionData,
   useLoaderData,
-  useNavigation,
   useParams,
   useSearchParams,
 } from "react-router";
@@ -14,6 +13,7 @@ import { PATHS, QUERY } from "../routes";
 // type is aliased at the import and neither declaration is renamed, which is
 // what targets.tsx does with `Targets as TargetFigures`.
 import type { RecipeDetail as Recipe } from "../types/recipe";
+import { useSubmitting } from "../use-submitting";
 import "./recipe.css";
 
 export default function RecipeDetail() {
@@ -33,27 +33,26 @@ export default function RecipeDetail() {
   // to return rather than throw, so it is shown inside the form above what the
   // person typed; a thrown failure never arrives here at all.
   const error = useActionData() as string | undefined;
-  const navigation = useNavigation();
 
-  // Built in the component body rather than at module scope: routes.tsx imports
-  // this page through the pages barrel and this page imports PATHS back, so the
-  // two modules are circular and PATHS is still undefined while this module
-  // evaluates. dashboard.tsx records the same trap.
+  // src/use-submitting.ts, not a comparison written here: under the edit view
+  // the whole formAction reads /recipes/7?edit, so an equality against the
+  // address would be false for the entire submission, and the hook takes no
+  // path precisely so that nobody can hand it PATHS.recipe -- which is the
+  // pattern `/recipes/:id` and never an address anything submits to.
+  //
+  // It answers whether a POST to this route is in flight, which once C15
+  // (nomadwiz/kete#179) adds its delete Form here is true for either write.
+  // That is the right answer for this one: while a record is being deleted the
+  // save button should be dead too. C15's own button is the one that has to
+  // tell them apart, and it does that by reading the submitted intent rather
+  // than by giving this hook a parameter.
+  const saving = useSubmitting("POST");
+
+  // The read address, built in the component body rather than at module scope:
+  // routes.tsx imports this page through the pages barrel and this page imports
+  // PATHS back, so the two modules are circular and PATHS is still undefined
+  // while this module evaluates. dashboard.tsx records the same trap.
   const here = PATHS.recipe.replace(":id", String(id));
-
-  // Both halves, and this screen needs both. The path is compared without its
-  // query string because react-router copies the current search into a Form
-  // declaring no action, so under the edit view the whole formAction reads
-  // /recipes/7?edit and an equality against `here` would be false for the
-  // entire submission. The method is compared because C15
-  // (nomadwiz/kete#179)'s delete will be a second Form on this page, and a
-  // delete in flight must not put the edit form into a saving state. formMethod
-  // is upper case in react-router 8. C25 (nomadwiz/kete#277) is lifting the
-  // first half out across the screens that get it wrong; take its helper over
-  // this once it lands.
-  const saving =
-    navigation.formMethod === "POST" &&
-    navigation.formAction?.split("?")[0] === here;
 
   // Dropping the key is the whole of closing the edit view, because the form is
   // drawn exactly while the key is there. Replacing rather than pushing:
