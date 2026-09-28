@@ -1,5 +1,6 @@
 import {
   redirect,
+  replace,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
@@ -41,7 +42,7 @@ import type {
   PlanWeek,
 } from "./types/plan";
 import type { Profile } from "./types/profile";
-import type { RecipeSummary } from "./types/recipe";
+import type { RecipeIn, RecipeSummary } from "./types/recipe";
 import type { Targets } from "./types/targets";
 
 const PATHS = {
@@ -61,6 +62,16 @@ const PATHS = {
 
 const QUERY = {
   account_created: "created",
+  // The two keys /recipes is addressed by. ADR 002 puts both in the query
+  // string on one test -- whether a user refreshing the page would be
+  // surprised to lose what it holds -- and a half-filled creation form and a
+  // search someone has just typed both fail it. They are named here beside the
+  // paths for the reason the paths themselves are: the page reads them, the
+  // loader reads one and the action deletes the other, and three spellings of
+  // "new" is three chances to disagree.
+  new_recipe: "new",
+  recipe_search: "q",
+
   // Which week the planner is showing. ADR 002 puts view state a refresh
   // should survive in the address, and a person who steps to next week and
   // then reloads is looking at next week.
@@ -155,8 +166,84 @@ async function profileAction({ request: req }: ActionFunctionArgs) {
   });
 }
 
-function recipesLoader(): Promise<RecipeSummary[]> {
-  return withSession(() => authed<RecipeSummary[]>("/recipes"));
+// The search is the API's, not the page's. GET /recipes takes an optional `q`
+// and answers what matches, so the client passes the term through and renders
+// the answer -- filtering a fetched array here would search only the page the
+// user already has, and would quietly stop agreeing with the API the moment
+// the endpoint's matching rule changed.
+//
+// No rule of its own for any status. GET /recipes declares 401, which is
+// withSession's, and 422, which means the query string itself was refused --
+// nothing the person can act on from this screen, so it belongs to the error
+// boundary.
+function recipesLoader({
+  request: req,
+}: LoaderFunctionArgs): Promise<RecipeSummary[]> {
+  const term = new URL(req.url).searchParams.get(QUERY.recipe_search) ?? "";
+  const path = term
+    ? `/recipes?${QUERY.recipe_search}=${encodeURIComponent(term)}`
+    : "/recipes";
+
+  return withSession(() => authed<RecipeSummary[]>(path));
+}
+
+// The write behind the creation modal on /recipes. RecipeIn declares all nine
+// fields required and there is no partial create, so all nine are sent.
+async function recipesAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const recipe: RecipeIn = {
+    name: String(form.get("name") ?? ""),
+    cuisine: String(form.get("cuisine") ?? ""),
+    ingredients: String(form.get("ingredients") ?? ""),
+    steps: String(form.get("steps") ?? ""),
+    servings: Number(form.get("servings")),
+    energy_kcal: Number(form.get("energy_kcal")),
+    protein_g: Number(form.get("protein_g")),
+    carbs_g: Number(form.get("carbs_g")),
+    fat_g: Number(form.get("fat_g")),
+  };
+
+  return withSession(async () => {
+    try {
+      // The reply is RecipeCreatedOut -- a recipe id and nothing else -- so
+      // there is no record here to render even if this screen wanted one. The
+      // loader revalidates once this returns, and the new row arrives from the
+      // same place every other row on the page came from.
+      await authed<unknown>("/recipes", {
+        method: "POST",
+        body: JSON.stringify(recipe),
+      });
+    } catch (error) {
+      // 422 and nothing else, because 422 is the only failure POST /recipes
+      // declares besides the 401 withSession already owns -- backend
+      // openapi.json calls it "Validation Error", which is answered by typing
+      // something different. The test is what the contract says the status
+      // means on this route, not the number: the same 404 that is a state on
+      // GET /profile/metrics is a failure on POST /profile/metrics. Anything
+      // undeclared reaching here is not a thing the form can repair, so it
+      // goes to the error boundary rather than being printed above a Save
+      // button that cannot work.
+      if (error instanceof ApiError && error.status === 422) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    // The whole list, not the search that was running. The modal is open
+    // exactly while `new` is in the address, so dropping the query string
+    // closes it -- and dropping `q` with it is what makes the recipe just
+    // written visible. Carrying the search over was the first version and it
+    // lies: someone who searched for a laksa, found none and then wrote a dal
+    // would be returned to "Nothing matches laksa" with nothing on the screen
+    // saying the save had worked, which reads exactly like a save that did
+    // nothing. The new row appearing in the list is the confirmation.
+    //
+    // replace rather than redirect, so Back from the list goes wherever the
+    // person came from rather than to ?new, which would reopen an empty form
+    // one click from writing the same recipe twice.
+    return replace(PATHS.recipes);
+  });
 }
 
 // Shared by /targets and /dashboard, which ask the same question of the same
@@ -561,6 +648,7 @@ const routes = [
                 path: PATHS.recipes,
                 Component: RECIPES,
                 loader: recipesLoader,
+                action: recipesAction,
               },
               { path: PATHS.recipe, Component: RECIPE_DETAIL },
               {

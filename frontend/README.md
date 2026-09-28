@@ -4,13 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and seven screens are wired through them: `/recipes`, `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements` and `/account` each do both — a loader to prefill the form and an action to save it. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets`, `/dashboard` and `/account` are built and styled. The recipe detail and the planner render their own name and nothing else, and `/recipes` lists what it loaded without a stylesheet of its own.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and eight screens are wired through them: `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements`, `/account`, `/recipes` and `/planner` each do both — a loader to read, an action to write. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets`, `/dashboard`, `/account`, `/recipes` and `/planner` are built and styled. The recipe detail renders its own name and nothing else.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| Three of the eleven pages are unbuilt or unstyled                | #176–#182, #184                  |
+| The recipe detail page is unbuilt                                | C12 (#177)                       |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
 
@@ -108,6 +108,30 @@ The outer mount stays, because a failure in the public tree — and a throw from
 **The date is formatted on a fixed locale, not the reader's.** `en-NZ`, assembled from `formatToParts` because that locale's own separator is a slash, so the line reads `dd-mm-yyyy HH:MM` on any machine. A screenshot of this screen goes in the report, and a browser set to `en-US` would otherwise put `09/25/2026` in front of a marker reading documents that say `25-09-2026`. An unparseable value drops the line rather than throwing, because losing the four figures over the note beneath them is the wrong trade.
 
 **The note says where the figures come from and stops before saying how energy is divided.** `MACRO_SPLIT` in [`../backend/main.py`](../backend/main.py) carries `TODO: team to confirm the split`, and the proportions are marked `[CITE]` in `doc/design/product.md` in the documents repository `nomadwiz/kete-doc`. A proportion printed here would read, on screen and later in a screenshot, exactly like a sourced figure — which is the reasoning `/measurements` used for leaving its activity levels undescribed. The activity factors and the four-and-nine gram conversions stand on the same footing.
+
+## The recipe list
+
+`/recipes` both reads and writes. `recipesLoader` answers the list and `recipesAction` writes a new recipe, both in [`src/routes.tsx`](src/routes.tsx), and the screen holds no state of its own — everything it needs is in the address or in what the loader answered.
+
+**The search is the API's.** `GET /recipes` takes an optional `q`, so the loader reads the term off its own request and passes it through. Filtering a fetched array here would search only what the browser already had and would stop agreeing with the endpoint the moment its matching rule changed. The search box is a `<Form>` with no method, which is a GET: the browser writes the term into the query string itself, and the address that results is the one to bookmark, share or refresh. The field is uncontrolled and keyed on the term, because an input somebody has typed into ignores a later change to its `defaultValue` — without the key, a term reached by pressing Back would leave the box reading the search before it, and pressing Search again would silently undo the Back.
+
+**The creation form is a modal on this page, addressed `?new`.** ADR 002 decided both halves of that — the form belongs to whichever page hosts it rather than to a route of its own, and the open state belongs in the query string because a person who refreshes half-way through writing a recipe would be surprised to lose it. So the modal is open exactly while `new` is in the address, and every way of closing it — Escape, the Cancel button, a successful save — puts the address back rather than touching the element.
+
+**It is a native `<dialog>`, opened with `showModal()`.** The top layer, the backdrop, the focus trap and Escape all come with that one call, and a `<div>` standing in for a dialog means writing four of them by hand. `showModal()` is a method rather than an attribute, so an effect follows the address and calls it; the `open` attribute alone gives an ordinary block and none of the four. The form itself is [`src/components/recipe-form.tsx`](src/components/recipe-form.tsx), shared with the edit view on `/recipes/:id`, and it declares no `action`, so it posts to whichever route renders it.
+
+**The form is mounted only while the modal is open.** Its nine controls are uncontrolled and read their defaults at mount, so one left mounted behind a closed dialog would open again holding the recipe just saved. The same fact is what makes a refusal behave: a 422 leaves `new` in the address, so the form is re-rendered rather than remounted and what the person typed is still in it.
+
+**Escape is refused while a save is in flight.** The POST may already have reached the API, so closing would abort it in the browser and discard both the nine typed fields and any refusal coming back, leaving somebody unable to tell whether the recipe was written. `cancel` fires before `close` and can be prevented, which is the other half of why this is a `<dialog>`.
+
+**A 422 is returned and everything else is thrown.** `POST /recipes` declares 401 and 422 and nothing else; the 401 is `withSession`'s, and the 422 is the one failure on this route that is answered by typing something different, so it goes back to the form the person is still standing in. The rule is what the contract says the status means on this route rather than the number — the same 404 that is a state on `GET /profile/metrics` is a failure on `POST /profile/metrics`.
+
+**A save renders nothing from its own reply.** `POST /recipes` answers a recipe id and nothing else, so there is no record to draw even if this screen wanted one. React Router revalidates the route's loader once the action returns, and the new row arrives from the same place every other row came from. The redirect that closes the modal drops the whole query string, the search included, because that is what guarantees the new recipe is in the list the person lands on — returning someone who searched for a laksa and then wrote a dal to “Nothing matches “laksa”” would read exactly like a save that did nothing. It replaces rather than pushes, so Back does not reopen an empty form one click from a duplicate.
+
+**`photo_url` is optional, nullable, and expires.** A card with no photograph draws a panel rather than an `<img>` pointed at nothing, which every browser renders as a broken-image glyph. The link is presigned and good for an hour — `LINK_SECONDS` in [`../backend/storage.py`](../backend/storage.py) — so it is read off the loader's answer each time and stored nowhere.
+
+**Two empty states, because they are different facts.** "You have not written a recipe yet" sends a new user to the form; "nothing matches" offers the whole list back. Telling someone who has just searched that their library is empty would be false on the evidence in front of them.
+
+**A card does not open the recipe.** `/recipes/:id` is C12 (#177) and this screen links nowhere inward until it exists as more than its own name.
 
 ## The dashboard
 

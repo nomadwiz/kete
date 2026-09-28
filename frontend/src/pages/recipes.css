@@ -1,0 +1,174 @@
+/* The same page column and gutter every other screen is laid out in, so the
+   title lands where /targets and /dashboard put theirs. Wider than the form
+   screens' single track because this one holds a grid rather than a column of
+   fields. */
+.recipes {
+  --title: clamp(var(--text-xl), 6vw, 2.75rem);
+
+  max-width: var(--column);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+  padding-block: clamp(var(--space-12), 8vw, var(--space-16));
+
+  .recipes__title {
+    font-size: var(--title);
+    font-stretch: 82%;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+
+  .recipes__lede {
+    max-width: var(--measure);
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--ink-soft);
+  }
+
+  /* Search on one side, the way in to the form on the other, wrapping to two
+     rows when there is no room for both. flex-wrap rather than a media query:
+     what decides it is the width of these two things, not the width of a
+     class of device. */
+  .recipes__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+  }
+
+  .recipes__search-label {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+
+  .recipes__search-controls {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  /* Wide enough for a dish name at 320px without pushing its own button off
+     the row, and free to grow where there is room. */
+  .recipes__search-controls input {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  .recipes__search-submit {
+    background: var(--muka);
+    border: 1px solid var(--ink-soft);
+    padding: 0.55em 1em;
+    font-weight: 600;
+  }
+
+  /* The kowhai fill the three form screens put on their submit, because this
+     is the page's one primary action and the search beside it is not. That
+     treatment is written out four times across the client now and lifting it
+     out is C27 (nomadwiz/kete#280)'s, not this screen's. */
+  .recipes__add {
+    background: var(--kowhai);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-control);
+    padding: 0.55em 1.1em;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .recipes__empty {
+    max-width: var(--measure);
+    margin-top: var(--space-12);
+    padding: var(--space-6);
+    background: var(--muka);
+    border: 1px solid var(--straw);
+  }
+
+  .recipes__empty-link {
+    font-weight: 600;
+    text-decoration-thickness: 2px;
+  }
+
+  /* auto-fill rather than auto-fit, so a single recipe is one card and not one
+     card stretched the width of the page. The minimum is the narrowest a card
+     reads at; below that the track collapses to one column on its own, which
+     is the whole of this screen's small-screen handling. */
+  .recipes__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: var(--space-6);
+    margin-top: var(--space-8);
+  }
+
+  .recipes__card {
+    display: flex;
+    flex-direction: column;
+    background: var(--muka);
+    border: 1px solid var(--straw);
+  }
+
+  /* One box whatever fills it, so a row of cards keeps its rhythm when some
+     recipes carry a photograph and some do not. object-fit stops a portrait
+     photograph being stretched into the landscape box. */
+  .recipes__photo {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+  }
+
+  /* The absent state, drawn rather than left empty: a flat straw panel, which
+     is structure and not an image that failed to load. --straw is never text
+     here, so its contrast ratio is not in question. */
+  .recipes__photo--none {
+    background: var(--straw);
+  }
+
+  .recipes__card-text {
+    padding: var(--space-4);
+  }
+
+  .recipes__name {
+    font-size: var(--text-lg);
+  }
+
+  .recipes__meta {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The dialog is in the browser's top layer, so it is not laid out inside
+     this grid and needs its own width. max-block-size keeps a nine-field form
+     inside the viewport on a phone and scrolls what is left over. */
+  .recipes__modal {
+    width: min(38rem, calc(100vw - 2 * var(--space-4)));
+    max-block-size: calc(100dvh - 2 * var(--space-8));
+    padding: var(--space-6);
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-control);
+
+    &::backdrop {
+      background: rgb(23 37 30 / 45%);
+    }
+
+    .recipes__modal-title {
+      font-size: var(--text-xl);
+    }
+
+    .recipes__modal-close {
+      margin-top: var(--space-4);
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--ink-soft);
+      text-decoration: underline;
+      text-underline-offset: 0.18em;
+    }
+  }
+}
