@@ -249,10 +249,14 @@ export default function Recipes() {
             {/* close() rather than a link, so this control and Escape both
                 arrive at the `close` event and the address is put back in one
                 place. type="button" because it sits inside no form and must
-                submit nothing. */}
+                submit nothing, and disabled while a save is running for the
+                reason the dialog refuses Escape then: close() is not
+                cancelable, so the only way to refuse this one is not to offer
+                it. */}
             <button
               className="recipes__modal-close"
               type="button"
+              disabled={saving}
               onClick={() => dialog.current?.close()}
             >
               Cancel
