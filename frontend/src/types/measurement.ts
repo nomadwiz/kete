@@ -1,10 +1,16 @@
 import type { components } from "./api";
 
 // POST /profile/metrics takes all five every time; there is no partial update.
-// This is the request shape. GET /profile/metrics answers the same five back
-// as MetricsOut (B3, nomadwiz/kete#152) and POST answers the computed targets
-// rather than the metrics it was given, so neither reply is this type -- alias
-// MetricsOut here when a screen needs to read the saved values.
+// This is the request shape, MetricsIn.
+//
+// GET /profile/metrics answers MetricsOut, which the measurements form
+// prefills from (B3, nomadwiz/kete#152). MetricsOut declares the same five
+// fields, so metricsLoader in routes.tsx reads the prefill through this type
+// rather than a second alias -- but nothing checks that the two stay
+// identical, because a field on one and not the other is absent rather than a
+// type error. Alias MetricsOut here the moment they differ. POST's own reply
+// is the targets it computed rather than the metrics it was given, so that one
+// is Targets.
 export type Metrics = components["schemas"]["MetricsIn"];
 
 // The two enumerations the API validates, read off the schema rather than
