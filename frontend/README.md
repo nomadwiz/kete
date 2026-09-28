@@ -32,6 +32,22 @@ The `.env` step is not optional. `VITE_API_BASE_URL` is the only address the cli
 
 The dev server listens on **5173** and the API on **8000**, so development is already cross-origin — which is why the API enables CORS from the outset rather than as a deployment afterthought. Start the API first; [`../backend/README.md`](../backend/README.md) has the commands.
 
+## Serving the build
+
+`npm run build` writes `dist/`, and that directory is the whole deployable — `index.html`, fingerprinted files under `assets/`, and everything in `public/` copied unchanged. There is no application server: the host stores files, and the browser reaches the API itself. What follows is what that bundle requires of whoever builds the hosting, written here because each of these is cheaper to read than to discover during a deployment.
+
+**Any request whose path does not match a stored object must be answered with this `index.html` and a `200` status.** Addresses are ordinary paths with no `#` fragment, which ADR 002 decided, so `/recipes/3` typed in, refreshed or opened from a bookmark is a real request to the host — and the router that would resolve it does not exist until a document has been served and the bundle has started. **The status matters as much as the body, and it is the part a static host is most likely to get wrong.** Amazon S3's static website hosting substitutes a configured error document for an absent object but keeps the `404` on the response, so the application renders correctly while the response tells every cache, crawler and monitor that the page is not there. Which service supplies the 200 is the cloud lane's to choose and to document — K6 (#192).
+
+**`VITE_API_BASE_URL` is read when the bundle is built, not when it is served**, so the deployed API's address has to be known at build time. Vite substitutes the value into the JavaScript it emits — the warning above about secrets is the same mechanism described for a different reason — so afterwards there is no file on the host to edit and no environment variable the host can set. One artefact cannot therefore be built once and promoted to a second API address; pointing the client elsewhere means building again, which is a constraint on the pipeline rather than a detail of it (K9, #195).
+
+**The build context is the repository, not the `frontend/` directory.** The type generation added by C21 (#235) runs ahead of `build`, `test` and `dev` and reads `../backend/openapi.json` — the schema exported by S1 (#138), a path above this folder — so a job that checks out, copies or uploads `frontend/` on its own fails before the compiler runs. Taking the repository root as the build context costs nothing and avoids it.
+
+**`index.html` must not be cached hard, while everything under `assets/` may be.** Vite fingerprints each bundled file, so `assets/index-<hash>.js` can be served as immutable and a later deploy writes different names. `index.html` carries no fingerprint and is the only file naming the current ones, so a hard-cached copy goes on asking for the previous deploy's filenames until it expires, whether or not the host still stores them. `public/` is copied verbatim and keeps its names too, which puts `favicon.svg` on `index.html`'s side of that line.
+
+Vite's `base` is left at its default `/`, which is what serving from the root of a bucket or a distribution needs, and every asset reference in `dist/index.html` is accordingly an absolute path. Serving the application from a sub-path instead would mean setting `base` and rebuilding.
+
+`npm run preview` applies the fallback rule itself, which is why the Scripts table below sends you there to check a deep link against a real build. It models the deployed host in that one respect and in no other — it sends `Cache-Control: no-cache` on everything, hashed assets included, so it says nothing about the headers above.
+
 ## Design
 
 How routing and data loading work, what may not be written where, and what the host must do for a deep link, are settled in ADR 002 — the documents repository `nomadwiz/kete-doc`, at [`doc/design/decisions/adr/002-client-routing.md`](../../doc/design/decisions/adr/002-client-routing.md). Read it before adding a screen. That link resolves once both repositories are cloned in the layout `nomadwiz/kete-doc`'s own `README.md` sets out.
