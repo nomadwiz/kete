@@ -24,13 +24,9 @@ Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap | Issue |
 | --- | --- |
-| No tests of any kind | B10 (#160), B11 (#164) |
-| Numeric inputs are unbounded — a bad value can be a 500, not a 422 | B14 (#153) |
-| `requirements.txt` pins minimum versions, not exact ones | B7 (#159) |
+| Only the conflict tests exist — none yet for the nutrition engine or cross-user access | B10 (#160), B11 (#164) |
 | `JWT_SECRET` falls back to a published default instead of refusing to start | B9 (#162) |
 | `allow_origins=["*"]` | B8 (#161) |
-| A week view costs 22 queries, and plan slots carry no nutrition | B2 (#151) |
-| Saved measurements cannot be read back | B3 (#152) |
 
 ## Run it
 
@@ -55,6 +51,27 @@ the same keys point at either local PostgreSQL or RDS.
 Then open **http://localhost:8000/docs** for the interactive Swagger page. This
 is also how markers test the backend without the client: register or log in
 there, copy the token, press **Authorize**, then call the protected endpoints.
+
+## Test it
+
+The tests need a real PostgreSQL, because they check how the database's own
+constraints behave. They **wipe the database they run against**, so give them
+a throwaway one of their own — never the one in `.env`, and never RDS (the
+suite refuses an RDS address). Without `TEST_DATABASE_URL` they are skipped.
+
+```bash
+pip install -r requirements-dev.txt
+createdb kete_test               # or CREATE DATABASE kete_test; in pgAdmin
+
+# Windows PowerShell: $env:TEST_DATABASE_URL = "postgresql+psycopg2://..."
+export TEST_DATABASE_URL="postgresql+psycopg2://postgres:<password>@localhost:5432/kete_test"
+pytest
+```
+
+`tests/test_conflicts.py` covers B15 (#157): two requests racing for the same
+username, email or plan slot get a 409, not a 500. Each test holds the clashing
+row open in one session so the endpoint's own check misses it, then lets it
+commit — the race is forced, not left to timing.
 
 ## Endpoints (17 total, 7 POST)
 
@@ -101,6 +118,11 @@ is also why it needs no psql on your machine.
 Note the unique constraint on `plan_slots` — one recipe per day/meal slot per
 user — and `ON DELETE CASCADE` throughout, so deleting a user cleans up their
 profile, targets, recipes and plan slots.
+
+The unique constraints are what finally stop a duplicate. Each endpoint checks
+first, for a friendly message, but two requests can both pass that check;
+`_commit_or_409` in `main.py` turns the constraint's refusal of the second into
+the same 409 rather than a 500.
 
 `check_db.py` reports what the connection and schema actually look like, and
 `check_s3.py` does the same for the photo bucket.
