@@ -505,3 +505,266 @@ describe("the recipe detail page", () => {
     expect(calls).toEqual([]);
   });
 });
+
+// The second of these in the project and not yet an extraction: planner.test.tsx
+// declares the same four lines, and the house rule extracts on the third
+// repetition. window.confirm is what both destructive controls put in front of
+// themselves, and jsdom's own stub returns undefined -- which reads as a
+// decline, so a test that does not answer it silently asserts nothing.
+function stubConfirm(answer: boolean) {
+  // Typed as window.confirm is rather than as a bare () => boolean, so the
+  // message can be read back off mock.calls: a vi.fn with no declared
+  // parameter records an empty tuple and indexing it does not compile.
+  const confirmStub = vi.fn<(message?: string) => boolean>(() => answer);
+
+  vi.stubGlobal("confirm", confirmStub);
+
+  return confirmStub;
+}
+
+// The methods a run issued, in order. stubFetch records the path alone, so
+// every assertion about a verb on this page reads fetchStub.mock.calls --
+// without which a DELETE answered by the GET handler for the same path passes.
+function methodsOf(fetchStub: { mock: { calls: [unknown, RequestInit?][] } }) {
+  return fetchStub.mock.calls
+    .map(([, init]) => init?.method)
+    .filter((method) => method !== undefined);
+}
+
+const GONE = { detail: "No such recipe, or it belongs to another account" };
+
+describe("deleting a recipe", () => {
+  // The substance of C15 (nomadwiz/kete#179). backend/schema.sql declares
+  // plan_slots.recipe_id ON DELETE CASCADE, so deleting a recipe empties every
+  // position holding it, in every week -- and this sentence is the only place
+  // in the application that is ever said. A generic "Are you sure?" fails the
+  // issue.
+  it("says every position holding the recipe is emptied, and claims no number", async () => {
+    signedIn();
+    const confirmStub = stubConfirm(false);
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete this recipe" }));
+
+    const asked = String(confirmStub.mock.calls[0]?.[0]);
+
+    expect(asked).toContain("Laksa");
+    expect(asked).toMatch(/every position in every week/);
+    expect(asked).toMatch(/no undo/);
+
+    // No digit anywhere in the sentence this page wrote. Nothing here counts
+    // the slots pointing at the recipe, so any number would be invented -- and
+    // a confirmation saying "2 meals" when it is nine is worse than one that
+    // says neither. The name is taken out first, because a fixture renamed to
+    // "Laksa 2" would otherwise fail this for a reason that has nothing to do
+    // with what it asserts.
+    expect(asked.replace(LAKSA.name, "")).not.toMatch(/\d/);
+  });
+
+  // react-router's Form runs onSubmit and then returns on a prevented default,
+  // so a decline costs no request rather than one whose answer is discarded.
+  // The assertion is on the methods: the GET that drew the page went to the
+  // same path, so a path-level assertion would pass against a DELETE.
+  it("sends no request at all when the confirmation is declined", async () => {
+    signedIn();
+    stubConfirm(false);
+    const { fetchStub } = stubFetch({
+      "/recipes/7": async () => jsonResponse(200, LAKSA),
+    });
+
+    renderAt("/recipes/7");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete this recipe" }));
+
+    expect(methodsOf(fetchStub)).toEqual([]);
+    expect(screen.getByRole("heading", { name: "Laksa" })).toBeVisible();
+  });
+
+  // The destination is the assertion C12 (nomadwiz/kete#177) left this test to
+  // make. A tail shared below the branch would have handed the delete
+  // replace(here) -- a redirect to the record just deleted, whose loader 404s,
+  // landing the person on the not-found panel instead of their library.
+  it("issues a DELETE and lands on the library rather than on the deleted record", async () => {
+    signedIn();
+    stubConfirm(true);
+    let gone = false;
+
+    const { fetchStub } = stubFetch({
+      "/recipes/7": async (init?: RequestInit) => {
+        if (init?.method === "DELETE") {
+          gone = true;
+
+          return new Response(null, { status: 204 });
+        }
+
+        return gone ? jsonResponse(404, GONE) : jsonResponse(200, LAKSA);
+      },
+      "/recipes": async () => jsonResponse(200, []),
+    });
+
+    const { router } = renderAt("/recipes/7");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete this recipe" }));
+
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe("/recipes"),
+    );
+
+    expect(methodsOf(fetchStub)).toEqual(["DELETE"]);
+    expect(
+      screen.queryByRole("heading", { name: "No such recipe" }),
+    ).toBeNull();
+
+    // Replaced rather than pushed, so Back does not return to the address of a
+    // record that no longer answers.
+    expect(router.state.historyAction).toBe("REPLACE");
+  });
+
+  // The same guard the save carries, on the same route. react-router decodes a
+  // path parameter before an action sees it, so this address arrives as
+  // `../profile` and an unescaped template would build /recipes/../profile --
+  // which the browser normalises to /profile when it parses the address,
+  // aiming a DELETE at the account endpoint under the same bearer token. The
+  // action is driven through the router because there is no screen: the loader
+  // refuses this id, so the page draws the not-found panel and carries no
+  // delete button.
+  it("escapes the id it deletes, so a hand-edited address cannot reach another endpoint", async () => {
+    signedIn();
+    const { calls, fetchStub } = stubFetch({
+      "/recipes/..%2Fprofile": async () => new Response(null, { status: 204 }),
+      "/recipes": async () => jsonResponse(200, []),
+    });
+
+    const { router } = renderAt("/recipes/..%2Fprofile");
+
+    await screen.findByRole("heading", { name: "No such recipe" });
+
+    const body = new FormData();
+
+    body.set("intent", "delete");
+
+    await router.navigate("/recipes/..%2Fprofile", {
+      formMethod: "post",
+      formData: body,
+    });
+
+    expect(calls).toContain("/recipes/..%2Fprofile");
+    expect(
+      calls.map((path) => new URL(path, "http://api.test").pathname),
+    ).not.toContain("/profile");
+
+    // The verb as well as the address, for the reason methodsOf is declared:
+    // this stub answers every method with a 204, so without this the test
+    // passes unchanged against a branch that had started sending a PUT.
+    expect(methodsOf(fetchStub)).toEqual(["DELETE"]);
+  });
+
+  // The 404 on DELETE /recipes/{recipe_id}, which on this verb is the outcome
+  // that was asked for: the person wanted the record gone and it is gone. The
+  // three negative assertions are the point -- ErrorBoundary renders an
+  // ApiError's message verbatim, so a rethrow would print "or it belongs to
+  // another account", the clause the endpoint answers 404 rather than 403
+  // precisely to avoid.
+  it("treats a recipe already gone as the deletion that was asked for", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "DELETE"
+          ? jsonResponse(404, GONE)
+          : jsonResponse(200, LAKSA),
+      "/recipes": async () => jsonResponse(200, []),
+    });
+
+    const { router } = renderAt("/recipes/7");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete this recipe" }));
+
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe("/recipes"),
+    );
+
+    expect(
+      screen.queryByRole("heading", { name: "Something went wrong" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "No such recipe" }),
+    ).toBeNull();
+    expect(screen.queryByText(/belongs to another account/)).toBeNull();
+  });
+
+  // The other half of the same catch, and the half the five tests above do not
+  // reach: a guard weakened to swallow every ApiError passes every one of
+  // them. It is also the failure that matters most in front of a deployed API,
+  // because a 500 from the backend or a 502 from the gateway is likelier here
+  // than the 404 -- and either leaves the recipe exactly where it was. Reported
+  // as a deletion it would drop the person on a library still showing the row,
+  // which reads as a list that has not caught up. Nothing on this screen
+  // repairs a 500, so it belongs to the error boundary.
+  it("does not report a failed delete as a deletion", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "DELETE"
+          ? jsonResponse(500, { detail: "Internal Server Error" })
+          : jsonResponse(200, LAKSA),
+    });
+
+    const { router } = renderAt("/recipes/7");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete this recipe" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Something went wrong" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/recipes/7");
+  });
+
+  // The button names the write that is in flight, as RecipeForm's does, and is
+  // dead while it runs: a second click on a delete that has already reached
+  // the API is answered 404, which this action then reports as a success --
+  // correct, but it would also have been a request nobody meant to send.
+  it("renames itself and refuses a second click while the delete is in flight", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "DELETE"
+          ? new Promise<Response>(() => {})
+          : jsonResponse(200, LAKSA),
+    });
+
+    renderAt("/recipes/7");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete this recipe" }));
+
+    const button = await screen.findByRole("button", { name: "Deleting…" });
+
+    expect(button).toBeDisabled();
+
+    // The pair src/use-submitting.ts names: aria-busy on the form beside
+    // disabled on its submit. It carries more here than on the planner,
+    // because this button renames itself as it goes dead -- a change a screen
+    // reader is otherwise told nothing about, on an element that has just lost
+    // focus to the body.
+    expect(button.closest("form")).toHaveAttribute("aria-busy", "true");
+  });
+});
