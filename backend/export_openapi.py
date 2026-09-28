@@ -8,7 +8,10 @@ Never edit openapi.json by hand — change main.py, then run this again:
 
     python export_openapi.py
 
-It needs no database: generating the schema reads the code, not the tables.
+It needs the backend requirements installed, but no running database:
+generating the schema reads the code, not the tables. The import chain
+reaches database.py, where SQLAlchemy resolves the driver eagerly, so a
+missing psycopg2-binary fails here as a bare ModuleNotFoundError.
 """
 
 import json
