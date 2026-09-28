@@ -1,0 +1,351 @@
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { jsonResponse, renderAt, stubFetch } from "../test/router";
+import type { RecipeDetail } from "../types/recipe";
+
+function signedIn() {
+  window.localStorage.setItem("kete.token", "a-token");
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+// Spelled with `satisfies` on the reasoning account.test.tsx gives: a field
+// renamed in the contract fails the build here rather than leaving these
+// assertions passing against a body the screen can no longer read. Both text
+// fields carry a newline, because the line breaks somebody typed are the only
+// structure either field has.
+const LAKSA = {
+  recipe_id: 7,
+  name: "Laksa",
+  cuisine: "Malaysian",
+  energy_kcal: 1240,
+  photo_url: "https://storage.test/laksa.jpg?signature=abc",
+  ingredients: "Noodles\nCoconut milk",
+  steps: "Simmer the paste.\nAdd the noodles.",
+  servings: 4,
+  protein_g: 38,
+  carbs_g: 96,
+  fat_g: 44,
+} satisfies RecipeDetail;
+
+// The panel a figure is drawn in, found through its own name. A text assertion
+// across the whole page would pass on four figures printed in the wrong order
+// or against the wrong labels, which is the defect worth catching -- carbs and
+// protein transposed reads perfectly and is wrong on every screen that
+// compares a week against them.
+function figure(name: string) {
+  return screen.getByText(name, { selector: "dt" }).closest("div")!;
+}
+
+describe("the recipe detail page", () => {
+  it("draws the ingredients, the method, the servings and all four figures", async () => {
+    signedIn();
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7");
+
+    expect(await screen.findByRole("heading", { name: "Laksa" })).toBeVisible();
+    expect(screen.getByText("Malaysian")).toBeVisible();
+    expect(screen.getByText("Makes 4 servings")).toBeVisible();
+
+    expect(figure("Energy")).toHaveTextContent("1,240 kcal");
+    expect(figure("Protein")).toHaveTextContent("38 g");
+    expect(figure("Carbohydrate")).toHaveTextContent("96 g");
+    expect(figure("Fat")).toHaveTextContent("44 g");
+
+    // Both fields are free text, and the line breaks somebody typed are the
+    // only structure either of them has -- which is what makes a method of
+    // several steps readable at all. The assertion is on textContent rather
+    // than through toHaveTextContent, which normalises whitespace and would
+    // pass against a page that had collapsed the breaks. The class is asserted
+    // beside it because the break in the text node is only half of it: without
+    // pre-wrap the browser collapses it whatever the DOM holds.
+    //
+    // `steps` is the contract's name and Method is the cook's, so the heading
+    // takes the human word, as RecipeForm's label does.
+    const ingredients = screen.getByText(/Noodles/);
+
+    expect(ingredients.textContent).toBe("Noodles\nCoconut milk");
+    expect(ingredients).toHaveClass("recipe__text");
+
+    expect(screen.getByRole("heading", { name: "Method" })).toBeVisible();
+    expect(screen.getByText(/Simmer the paste/).textContent).toBe(
+      "Simmer the paste.\nAdd the noodles.",
+    );
+
+    // Read straight off the loader's answer: photo_url is a presigned link
+    // that expires an hour after the API minted it, so it is never cached or
+    // persisted anywhere. Queried as an element rather than by role, because
+    // alt="" makes it decorative and it carries no img role at all -- which is
+    // itself asserted here, since the name is above it and describing the dish
+    // twice is noise.
+    expect(document.querySelector("img")).toHaveAttribute(
+      "src",
+      LAKSA.photo_url,
+    );
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+  });
+
+  // photo_url is optional and nullable, so the absent case is a state this page
+  // draws rather than an <img> pointed at nothing -- which renders as a broken
+  // image glyph in every browser. This is the assertion that catches a page
+  // built as one.
+  it("draws a panel and no image for a recipe carrying no photograph", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/7": async () =>
+        jsonResponse(200, { ...LAKSA, photo_url: null }),
+    });
+
+    renderAt("/recipes/7");
+
+    await screen.findByRole("heading", { name: "Laksa" });
+
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector(".recipe__photo--none")).toBeVisible();
+
+    // Decorative: the name is above it, and a screen reader reading a
+    // description of the dish straight after its name says the same thing
+    // twice.
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+  });
+
+  // ADR 002's test. A fresh mount at ?edit is a refresh, and the form is there
+  // prefilled: nothing in this component remembers either fact.
+  it("opens the edit form from the address, prefilled from the record", async () => {
+    signedIn();
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7?edit");
+
+    expect(await screen.findByLabelText("Name")).toHaveValue("Laksa");
+    expect(screen.getByLabelText("Servings")).toHaveValue(4);
+    expect(screen.getByLabelText("Method")).toHaveValue(LAKSA.steps);
+    expect(screen.getByLabelText("Energy (kcal)")).toHaveValue(1240);
+
+    // The fields replace the read view rather than floating over it, so the
+    // figures and the way in to the form are both gone. The legend inside the
+    // fieldset says the same words as the read view's heading, which is why
+    // this asks for the heading role rather than the text.
+    expect(
+      screen.queryByRole("heading", { name: "Nutrition per serving" }),
+    ).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit this recipe" })).toBeNull();
+  });
+
+  it("offers the edit form at an address, and nothing else at the plain one", async () => {
+    signedIn();
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7");
+
+    expect(
+      await screen.findByRole("link", { name: "Edit this recipe" }),
+    ).toHaveAttribute("href", "/recipes/7?edit");
+    expect(screen.queryByLabelText("Name")).toBeNull();
+  });
+
+  // All nine fields, spelled as RecipeIn spells them, and the method asserted
+  // explicitly. stubFetch keys on the path alone, so one handler answers both
+  // the read and the write here -- without the method assertion a save issued
+  // as a POST, or as a second GET, would satisfy every other test on this page.
+  it("saves by sending all nine fields as a full PUT", async () => {
+    signedIn();
+    const { fetchStub } = stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "PUT"
+          ? jsonResponse(200, { ...LAKSA, name: "Laksa lemak" })
+          : jsonResponse(200, LAKSA),
+    });
+
+    renderAt("/recipes/7?edit");
+
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText("Name");
+
+    await user.clear(name);
+    await user.type(name, "Laksa lemak");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const written = fetchStub.mock.calls
+      .map(([, init]) => init)
+      .filter((init) => init?.method === "PUT");
+
+    expect(written).toHaveLength(1);
+
+    // The typed change and the eight fields nobody touched, together: PUT is a
+    // full replace and there is no partial update, so a body carrying only the
+    // edited field would empty the rest of the record.
+    expect(JSON.parse(String(written[0]!.body))).toEqual({
+      name: "Laksa lemak",
+      cuisine: "Malaysian",
+      servings: 4,
+      ingredients: "Noodles\nCoconut milk",
+      steps: "Simmer the paste.\nAdd the noodles.",
+      energy_kcal: 1240,
+      protein_g: 38,
+      carbs_g: 96,
+      fat_g: 44,
+    });
+  });
+
+  // The save path end to end. PUT answers the saved record and the action
+  // discards it, so the new name can only arrive from the loader running again
+  // -- which is the mechanism that lets this screen hold no state. The address
+  // is asserted as well: leaving `edit` on it would redraw the form over a
+  // record that had just been saved.
+  it("closes the edit form on a save and shows what the loader then answers", async () => {
+    signedIn();
+    let saved = false;
+
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) => {
+        if (init?.method === "PUT") {
+          saved = true;
+
+          return jsonResponse(200, { ...LAKSA, name: "Laksa lemak" });
+        }
+
+        return jsonResponse(
+          200,
+          saved ? { ...LAKSA, name: "Laksa lemak" } : LAKSA,
+        );
+      },
+    });
+
+    const { router } = renderAt("/recipes/7?edit");
+
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText("Name");
+
+    await user.clear(name);
+    await user.type(name, "Laksa lemak");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Laksa lemak" }),
+    ).toBeVisible();
+    expect(router.state.location.search).toBe("");
+    expect(screen.queryByLabelText("Name")).toBeNull();
+  });
+
+  // The 422 PUT /recipes/{recipe_id} declares, which is the one failure on this
+  // route the person can answer by typing something else. The assertions are
+  // the form's own role="alert" and the value still in the field, not the
+  // message text: ErrorBoundary prints the same sentence, so a page that threw
+  // this to the boundary would satisfy a text assertion while having thrown
+  // away every field the person filled in.
+  it("shows a refused save inside the form, with the typed values intact", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "PUT"
+          ? jsonResponse(422, { detail: "Energy must be a whole number." })
+          : jsonResponse(200, LAKSA),
+    });
+
+    const { router } = renderAt("/recipes/7?edit");
+
+    const user = userEvent.setup();
+    const energy = await screen.findByLabelText("Energy (kcal)");
+
+    await user.clear(energy);
+    await user.type(energy, "1300");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const refusal = await screen.findByRole("alert");
+
+    expect(refusal).toHaveTextContent("Energy must be a whole number.");
+    expect(refusal.closest("form")).toHaveClass("recipe-form");
+    expect(
+      screen.queryByRole("heading", { name: "Something went wrong" }),
+    ).toBeNull();
+
+    // Still in the edit view, which is what stops the form remounting and is
+    // therefore what keeps the typed value.
+    expect(router.state.location.search).toBe("?edit");
+    expect(screen.getByLabelText("Energy (kcal)")).toHaveValue(1300);
+    expect(screen.getByLabelText("Name")).toHaveValue("Laksa");
+  });
+
+  // The other 404, and it goes the other way from the read's. The record being
+  // edited has gone, so there is no form left to return a message to: a string
+  // returned here would be printed into a form that the revalidation is about
+  // to unmount, and the person would land on the not-found panel with the nine
+  // typed fields gone and nothing saying why.
+  it("takes a save of a recipe that has gone to the error surface", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "PUT"
+          ? jsonResponse(404, {
+              detail: "No such recipe, or it belongs to another account",
+            })
+          : jsonResponse(200, LAKSA),
+    });
+
+    renderAt("/recipes/7?edit");
+
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Save changes" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Something went wrong" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // The read's 404, which is the whole subject of this page rather than one
+  // stale row on it. "Something went wrong" is false for a recipe deleted in
+  // another tab and the boundary offers no way onward, so the page draws its
+  // own state -- and the contract's "or it belongs to another account" is not
+  // repeated, because the endpoint answers 404 rather than 403 so as not to
+  // confirm that somebody else's record exists.
+  it("draws a way back to the library when there is no such recipe", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/99": async () =>
+        jsonResponse(404, {
+          detail: "No such recipe, or it belongs to another account",
+        }),
+    });
+
+    renderAt("/recipes/99");
+
+    expect(
+      await screen.findByRole("heading", { name: "No such recipe" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Back to your recipes" }),
+    ).toHaveAttribute("href", "/recipes");
+
+    expect(
+      screen.queryByRole("heading", { name: "Something went wrong" }),
+    ).toBeNull();
+    expect(screen.queryByText(/belongs to another account/)).toBeNull();
+  });
+
+  // An id that is not a whole number is the same thing as a recipe that is not
+  // there, and the loader answers it without a request. The empty `calls` is
+  // the assertion: stubFetch throws on any path it was not given, so a page
+  // that asked the API for /recipes/NaN would fail here rather than render a
+  // 422 about a path parameter.
+  it("answers a malformed id the same way, without asking the API", async () => {
+    signedIn();
+    const { calls } = stubFetch({});
+
+    renderAt("/recipes/abc");
+
+    expect(
+      await screen.findByRole("heading", { name: "No such recipe" }),
+    ).toBeVisible();
+    expect(calls).toEqual([]);
+  });
+});
