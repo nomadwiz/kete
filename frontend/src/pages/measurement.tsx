@@ -10,17 +10,14 @@ import type { Metrics } from "../types/measurement";
 import "./measurement.css";
 
 export default function Measurement() {
-  // What was saved last time, or null when nothing has been -- the 404 the
-  // loader catches. Either way the same form is drawn: the difference is
-  // whether each control opens on a figure or on nothing.
-  //
-  // defaultValue rather than value, so the fields stay uncontrolled. React
-  // reads a default only when the control mounts, which is what this screen
-  // wants twice over: a saved figure the person overtypes stays overtyped, and
-  // a submission the API refused re-renders this component without remounting
-  // it, so what they had typed survives above the message saying why. Holding
-  // the five in state instead would mean a change handler per field and a
-  // second copy of the form to keep in step with the first.
+  // What was saved last time, or null when nothing has been. Either way the
+  // same form is drawn, and the five controls take these as defaultValue
+  // rather than value, so they stay uncontrolled. React reads a default only
+  // at mount, which this screen wants twice over: a figure the person
+  // overtypes stays overtyped, and a submission the API refused re-renders
+  // this component without remounting it, so what they typed survives above
+  // the message saying why. Holding the five in state instead would mean a
+  // change handler per field and a second copy of the form to keep in step.
   const saved = useLoaderData() as Metrics | null;
   const error = useActionData() as string | undefined;
   const navigation = useNavigation();

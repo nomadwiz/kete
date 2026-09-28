@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { jsonResponse, renderAt, stubFetch } from "../test/router";
+import type { Metrics } from "../types/measurement";
 
 function signedIn() {
   window.localStorage.setItem("kete.token", "a-token");
@@ -14,14 +15,16 @@ afterEach(() => {
 // The five fields MetricsOut answers with, spelled as backend/openapi.json
 // spells them. Local to this file rather than beside TARGETS_BODY in
 // src/test/router.tsx: one screen reads them, and the shared helper carries
-// only what more than one file needs.
+// only what more than one file needs. `satisfies` rather than a bare object,
+// so a field renamed in the type is a build failure here -- these assertions
+// would otherwise still pass against a body the screen can no longer read.
 const METRICS_BODY = {
   weight_kg: 82.5,
   height_cm: 178,
   age: 34,
   sex: "female",
   activity_level: "moderate",
-};
+} satisfies Metrics;
 
 describe("the measurements form with values saved", () => {
   it("prefills all five controls from what the API answered", async () => {
