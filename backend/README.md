@@ -5,7 +5,7 @@ framework. INFS803 A02, Choice B.
 
 ## Status
 
-All 17 endpoints run real queries against PostgreSQL. Accounts, JWT auth, the
+All 18 endpoints run real queries against PostgreSQL. Accounts, JWT auth, the
 recipe library, the weekly plan and the nutrition engine are implemented, and
 recipe photographs upload to S3 — that endpoint answers 503 when `S3_BUCKET`
 is not configured rather than pretending to have stored anything.
@@ -73,7 +73,7 @@ username, email or plan slot get a 409, not a 500. Each test holds the clashing
 row open in one session so the endpoint's own check misses it, then lets it
 commit — the race is forced, not left to timing.
 
-## Endpoints (17 total, 7 POST)
+## Endpoints (18 total, 7 POST)
 
 | # | Method | Path | Auth |
 |---|--------|------|------|
@@ -82,20 +82,26 @@ commit — the race is forced, not left to timing.
 | 3 | GET | `/profile` | bearer |
 | 4 | PUT | `/profile` | bearer |
 | 5 | POST | `/profile/metrics` | bearer |
-| 6 | GET | `/targets` | bearer |
-| 7 | GET | `/recipes?q=` | bearer |
-| 8 | GET | `/recipes/{id}` | bearer |
-| 9 | POST | `/recipes` | bearer |
-| 10 | POST | `/recipes/{id}/photo` | bearer |
-| 11 | PUT | `/recipes/{id}` | bearer |
-| 12 | DELETE | `/recipes/{id}` | bearer |
-| 13 | GET | `/mealplan?week=` | bearer |
-| 14 | POST | `/mealplan` | bearer |
-| 15 | DELETE | `/mealplan/{slot_id}` | bearer |
-| 16 | POST | `/mealplan/generate` | bearer |
-| 17 | DELETE | `/mealplan/week/{week}` | bearer |
+| 6 | GET | `/profile/metrics` | bearer |
+| 7 | GET | `/targets` | bearer |
+| 8 | GET | `/recipes?q=` | bearer |
+| 9 | GET | `/recipes/{id}` | bearer |
+| 10 | POST | `/recipes` | bearer |
+| 11 | POST | `/recipes/{id}/photo` | bearer |
+| 12 | PUT | `/recipes/{id}` | bearer |
+| 13 | DELETE | `/recipes/{id}` | bearer |
+| 14 | GET | `/mealplan?week=` | bearer |
+| 15 | POST | `/mealplan` | bearer |
+| 16 | DELETE | `/mealplan/{slot_id}` | bearer |
+| 17 | POST | `/mealplan/generate` | bearer |
+| 18 | DELETE | `/mealplan/week/{week}` | bearer |
+| — | GET | `/health` | public |
 
-Every endpoint except `/register` and `/login` needs an
+`GET /health` is a nineteenth route and is not counted: it reports only
+whether the process is serving, which is no service to a user. `openapi.json`
+therefore shows 19 operations over 13 paths.
+
+Every endpoint except `/register`, `/login` and `/health` needs an
 `Authorization: Bearer <token>` header. The API reads `user_id` out of the token
 and scopes every query by it, so the client never sends a user id.
 
@@ -105,7 +111,10 @@ and scopes every query by it, so the client never sends a user id.
 - `activity_level`: `sedentary`, `light`, `moderate`, `active`, `very_active`
 - `meal_position`: `breakfast`, `lunch`, `dinner`
 - `day_of_week`: `Mon` … `Sun`
-- errors are always `{"detail": "message"}`
+- errors this API raises are `{"detail": "message"}` — `detail` is a string
+- FastAPI's own request validation answers 422 with `detail` as a **list** of
+  field objects, so a client reads the two shapes differently. Both are
+  declared in `openapi.json`.
 
 ## Database
 
