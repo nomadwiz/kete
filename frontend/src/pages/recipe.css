@@ -136,6 +136,21 @@
     text-decoration: none;
   }
 
+  /* The restraint planner.css puts on its own two destructive controls, and
+     for the reason recorded there: index.css reserves --kowhai for the one
+     recommended way through a screen, which .recipe__edit above is. An accent
+     on the control that destroys the record and empties every position
+     holding it would read as the way on. */
+  .recipe__delete {
+    margin-top: var(--space-6);
+    padding: var(--space-2) var(--space-4);
+    background: var(--paper);
+    border: 1px solid var(--ink-soft);
+    border-radius: var(--radius-control);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
   .recipe__cancel {
     margin-top: var(--space-4);
     background: none;

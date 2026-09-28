@@ -409,6 +409,51 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
       return replace(here);
     }
 
+    if (intent === "delete") {
+      try {
+        // 204 and no body at all, which request() in src/api/http.ts already
+        // answers as undefined -- so nothing here parses the reply. The id is
+        // the escaped one the save uses, for the same reason: an unescaped
+        // `../profile` would aim this DELETE at the account endpoint under the
+        // same bearer token.
+        await authed<void>(`/recipes/${id}`, { method: "DELETE" });
+      } catch (error) {
+        // The rule is what the contract says the status means on this route
+        // rather than the number -- C26 (nomadwiz/kete#279), as corrected.
+        // DELETE /recipes/{recipe_id} declares 401, 404 and 422. The 401 is
+        // withSession's.
+        //
+        // The 404 is the one status on this route that a delete may read as
+        // success, and it is the verb that makes the difference: the person
+        // asked for the record not to exist, and it does not. Its sentence is
+        // "No such recipe, or it belongs to another account", but the second
+        // half is not reachable from this screen -- recipeLoader drew the page
+        // from this same id under this same token, so the only way here is a
+        // recipe already gone, deleted in another tab or by a submission this
+        // one raced. Sending that to the not-found panel would answer someone
+        // who has just asked for a deletion with a report that the thing is
+        // missing, and would leave them standing at an address that will never
+        // answer. Letting it reach the error boundary would be worse again:
+        // the boundary renders an ApiError's message verbatim, so it would
+        // print the clause about another account that the endpoint answers 404
+        // rather than 403 precisely to avoid.
+        //
+        // The 422 is deliberately not caught. The only parameter on this route
+        // is the id in the path, and no screen can submit one the loader would
+        // refuse, so a 422 here is a hand-edited address rather than anything
+        // a person can act on -- and its message discloses nothing.
+        if (!(error instanceof ApiError) || error.status !== 404) {
+          throw error;
+        }
+      }
+
+      // The library, never `here`: `here` is the record that has just been
+      // deleted, so its loader 404s and the person lands on the not-found
+      // panel instead of their recipes. replace rather than redirect, so Back
+      // does not return to that address either.
+      return replace(PATHS.recipes);
+    }
+
     // Not a shrug, and not a guard either: it is the fall-through. A
     // submission from this screen carries either no intent or one a branch
     // above knows, so an unrecognised one is a typo in a hidden field --

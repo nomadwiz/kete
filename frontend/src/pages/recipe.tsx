@@ -1,4 +1,5 @@
 import {
+  Form,
   Link,
   useActionData,
   useLoaderData,
@@ -38,12 +39,16 @@ export default function RecipeDetail() {
   // path precisely so that nobody can hand it PATHS.recipe -- which is the
   // pattern `/recipes/:id` and never an address anything submits to.
   //
-  // It answers whether a POST to this route is in flight, which once C15
-  // (nomadwiz/kete#179) adds its delete Form here is true for either write.
-  // That is the right answer for this one: while a record is being deleted the
-  // save button should be dead too. C15's own button is the one that has to
-  // tell them apart, and it does that by reading the submitted intent rather
-  // than by giving this hook a parameter.
+  // It answers whether a POST to this route is in flight, which is true for
+  // either of the two writes this route now takes -- the save and C15
+  // (nomadwiz/kete#179)'s delete. Nothing here tells them apart, and nothing
+  // needs to: the edit form replaces the read view rather than floating over
+  // it, so the Save button and the Delete button are never on screen together
+  // and neither can ever be looking at the other's submission. If the form is
+  // ever drawn over the read view, that stops being true, and the control that
+  // has to distinguish them reads the submitted intent off useNavigation's
+  // formData rather than giving this hook a parameter -- the hook takes no
+  // path or intent by design, and src/use-submitting.ts says why.
   const saving = useSubmitting("POST");
 
   // Dropping the key is the whole of closing the edit view, because the form is
@@ -95,6 +100,29 @@ export default function RecipeDetail() {
     ["Carbohydrate", `${recipe.carbs_g.toLocaleString("en-NZ")} g`],
     ["Fat", `${recipe.fat_g.toLocaleString("en-NZ")} g`],
   ];
+
+  // The sentence C15 (nomadwiz/kete#179) is actually about, and the only place
+  // in the application the cascade is ever stated. backend/schema.sql declares
+  // plan_slots.recipe_id REFERENCES recipes ON DELETE CASCADE, so deleting a
+  // recipe empties every position holding it -- in this week and in any other
+  // -- and a generic "Are you sure?" would let somebody discard a planned week
+  // without knowing they had. It is the platform's own confirmation rather
+  // than a <dialog>, which is C17 (nomadwiz/kete#181)'s choice on the planner
+  // and its reasoning: window.confirm is modal, focus-trapped and dismissible
+  // from the keyboard for no code at all, and jsdom 30 implements no
+  // showModal, so a <dialog> on this page would be exercised against the shim
+  // in src/test/setup.ts rather than against the element. Its ceiling is
+  // C17's too: a browser whose "prevent this page from creating further
+  // dialogues" box has been ticked answers false without showing anything, so
+  // the button does nothing at all -- which fails closed, the right direction
+  // for a control that destroys a record, but reads as a broken button.
+  //
+  // No count, and none is available: this screen reads one recipe, and
+  // [GAP: nothing in backend/openapi.json answers how many plan slots point at
+  // a recipe]. Fetching a week to count them would be a second read for a
+  // number that would still be wrong for every other week, so the sentence is
+  // written to be true without one.
+  const emptiesEveryPositionHoldingIt = `Delete ${recipe.name}?\n\nThe recipe goes from your library, and every position in every week that is holding it is emptied too. There is no undo.`;
 
   return (
     <div className="recipe">
@@ -226,6 +254,40 @@ export default function RecipeDetail() {
           <Link className="recipe__edit" to={`?${QUERY.recipe_edit}`}>
             Edit this recipe
           </Link>
+
+          {/* Here rather than on /recipes, and the reason is ADR 002's rule
+              about path strings: a delete offered from the list would post to
+              this route, which means an `action` prop carrying a literal
+              /recipes/<id> outside routes.tsx. This page already owns the
+              action and already knows which record is in view, so it needs
+              neither.
+
+              No `action` prop for the same rule, so this posts to the address
+              the page is at and recipeAction reads the intent. The hidden
+              field is what selects the branch: RecipeForm deliberately
+              declares none, which is what makes a submission carrying no
+              intent the save. */}
+          <Form
+            method="post"
+            onSubmit={(event) => {
+              // react-router's Form runs this handler and then returns on a
+              // prevented default, so a declined confirmation sends no
+              // request at all rather than one whose answer is thrown away.
+              if (!window.confirm(emptiesEveryPositionHoldingIt)) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <input type="hidden" name="intent" value="delete" />
+
+            {/* Dead while the delete is in flight, and named for it. A second
+                click sends a second DELETE, which the API answers 404 -- read
+                here as the success it is, so nothing would look wrong, but it
+                is still a request nobody meant to make. */}
+            <button className="recipe__delete" type="submit" disabled={saving}>
+              {saving ? "Deleting…" : "Delete this recipe"}
+            </button>
+          </Form>
         </>
       )}
     </div>
