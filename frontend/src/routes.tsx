@@ -1,9 +1,14 @@
-import { redirect, type ActionFunctionArgs } from "react-router";
+import {
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+} from "react-router";
 
 import { ApiError, SessionExpired } from "./api/errors";
 import { request } from "./api/http";
 import { authed } from "./api/session";
 import { clearToken, readToken, writeToken } from "./api/token";
+import { isoWeek, WEEK_PATTERN } from "./api/week";
 import AppLayout from "./components/app-layout";
 import ErrorBoundary from "./components/error-boundary";
 import PublicLayout from "./components/public-layout";
@@ -27,6 +32,13 @@ import type {
   SignInResult,
 } from "./types/auth";
 import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
+import type {
+  DayOfWeek,
+  MealPosition,
+  PlanSlot,
+  PlanSlotIn,
+  PlanWeek,
+} from "./types/plan";
 import type { RecipeSummary } from "./types/recipe";
 import type { Targets } from "./types/targets";
 
@@ -47,6 +59,10 @@ const PATHS = {
 
 const QUERY = {
   account_created: "created",
+  // Which week the planner is showing. ADR 002 puts view state a refresh
+  // should survive in the address, and a person who steps to next week and
+  // then reloads is looking at next week.
+  week: "week",
 } as const;
 
 function requireSession() {
@@ -130,6 +146,102 @@ function metricsLoader(): Promise<Metrics | null> {
 
       throw error;
     }
+  });
+}
+
+// The week the address names, its filled positions, and the library a recipe
+// is placed from. Two requests rather than one because the grid offers a
+// choice of recipe in every empty position, and GET /mealplan answers only
+// what is already placed. They go together rather than in turn: neither needs
+// the other's answer.
+//
+// The week is returned alongside the slots because a PlanSlotOut carries no
+// week field -- backend/openapi.json declares slot_id, day_of_week,
+// meal_position and recipe, and nothing else -- so the answer cannot say which
+// week it is an answer about, and the address need not have named one.
+async function plannerLoader({
+  request: req,
+}: LoaderFunctionArgs): Promise<PlanWeek> {
+  const asked = new URL(req.url).searchParams.get(QUERY.week);
+  const thisWeek = isoWeek(new Date());
+
+  // A week typed into the address that is not a week would be answered 422 and
+  // reach the error boundary. Sending the reader to the week they will in fact
+  // be shown is the better answer, and it leaves the address telling the truth
+  // rather than drawing this week under a heading that says something else.
+  if (asked !== null && !WEEK_PATTERN.test(asked)) {
+    throw redirect(`${PATHS.planner}?${QUERY.week}=${thisWeek}`);
+  }
+
+  const week = asked ?? thisWeek;
+
+  return withSession(async () => {
+    const [slots, recipes] = await Promise.all([
+      authed<PlanSlot[]>(`/mealplan?${QUERY.week}=${week}`),
+      authed<RecipeSummary[]>("/recipes"),
+    ]);
+
+    return { week, slots, recipes };
+  });
+}
+
+// One action for the whole screen, branching on a hidden `intent` field rather
+// than giving each verb a route of its own -- the shape C15 uses on
+// /recipes/:id. C17 (nomadwiz/kete#181) adds generating a week and clearing
+// one as two more branches here, POST /mealplan/generate and DELETE
+// /mealplan/week/{week}, rather than rewriting this.
+//
+// A branch answers null when the server accepted the change and the server's
+// own sentence when it did not. Either way the grid is redrawn from the
+// loader, because React Router revalidates after an action -- so no branch
+// returns the new state and nothing here holds a second copy of the week.
+async function plannerAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const intent = String(form.get("intent") ?? "");
+
+  return withSession(async () => {
+    try {
+      if (intent === "remove") {
+        // 204 with no body. http.ts answers undefined for that status, so
+        // nothing here reads a result: asking for one would parse an empty
+        // body as JSON and throw on a request that succeeded.
+        await authed<void>(`/mealplan/${Number(form.get("slot_id"))}`, {
+          method: "DELETE",
+        });
+      } else if (intent === "place") {
+        // The two casts assert what the grid's own hidden fields carry, both
+        // of which are enums in backend/main.py, so anything else is answered
+        // 422 rather than filling the wrong position.
+        //
+        // 409 is the position already being filled, which happens when a
+        // second tab filled it first. The catch below turns it into the
+        // server's own sentence above the grid, and the revalidation that
+        // follows shows what is actually there.
+        const placement: PlanSlotIn = {
+          recipe_id: Number(form.get("recipe_id")),
+          week: String(form.get("week") ?? ""),
+          day_of_week: String(form.get("day_of_week") ?? "") as DayOfWeek,
+          meal_position: String(
+            form.get("meal_position") ?? "",
+          ) as MealPosition,
+        };
+
+        // The reply carries the new slot_id. It is discarded: the loader
+        // redraws the week, so there is one place that knows what is in it.
+        await authed<unknown>("/mealplan", {
+          method: "POST",
+          body: JSON.stringify(placement),
+        });
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    return null;
   });
 }
 
@@ -289,7 +401,12 @@ const routes = [
                 loader: recipesLoader,
               },
               { path: PATHS.recipe, Component: RECIPE_DETAIL },
-              { path: PATHS.planner, Component: PLANNER },
+              {
+                path: PATHS.planner,
+                Component: PLANNER,
+                loader: plannerLoader,
+                action: plannerAction,
+              },
               { path: PATHS.account, Component: ACCOUNT },
             ],
           },
