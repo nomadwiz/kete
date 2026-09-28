@@ -90,6 +90,31 @@ describe("the recipe list", () => {
     expect(screen.queryAllByRole("img")).toHaveLength(0);
   });
 
+  // Without this the recipe detail page is reachable only by typing an address.
+  // C11 (nomadwiz/kete#176) left the link to C12 (nomadwiz/kete#177), which
+  // owns that page. The href is asserted rather than followed: the destination
+  // has its own tests, and what this screen owes is the correct address.
+  it("opens a recipe from its card", async () => {
+    signedIn();
+    stubFetch({ "/recipes": async () => jsonResponse(200, RECIPES) });
+
+    renderAt("/recipes");
+
+    expect(await screen.findByRole("link", { name: "Laksa" })).toHaveAttribute(
+      "href",
+      "/recipes/1",
+    );
+    expect(screen.getByRole("link", { name: "Dal" })).toHaveAttribute(
+      "href",
+      "/recipes/2",
+    );
+
+    // On the name and not around the whole card: a card-sized anchor takes the
+    // photograph and the figures into its own accessible name, and a screen
+    // reader then reads the entire tile as the link text.
+    expect(cardFor("Laksa").querySelectorAll("a")).toHaveLength(1);
+  });
+
   it("sends a user with nothing written to the form that writes one", async () => {
     signedIn();
     stubFetch({ "/recipes": async () => jsonResponse(200, []) });
