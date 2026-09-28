@@ -8,12 +8,11 @@ The project, the router and eleven routed pages exist. `src/api/http.ts` talks t
 
 Known gaps, each tracked as an issue rather than left in this file:
 
-| Gap                                                              | Issue                            |
-| ---------------------------------------------------------------- | -------------------------------- |
-| Four of the eleven pages are placeholders                        | #176–#184                        |
-| Types are hand-written rather than generated from the API schema | C21 (#235)                       |
-| One of C22's three security behaviours still has no test         | C22 (#236)                       |
-| The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
+| Gap                                                      | Issue                            |
+| -------------------------------------------------------- | -------------------------------- |
+| Four of the eleven pages are placeholders                | #176–#184                        |
+| One of C22's three security behaviours still has no test | C22 (#236)                       |
+| The production build is not wired to a host              | C20 (#185), K6 (#192), K9 (#195) |
 
 ## Run it
 
@@ -104,28 +103,35 @@ The outer mount stays, because a failure in the public tree — and a throw from
 
 ## Where things go
 
-| Path              | What belongs there                                                                                                                                                                                                                 |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/index.css`   | The tokens every screen is styled from, a light reset, and base element styling — including how a form control looks, so every form screen inherits one. The one global stylesheet; nothing page-specific belongs in it (C5, #170) |
-| `src/routes.tsx`  | Every path string, once; the route objects; their loaders and actions                                                                                                                                                              |
-| `src/pages/`      | One file per page, and beside it that page's stylesheet                                                                                                                                                                            |
-| `src/api/`        | Talking to the API: `http.ts` the transport, `session.ts` the credential and what an ended session means, `token.ts` its storage, `errors.ts` the error shapes. Nothing here knows the router (C2, #167)                           |
-| `src/types/`      | Types matching the FastAPI schema, added as a screen needs one rather than up front (C2, #167; C21, #235)                                                                                                                          |
-| `src/components/` | The route error boundary, the two layouts and their stylesheets, and shared presentational pieces — including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178)                              |
-| `src/test/`       | The Vitest setup file, and the helpers that render the real route array against a stubbed `fetch`. Tests themselves sit beside what they test (C22, #236)                                                                          |
+| Path              | What belongs there                                                                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.css`   | The tokens every screen is styled from, a light reset, and base element styling — including how a form control looks, so every form screen inherits one. The one global stylesheet; nothing page-specific belongs in it (C5, #170)        |
+| `src/routes.tsx`  | Every path string, once; the route objects; their loaders and actions                                                                                                                                                                     |
+| `src/pages/`      | One file per page, and beside it that page's stylesheet                                                                                                                                                                                   |
+| `src/api/`        | Talking to the API: `http.ts` the transport, `session.ts` the credential and what an ended session means, `token.ts` its storage, `errors.ts` the error shapes. Nothing here knows the router (C2, #167)                                  |
+| `src/types/`      | `api.ts`, generated from the API's schema and never edited; beside it one small file per subject aliasing the schemas a screen needs, so a page imports `Targets` rather than `components["schemas"]["TargetsOut"]` (C2, #167; C21, #235) |
+| `src/components/` | The route error boundary, the two layouts and their stylesheets, and shared presentational pieces — including the recipe form used by both the creation modal and the edit view (C4, #169; C13, #178)                                     |
+| `src/test/`       | The Vitest setup file, and the helpers that render the real route array against a stubbed `fetch`. Tests themselves sit beside what they test (C22, #236)                                                                                 |
 
 ## Talking to the API
 
 The enum spellings the API validates, the endpoint list and the authentication scheme are in [`../backend/README.md`](../backend/README.md), and the code that enforces them is [`../backend/main.py`](../backend/main.py). Where a description and the code disagree, the code is right — so read the code rather than copying either into this file.
 
+**The types are generated from the contract, not written against it.** [`../backend/openapi.json`](../backend/openapi.json) is the schema FastAPI builds from [`../backend/main.py`](../backend/main.py), exported by `../backend/export_openapi.py` and committed so that a build needs no running API. `openapi-typescript` turns it into [`src/types/api.ts`](src/types/api.ts), and `npm run dev`, `npm run build` and `npm test` each regenerate that file before they start — so a field renamed or dropped in `main.py` reaches the screens that read it as a type error rather than as an empty space on the page.
+
+**Never edit `src/types/api.ts`, and never add a hand-written type beside it.** Change `main.py`, run `python export_openapi.py`, and the next build carries the change through. The four files beside it are aliases and hold no field names of their own: `auth.ts`, `measurement.ts`, `recipe.ts` and `targets.ts` each name the schema a screen wants under the name that screen already imports, because the wire names differ in three places — `RegisterIn`, `LoginIn` and `LoginOut` for the two auth pairs, `MetricsIn` for the measurement form, `TargetsOut` for the figures. Add an alias when a screen needs one; `RecipeIn` serves both writing a recipe and editing one, so there is no create-and-update pair to look for.
+
+`api.ts` is committed so that a clone can be read and linted without generating anything first, but nothing trusts the committed copy: every script that type-checks rewrites it first, so a stale one is overwritten rather than believed. The other side of the contract is held by `../backend/tests/test_contract.py`, which fails when `openapi.json` stops describing `main.py` — together the two mean a rename in `main.py` cannot reach a screen unnoticed.
+
 ## Scripts
 
-| Script                 | What it does                                                    |
-| ---------------------- | --------------------------------------------------------------- |
-| `npm run dev`          | Vite dev server on 5173, with hot reload                        |
-| `npm run build`        | Type-checks, then writes the deployable bundle to `dist/`       |
-| `npm run preview`      | Serves `dist/` — use it to test deep links against a real build |
-| `npm test`             | Vitest over `src`, once, in jsdom                               |
-| `npm run lint`         | ESLint over the project, config files included                  |
-| `npm run format`       | Rewrites files with Prettier                                    |
-| `npm run format:check` | Reports without rewriting; this is the one CI runs              |
+| Script                   | What it does                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `npm run dev`            | Regenerates the types, then the Vite dev server on 5173, with hot reload         |
+| `npm run generate:types` | Rewrites `src/types/api.ts` from `../backend/openapi.json`                       |
+| `npm run build`          | Regenerates the types, type-checks, then writes the deployable bundle to `dist/` |
+| `npm run preview`        | Serves `dist/` — use it to test deep links against a real build                  |
+| `npm test`               | Regenerates the types, then Vitest over `src`, once, in jsdom                    |
+| `npm run lint`           | ESLint over the project, config files included                                   |
+| `npm run format`         | Rewrites files with Prettier                                                     |
+| `npm run format:check`   | Reports without rewriting; this is the one CI runs                               |

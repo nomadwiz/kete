@@ -1,23 +1,11 @@
-export interface Register {
-  first_name: string;
-  last_name: string;
-  username: string;
-  email: string;
-  password: string;
-}
+import type { components } from "./api";
+
+export type Register = components["schemas"]["RegisterIn"];
 
 // POST /register answers with the new user's id and no token, so registering
 // does not sign anyone in.
-export interface RegisterResult {
-  user_id: number;
-}
+export type RegisterResult = components["schemas"]["RegisterOut"];
 
-export interface SignIn {
-  username_or_email: string;
-  password: string;
-}
+export type SignIn = components["schemas"]["LoginIn"];
 
-export interface SignInResult {
-  token: string;
-  user_id: number;
-}
+export type SignInResult = components["schemas"]["LoginOut"];
