@@ -21,9 +21,9 @@
 
 const DAY = 86_400_000;
 
-// The pattern the API enforces, so a week arriving from the address bar can be
-// checked against the same rule before it is sent anywhere.
-export const WEEK_PATTERN = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
+// The pattern the API enforces. Not exported: matching it is necessary and not
+// sufficient, and isWeek below is the question every caller actually has.
+const WEEK_PATTERN = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
 
 function weekOf(utcMs: number): string {
   // Move to the Thursday of this week. getUTCDay() numbers Sunday 0, so the

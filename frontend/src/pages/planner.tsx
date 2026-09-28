@@ -73,16 +73,14 @@ export default function Planner() {
   // answered 409, a second Remove is answered 404, and either way the person
   // is shown a failure for an operation that in fact succeeded.
   //
-  // navigation.state, and deliberately not the
-  // `navigation.formAction === PATHS.planner` comparison the other screens
-  // use. A <Form> with no action prop submits to the current address including
-  // its query string -- react-router's useFormAction copies location.search in
-  // -- so on a screen whose address carries the week, that equality is false
-  // for the whole submission and the guard never engages. C25
-  // (nomadwiz/kete#277) corrects the two screens that have it. This component
-  // is only ever mounted on /planner, so anything in flight here is its own
-  // submission or a departure from the screen.
-  const busy = navigation.state !== "idle";
+  // The path alone, not the whole formAction, and account.tsx says why: a
+  // <Form> declaring no action prop does not submit to the bare path, because
+  // useFormAction in react-router 8.4.0 copies the current query string into
+  // it. This is the screen that puts the week in the query string, so the
+  // equality against the whole thing would be false for every submission this
+  // page ever makes. C25 (nomadwiz/kete#277) is landing a shared helper; take
+  // it when it does.
+  const busy = navigation.formAction?.split("?")[0] === PATHS.planner;
 
   // One pass over the answer rather than a scan of it in each of twenty-one
   // cells. The key pairs the two axes because neither identifies a position on

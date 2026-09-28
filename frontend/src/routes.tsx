@@ -277,11 +277,6 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
         // The two casts assert what the grid's own hidden fields carry, both
         // of which are enums in backend/main.py, so anything else is answered
         // 422 rather than filling the wrong position.
-        //
-        // 409 is the position already being filled, which happens when a
-        // second tab filled it first. The catch below turns it into the
-        // server's own sentence above the grid, and the revalidation that
-        // follows shows what is actually there.
         const placement: PlanSlotIn = {
           recipe_id: Number(form.get("recipe_id")),
           week: String(form.get("week") ?? ""),
@@ -306,7 +301,21 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
         throw new Error(`Unknown planner intent: ${intent}`);
       }
     } catch (error) {
-      if (error instanceof ApiError) {
+      // Two of the statuses these routes declare, and only those two, on the
+      // reasoning profileAction records. A 409 means the position was filled
+      // while this screen was looking at it, and a 422 that a value the enums
+      // refuse arrived: both are answered by the grid redrawing and the person
+      // choosing again, which is what they are standing in front of.
+      //
+      // The 404s are not among them. POST /mealplan answers one for a recipe
+      // that has gone or belongs to someone else, and DELETE for a slot that
+      // has, and neither is something a second Add can put right -- so they go
+      // to the boundary rather than being printed as though the person had
+      // mistyped something.
+      if (
+        error instanceof ApiError &&
+        (error.status === 409 || error.status === 422)
+      ) {
         return error.message;
       }
 

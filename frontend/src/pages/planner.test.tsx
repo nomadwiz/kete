@@ -61,15 +61,11 @@ function cellsOf(day: string) {
 
 // The body of the one POST among the calls. It cannot be the last call:
 // React Router revalidates the loader as soon as the action returns, so two
-// GETs follow it. stubFetch's mock declares only the input parameter, so the
-// recorded second argument is reached through the array rather than through
-// the mock's type.
-function postedBody(calls: unknown[][]): unknown {
-  const posted = calls.find(
-    (call) => (call[1] as RequestInit | undefined)?.method === "POST",
-  );
+// GETs follow it.
+function postedBody(calls: [RequestInfo | URL, RequestInit?][]): unknown {
+  const posted = calls.find((call) => call[1]?.method === "POST");
 
-  return JSON.parse(String((posted![1] as RequestInit).body));
+  return JSON.parse(String(posted![1]!.body));
 }
 
 afterEach(() => {
@@ -256,6 +252,38 @@ describe("placing a recipe", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "That day and meal is already filled",
     );
+  });
+
+  // The other half of the narrowing: only 409 and 422 come back as a message.
+  // A 404 means the recipe has gone or was never this account's, which no
+  // second Add can put right, so printing it above the grid would invite one.
+  it("sends a failure the grid cannot answer to the error boundary", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, []),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      "/mealplan": async () => jsonResponse(404, { detail: "No such recipe" }),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    const user = userEvent.setup();
+
+    await user.selectOptions(
+      await screen.findByLabelText("Recipe for Monday breakfast"),
+      "3",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add a recipe to Monday breakfast" }),
+    );
+
+    expect(await screen.findByText("Status 404.")).toBeInTheDocument();
+
+    // Inside the shell, per ADR 003: the boundary mounted within AppLayout is
+    // what keeps the navigation under a failed page.
+    expect(
+      screen.getByRole("navigation", { name: "Main" }),
+    ).toBeInTheDocument();
   });
 });
 
