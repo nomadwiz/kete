@@ -1,12 +1,7 @@
-import {
-  Form,
-  useActionData,
-  useLoaderData,
-  useNavigation,
-} from "react-router";
+import { Form, useActionData, useLoaderData } from "react-router";
 
-import { PATHS } from "../routes";
 import type { Metrics } from "../types/measurement";
+import { useSubmitting } from "../use-submitting";
 import "./measurement.css";
 
 export default function Measurement() {
@@ -20,8 +15,7 @@ export default function Measurement() {
   // change handler per field and a second copy of the form to keep in step.
   const saved = useLoaderData() as Metrics | null;
   const error = useActionData() as string | undefined;
-  const navigation = useNavigation();
-  const saving = navigation.formAction === PATHS.measurements;
+  const saving = useSubmitting();
 
   return (
     <div className="measurement">

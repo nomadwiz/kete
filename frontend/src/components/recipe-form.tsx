@@ -17,11 +17,11 @@ export type RecipeFormProps = {
   // action: /recipes/:id answers a save and a delete from one action, and only
   // the host can tell which of the two is running.
   //
-  // Do not compute it the way measurement.tsx does. Its
-  // `useNavigation().formAction === PATHS.x` reads `/recipes?new` here, never
-  // `/recipes`, because react-router copies the current search into a Form
-  // declaring no action and ADR 002 addresses both hosts with one. Compare
-  // what is before the `?`, or read `navigation.state`.
+  // Compute it with useSubmitting from src/use-submitting.ts, and never with
+  // a plain equality against `useNavigation().formAction`: that reads
+  // `/recipes?new` on the first host and `/recipes/7?edit` on the second,
+  // because react-router copies the current search into a Form declaring no
+  // action and ADR 002 addresses both hosts with one.
   busy?: boolean;
 };
 

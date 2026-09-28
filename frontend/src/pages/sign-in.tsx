@@ -1,20 +1,14 @@
-import {
-  Form,
-  Link,
-  useActionData,
-  useNavigation,
-  useSearchParams,
-} from "react-router";
+import { Form, Link, useActionData, useSearchParams } from "react-router";
 
 import { PATHS, QUERY } from "../routes";
+import { useSubmitting } from "../use-submitting";
 import "./sign-in.css";
 
 export default function SignIn() {
   const error = useActionData() as string | undefined;
   const [params] = useSearchParams();
   const created = params.has(QUERY.account_created);
-  const navigation = useNavigation();
-  const signingIn = navigation.formAction === PATHS.sign_in;
+  const signingIn = useSubmitting();
 
   return (
     <div className="sign-in">
