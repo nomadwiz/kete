@@ -270,12 +270,20 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
 // to wonder whose, and the endpoint answers 404 rather than 403 precisely so
 // that it does not confirm someone else's record exists.
 //
-// An id that is not a whole number is answered the same way without a request.
-// The API would refuse /recipes/NaN with a 422 about the path parameter, which
-// is a sentence about the address rather than about the recipe, and this screen
-// already owns the right answer for an address that names nothing. The test is
-// the raw segment and not Number(): "3.5", " 3", "0x10" and "1e3" all survive
-// Number() and none of them is a recipe id.
+// An id that is not a whole number is answered the same way, and the 422 the
+// API answers for one is caught beside the 404 for the same reason: on this
+// route the only parameter is the id in the path, so a 422 is a sentence about
+// the address rather than about the recipe, and an address that names nothing
+// is what the not-found panel is for. `99999999999999999999` is why the catch
+// is there as well as the guard -- it is all digits and no recipe id.
+//
+// The guard itself is not only a saved round trip. react-router decodes a path
+// parameter before a loader sees it, so /recipes/..%2Fprofile arrives here as
+// `../profile`, and an unescaped template would build /recipes/../profile --
+// which the URL constructor normalises to /profile, aiming this read at
+// another endpoint under the same bearer token. The test is the raw segment
+// and not Number(): "3.5", " 3", "0x10" and "1e3" all survive Number() and
+// none of them is a recipe id.
 function recipeLoader({
   params,
 }: LoaderFunctionArgs): Promise<RecipeDetail | null> {
@@ -287,7 +295,10 @@ function recipeLoader({
     try {
       return await authed<RecipeDetail>(`/recipes/${params.id}`);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 422)
+      ) {
         return null;
       }
 
@@ -299,88 +310,110 @@ function recipeLoader({
 // One action for the whole screen, branching on a submitted intent rather than
 // giving each verb a route of its own -- ADR 002, and the shape plannerAction
 // uses. A submission carrying no intent is the save, which is the convention
-// C13 (nomadwiz/kete#178) set when it left RecipeForm with no intent field:
-// the delete C15 (nomadwiz/kete#179) adds is its own Form carrying
-// `intent=delete`, so its branch slots in beside this one and each branch owns
-// its own destination -- a save lands back on the record, a delete cannot.
+// C13 (nomadwiz/kete#178) set when it left RecipeForm with no intent field.
 //
-// PUT /recipes/{recipe_id} is a full replace and takes no partial update, so
-// all nine RecipeIn fields travel whether or not they changed. The same nine
-// are assembled in recipesAction above; the house rule extracts on the third
-// repetition and there is no third -- a delete sends no body.
+// Each branch owns its own catch and its own destination, and neither is
+// shared below the branch. That is what makes this extensible rather than
+// merely arranged: C15 (nomadwiz/kete#179)'s delete lands as a sibling block
+// and has to end at PATHS.recipes, because a redirect to the record just
+// deleted would put a person on the not-found panel instead of their library
+// -- and a shared tail would hand it that destination silently, compiling and
+// passing every test here.
 async function recipeAction({ params, request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const intent = String(form.get("intent") ?? "");
 
-  return withSession(async () => {
-    try {
-      if (intent === "") {
-        const recipe: RecipeIn = {
-          name: String(form.get("name") ?? ""),
-          cuisine: String(form.get("cuisine") ?? ""),
-          ingredients: String(form.get("ingredients") ?? ""),
-          steps: String(form.get("steps") ?? ""),
-          servings: Number(form.get("servings")),
-          energy_kcal: Number(form.get("energy_kcal")),
-          protein_g: Number(form.get("protein_g")),
-          carbs_g: Number(form.get("carbs_g")),
-          fat_g: Number(form.get("fat_g")),
-        };
+  // Escaped once, for the reason plannerAction escapes the week: react-router
+  // decodes a path parameter before this runs, so /recipes/..%2Fprofile
+  // arrives as `../profile`, and an unescaped template would build
+  // /recipes/../profile -- which the URL constructor normalises to /profile,
+  // aiming this write at another endpoint under the same bearer token.
+  // Escaped, the API answers 422, which is a refusal rather than a
+  // redirection. Nothing on the screen can submit such an id, because
+  // recipeLoader draws the not-found panel for one and there is no form to
+  // submit -- this is the hand-edited address, not the reachable case.
+  const id = encodeURIComponent(params.id ?? "");
+  const here = PATHS.recipe.replace(":id", id);
 
+  return withSession(async () => {
+    if (intent === "") {
+      // PUT /recipes/{recipe_id} is a full replace and takes no partial
+      // update, so all nine RecipeIn fields travel whether or not they
+      // changed. The same nine are assembled in recipesAction above; the house
+      // rule extracts on the third repetition and there is no third -- a
+      // delete sends no body.
+      const recipe: RecipeIn = {
+        name: String(form.get("name") ?? ""),
+        cuisine: String(form.get("cuisine") ?? ""),
+        ingredients: String(form.get("ingredients") ?? ""),
+        steps: String(form.get("steps") ?? ""),
+        servings: Number(form.get("servings")),
+        energy_kcal: Number(form.get("energy_kcal")),
+        protein_g: Number(form.get("protein_g")),
+        carbs_g: Number(form.get("carbs_g")),
+        fat_g: Number(form.get("fat_g")),
+      };
+
+      try {
         // The reply is the saved RecipeDetail and is discarded, as every other
         // write here discards its reply: the loader revalidates once this
         // returns, so the screen reads the record in one place rather than two
         // that can disagree.
-        await authed<unknown>(`/recipes/${params.id}`, {
+        await authed<unknown>(`/recipes/${id}`, {
           method: "PUT",
           body: JSON.stringify(recipe),
         });
-      } else {
-        // Not a shrug. A submission from this screen carries either no intent
-        // or one this branch knows, so an unrecognised one is a typo in a
-        // hidden field -- which, returned as null, is indistinguishable from
-        // the save that worked: the loader revalidates and the record redraws
-        // unchanged.
-        throw new Error(`Unknown recipe intent: ${intent}`);
-      }
-    } catch (error) {
-      // 422 and nothing else, and the rule is what the contract says the
-      // status means on this route rather than the number -- C26
-      // (nomadwiz/kete#279), as corrected. PUT /recipes/{recipe_id} declares
-      // 401, 404 and 422. The 401 is withSession's.
-      //
-      // The 404 is the interesting one, and it is not the planner's. There a
-      // 404 meant one stale row in a grid of twenty others, the revalidation
-      // repaired the view, and the person could choose again -- so
-      // plannerAction returns it. Here it means the record being edited no
-      // longer exists, and returning it would print the server's sentence into
-      // a form that is about to be unmounted: the revalidation that follows
-      // any returned string re-reads GET /recipes/{recipe_id}, which 404s in
-      // turn, and the not-found panel replaces the page with the message and
-      // the nine typed fields gone and nothing saying why. The boundary is the
-      // honest surface for that, because the edit cannot be retried and there
-      // is no form left to return to.
-      //
-      // A second intent is not a reason to make this the planner's
-      // intent-keyed table. C15 (nomadwiz/kete#179) decides what DELETE's own
-      // statuses mean on its own branch, and two rows is when a table starts
-      // paying for itself.
-      if (error instanceof ApiError && error.status === 422) {
-        return error.message;
+      } catch (error) {
+        // The rule is what the contract says the status means on this route
+        // rather than the number -- C26 (nomadwiz/kete#279), as corrected. PUT
+        // /recipes/{recipe_id} declares 401, 404 and 422. The 401 is
+        // withSession's.
+        if (error instanceof ApiError) {
+          // Answered by typing something different, so it goes back to the
+          // form the person is still standing in.
+          if (error.status === 422) {
+            return error.message;
+          }
+
+          // The record vanished mid-edit, and this is the one place the two
+          // 404s on this route meet. Returning the server's sentence would
+          // print it into a form the revalidation is about to unmount; letting
+          // it reach the error boundary would print it too, and the boundary
+          // renders an ApiError's message verbatim -- which is "No such
+          // recipe, or it belongs to another account", the clause recipe.tsx
+          // suppresses so that a 404 chosen over a 403 does not end up
+          // confirming that somebody else's record exists. So the save is sent
+          // to the same surface the read uses: the loader 404s in turn,
+          // answers null, and the not-found panel says the recipe may have
+          // been deleted and offers the way back to the library. The nine
+          // typed fields are lost either way; only this way says why.
+          //
+          // replace rather than redirect, so Back does not return to an edit
+          // form for a recipe that is not there.
+          if (error.status === 404) {
+            throw replace(here);
+          }
+        }
+
+        throw error;
       }
 
-      throw error;
+      // Back to the record just saved, which is what closes the edit view: the
+      // form is drawn exactly while `edit` is in the address, so dropping the
+      // key puts the read view back showing what the save wrote. replace
+      // rather than redirect, for the reason recipesAction gives -- opening
+      // the edit view is a link, so that entry is already in the history, and
+      // pushing here would put Back one click from reopening a form over a
+      // record that has just been saved.
+      return replace(here);
     }
 
-    // Back to the record just saved, which is what closes the edit view: the
-    // form is drawn exactly while `edit` is in the address, so dropping the key
-    // puts the read view back showing what the save wrote.
-    //
-    // replace rather than redirect, for the reason recipesAction gives: opening
-    // the edit view is a link, so that entry is already in the history, and
-    // pushing here would put Back one click from reopening a form over a record
-    // that has just been saved.
-    return replace(PATHS.recipe.replace(":id", String(params.id)));
+    // Not a shrug, and not a guard either: it is the fall-through. A
+    // submission from this screen carries either no intent or one a branch
+    // above knows, so an unrecognised one is a typo in a hidden field --
+    // which, returned as null, is indistinguishable from the save that worked,
+    // because the loader revalidates and the record redraws unchanged.
+    throw new Error(`Unknown recipe intent: ${intent}`);
   });
 }
 

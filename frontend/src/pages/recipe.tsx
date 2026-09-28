@@ -75,13 +75,10 @@ export default function RecipeDetail() {
       <div className="recipe">
         <h1 className="recipe__title">No such recipe</h1>
 
-        {/* The contract's own sentence is "No such recipe, or it belongs to
-            another account", and the second half is not repeated here: the
-            endpoint answers 404 rather than 403 so that it does not confirm
-            somebody else's record exists, and printing the clause would undo
-            that. Deletion is named instead, because it is the case a person
-            actually arrives from -- a recipe removed from this page in another
-            tab. */}
+        {/* Not the contract's own sentence, and recipeLoader in routes.tsx
+            says why. Deletion is named instead, because it is the case a
+            person actually arrives from -- a recipe removed in another tab,
+            or a save of one that has gone. */}
         <p className="recipe__missing">
           Nothing in your library is at this address. It may have been deleted.{" "}
           <Link className="recipe__missing-link" to={PATHS.recipes}>
@@ -91,6 +88,21 @@ export default function RecipeDetail() {
       </div>
     );
   }
+
+  // Four near-identical panels, so one list rather than four blocks -- and the
+  // list is what makes the grouping uniform by construction rather than
+  // uniform because somebody remembered. Energy runs to five digits and the
+  // three macronutrients to four, so all four can carry a separator and the
+  // first version applied it to energy alone. Grouping a number is formatting,
+  // not arithmetic: nothing on this page divides, totals or converts a figure.
+  // en-NZ fixed rather than the reader's locale, for the reason targets.tsx
+  // gives -- a screenshot of this screen goes in the report.
+  const figures: [string, string][] = [
+    ["Energy", `${recipe.energy_kcal.toLocaleString("en-NZ")} kcal`],
+    ["Protein", `${recipe.protein_g.toLocaleString("en-NZ")} g`],
+    ["Carbohydrate", `${recipe.carbs_g.toLocaleString("en-NZ")} g`],
+    ["Fat", `${recipe.fat_g.toLocaleString("en-NZ")} g`],
+  ];
 
   return (
     <div className="recipe">
@@ -181,24 +193,12 @@ export default function RecipeDetail() {
             </p>
 
             <dl className="recipe__figures">
-              <div className="recipe__figure">
-                <dt className="recipe__figure-name">Energy</dt>
-                <dd className="recipe__figure-value">
-                  {recipe.energy_kcal.toLocaleString("en-NZ")} kcal
-                </dd>
-              </div>
-              <div className="recipe__figure">
-                <dt className="recipe__figure-name">Protein</dt>
-                <dd className="recipe__figure-value">{recipe.protein_g} g</dd>
-              </div>
-              <div className="recipe__figure">
-                <dt className="recipe__figure-name">Carbohydrate</dt>
-                <dd className="recipe__figure-value">{recipe.carbs_g} g</dd>
-              </div>
-              <div className="recipe__figure">
-                <dt className="recipe__figure-name">Fat</dt>
-                <dd className="recipe__figure-value">{recipe.fat_g} g</dd>
-              </div>
+              {figures.map(([name, value]) => (
+                <div className="recipe__figure" key={name}>
+                  <dt className="recipe__figure-name">{name}</dt>
+                  <dd className="recipe__figure-value">{value}</dd>
+                </div>
+              ))}
             </dl>
           </section>
 

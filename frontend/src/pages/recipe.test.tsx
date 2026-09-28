@@ -28,7 +28,7 @@ const LAKSA = {
   steps: "Simmer the paste.\nAdd the noodles.",
   servings: 4,
   protein_g: 38,
-  carbs_g: 96,
+  carbs_g: 1096,
   fat_g: 44,
 } satisfies RecipeDetail;
 
@@ -54,7 +54,7 @@ describe("the recipe detail page", () => {
 
     expect(figure("Energy")).toHaveTextContent("1,240 kcal");
     expect(figure("Protein")).toHaveTextContent("38 g");
-    expect(figure("Carbohydrate")).toHaveTextContent("96 g");
+    expect(figure("Carbohydrate")).toHaveTextContent("1,096 g");
     expect(figure("Fat")).toHaveTextContent("44 g");
 
     // Both fields are free text, and the line breaks somebody typed are the
@@ -149,6 +149,73 @@ describe("the recipe detail page", () => {
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
 
+  // Cancel drops the key, and dropping the key is the whole of closing the
+  // edit view -- the form is drawn exactly while the key is there. Replacing
+  // rather than pushing is asserted too: opening the form is a link, so that
+  // entry is already in the history, and a push here would put Back one click
+  // from reopening a form somebody had just dismissed.
+  it("closes the edit form without saving when Cancel is pressed", async () => {
+    signedIn();
+    const { fetchStub } = stubFetch({
+      "/recipes/7": async () => jsonResponse(200, LAKSA),
+    });
+
+    const { router } = renderAt("/recipes/7?edit");
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(router.state.location.search).toBe("");
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(
+      await screen.findByRole("heading", { name: "Nutrition per serving" }),
+    ).toBeVisible();
+
+    // Nothing was written. A Cancel that submitted would look identical on
+    // screen, because the loader answers the same record either way. The
+    // assertion is on the methods rather than on the call count: dropping the
+    // key is a navigation, so react-router runs the loader again and the read
+    // is made twice, which is the same thing closing the modal on /recipes
+    // does. `authed` sends a GET by passing no method at all.
+    expect(
+      fetchStub.mock.calls
+        .map(([, init]) => init?.method)
+        .filter((method) => method !== undefined),
+    ).toEqual([]);
+  });
+
+  // The one time Cancel is refused. The PUT may already have reached the API,
+  // so leaving would abandon it in the browser and discard both the nine typed
+  // fields and any refusal coming back, leaving somebody unable to tell
+  // whether the recipe was saved. `disabled` is how a button refuses; a link
+  // has no equivalent, which is why this control is not one.
+  it("refuses Cancel while a save is in flight", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "PUT"
+          ? new Promise<Response>(() => {})
+          : jsonResponse(200, LAKSA),
+    });
+
+    renderAt("/recipes/7?edit");
+
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Save changes" }),
+    );
+
+    // The submit button renaming itself is the signal that the host passed
+    // `busy` down, so this waits on the thing under test rather than on a
+    // timer.
+    expect(
+      await screen.findByRole("button", { name: "Saving…" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  });
+
   // All nine fields, spelled as RecipeIn spells them, and the method asserted
   // explicitly. stubFetch keys on the path alone, so one handler answers both
   // the read and the write here -- without the method assertion a save issued
@@ -188,7 +255,7 @@ describe("the recipe detail page", () => {
       steps: "Simmer the paste.\nAdd the noodles.",
       energy_kcal: 1240,
       protein_g: 38,
-      carbs_g: 96,
+      carbs_g: 1096,
       fat_g: 44,
     });
   });
@@ -272,23 +339,38 @@ describe("the recipe detail page", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("Laksa");
   });
 
-  // The other 404, and it goes the other way from the read's. The record being
-  // edited has gone, so there is no form left to return a message to: a string
-  // returned here would be printed into a form that the revalidation is about
-  // to unmount, and the person would land on the not-found panel with the nine
-  // typed fields gone and nothing saying why.
-  it("takes a save of a recipe that has gone to the error surface", async () => {
+  // The other 404 on this route, and it is sent to the same surface as the
+  // read's. Letting it reach the error boundary was the first version: the
+  // boundary renders an ApiError's message verbatim, so it would have printed
+  // "or it belongs to another account" -- the clause this page suppresses
+  // precisely because the endpoint answers 404 rather than 403 so as not to
+  // confirm that somebody else's record exists. The two assertions on the
+  // absent alert and the absent boundary are what pin that: the panel's own
+  // sentence says the recipe may have been deleted, which is why the save
+  // could not land.
+  it("sends a save of a recipe that has gone to the not-found panel", async () => {
     signedIn();
+    let deleted = false;
+
     stubFetch({
-      "/recipes/7": async (init?: RequestInit) =>
-        init?.method === "PUT"
+      "/recipes/7": async (init?: RequestInit) => {
+        if (init?.method === "PUT") {
+          deleted = true;
+
+          return jsonResponse(404, {
+            detail: "No such recipe, or it belongs to another account",
+          });
+        }
+
+        return deleted
           ? jsonResponse(404, {
               detail: "No such recipe, or it belongs to another account",
             })
-          : jsonResponse(200, LAKSA),
+          : jsonResponse(200, LAKSA);
+      },
     });
 
-    renderAt("/recipes/7?edit");
+    const { router } = renderAt("/recipes/7?edit");
 
     const user = userEvent.setup();
 
@@ -297,9 +379,21 @@ describe("the recipe detail page", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Something went wrong" }),
+      await screen.findByRole("heading", { name: "No such recipe" }),
     ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Back to your recipes" }),
+    ).toHaveAttribute("href", "/recipes");
+
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Something went wrong" }),
+    ).toBeNull();
+    expect(screen.queryByText(/belongs to another account/)).toBeNull();
+
+    // The edit address is left behind rather than pushed over, so Back does
+    // not return to a form for a recipe that is not there.
+    expect(router.state.location.search).toBe("");
   });
 
   // The read's 404, which is the whole subject of this page rather than one
