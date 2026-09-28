@@ -16,6 +16,16 @@ export type RecipeFormProps = {
   // Whether that action is in flight. The host owns this because it owns the
   // action: /recipes/:id answers a save and a delete from one action, and only
   // the host can tell which of the two is running.
+  //
+  // The idiom measurement.tsx and sign-in.tsx use does not transfer unchanged.
+  // Both compare `useNavigation().formAction` against a PATHS entry, and both
+  // are addressed without a query string; the two hosts of this form are
+  // addressed as /recipes?new and /recipes/:id?edit, and react-router copies
+  // the current search into the action of a Form that declares none
+  // (`useFormAction` in react-router's lib/dom/lib.js). So formAction reads
+  // `/recipes?new`, an equality test against PATHS.recipes is false for the
+  // whole submission, and the button never disables. Compare the part before
+  // the `?`, or read `navigation.state` where the route has one write.
   busy?: boolean;
 };
 
@@ -143,6 +153,7 @@ export default function RecipeForm({
               Energy (kcal)
             </label>
             <input
+              aria-describedby="recipe-nutrition-note"
               id="recipe-energy-kcal"
               name="energy_kcal"
               type="number"
@@ -159,6 +170,7 @@ export default function RecipeForm({
               Protein (g)
             </label>
             <input
+              aria-describedby="recipe-nutrition-note"
               id="recipe-protein-g"
               name="protein_g"
               type="number"
@@ -177,6 +189,7 @@ export default function RecipeForm({
               Carbohydrate (g)
             </label>
             <input
+              aria-describedby="recipe-nutrition-note"
               id="recipe-carbs-g"
               name="carbs_g"
               type="number"
@@ -193,6 +206,7 @@ export default function RecipeForm({
               Fat (g)
             </label>
             <input
+              aria-describedby="recipe-nutrition-note"
               id="recipe-fat-g"
               name="fat_g"
               type="number"
@@ -206,6 +220,11 @@ export default function RecipeForm({
         </div>
       </fieldset>
 
+      {/* No intent field. ADR 002 has /recipes/:id answer a save and C15
+          (nomadwiz/kete#179)'s delete from one action, and a submission with
+          no intent is the save: the delete button is its own Form carrying
+          `intent=delete`, so the branch reads that key's absence. Naming the
+          save here as well would be a second way to spell the same thing. */}
       <button className="recipe-form__submit" type="submit" disabled={busy}>
         {busy ? "Saving…" : recipe ? "Save changes" : "Save recipe"}
       </button>

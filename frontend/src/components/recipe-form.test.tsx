@@ -70,6 +70,56 @@ describe("the recipe form with no recipe given", () => {
     });
 
     expect(nutrition).toHaveAccessibleDescription(/does not work these out/i);
+
+    // And on each of the four controls as well as on the group around them. A
+    // group's description is announced far less consistently than a control's
+    // own is, and this is the one sentence the issue exists for, so it is
+    // attached where the user is standing when they would type the wrong
+    // number rather than only where the group begins.
+    for (const label of [
+      "Energy (kcal)",
+      "Protein (g)",
+      "Carbohydrate (g)",
+      "Fat (g)",
+    ]) {
+      expect(screen.getByLabelText(label)).toHaveAccessibleDescription(
+        /does not work these out/i,
+      );
+    }
+  });
+
+  // The bounds are the validation. There is no JavaScript check behind them,
+  // by house rule, so a wrong attribute is not a failed assertion anywhere --
+  // it is a 422 the user reads as the server breaking. These are
+  // backend/openapi.json's own numbers for RecipeIn. Note servings: the schema
+  // says integer with exclusiveMinimum 0, which is min="1" and not min="0".
+  it("mirrors RecipeIn's bounds in the controls rather than in script", () => {
+    renderForm();
+
+    expect(screen.getByLabelText("Name")).toHaveAttribute("maxlength", "150");
+    expect(screen.getByLabelText("Name")).toBeRequired();
+    expect(screen.getByLabelText("Cuisine")).toHaveAttribute("maxlength", "60");
+
+    // The three fields RecipeIn requires a key for and accepts "" in. Marking
+    // them required would have the browser refuse a recipe the API takes.
+    expect(screen.getByLabelText("Cuisine")).not.toBeRequired();
+    expect(screen.getByLabelText("Ingredients")).not.toBeRequired();
+    expect(screen.getByLabelText("Method")).not.toBeRequired();
+
+    expect(screen.getByLabelText("Servings")).toHaveAttribute("min", "1");
+
+    for (const [label, max] of [
+      ["Energy (kcal)", "99999"],
+      ["Protein (g)", "9999"],
+      ["Carbohydrate (g)", "9999"],
+      ["Fat (g)", "9999"],
+    ]) {
+      const control = screen.getByLabelText(label);
+
+      expect(control).toHaveAttribute("min", "0");
+      expect(control).toHaveAttribute("max", max);
+      expect(control).toBeRequired();
+    }
   });
 });
 
@@ -133,5 +183,20 @@ describe("the recipe form with an error from the action", () => {
       "Recipe name already used",
     );
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
+  });
+});
+
+// The host owns this, because /recipes/:id answers a save and a delete from
+// one action and only the host can tell which is running. What the form owes
+// it is the two things a person sees while they wait: a button that says so
+// and a button they cannot press twice.
+describe("the recipe form while the host's action is in flight", () => {
+  it("disables the button and says it is saving", () => {
+    renderForm({ recipe: RECIPE, busy: true });
+
+    const submit = screen.getByRole("button", { name: "Saving…" });
+
+    expect(submit).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
   });
 });

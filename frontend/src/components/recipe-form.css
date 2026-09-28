@@ -4,8 +4,16 @@
    that set its own max-width would fight the narrower of the two. So this
    sheet styles the controls and their rhythm, and takes whatever column it is
    given. That is also why it is the same single column as measurement.css
-   without measurement.css's page frame. */
+   without measurement.css's page frame.
+
+   It is also why the one breakpoint below asks a container query rather than a
+   media query, which is a pattern no other sheet here uses yet. A media query
+   asks the viewport, and the viewport does not know how wide the modal is: on
+   a wide screen a 26rem modal would report 90rem and keep the pairs two-up,
+   squeezing the eight controls, which is the case this block exists to
+   survive. */
 .recipe-form {
+  container-type: inline-size;
   display: grid;
   gap: var(--space-6);
 
@@ -66,7 +74,6 @@
      that treatment and laid out as the first row of the grid. */
   .recipe-form__legend {
     float: left;
-    width: 100%;
     padding: 0;
     font-size: var(--text-lg);
     font-weight: 600;
@@ -104,9 +111,10 @@
     cursor: default;
   }
 
-  /* The pairs break where measurement.css's do, so a form drawn beside or
-     after one of the other screens folds at the same width. */
-  @media (max-width: 34rem) {
+  /* The pairs break at the width measurement.css breaks at, but measured
+     across the form rather than across the window, for the reason at the top
+     of this file. */
+  @container (max-width: 34rem) {
     .recipe-form__pair {
       grid-template-columns: minmax(0, 1fr);
       gap: var(--space-6);
