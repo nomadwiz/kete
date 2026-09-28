@@ -88,6 +88,30 @@
     color: var(--ink-soft);
   }
 
+  /* The two whole-week actions, in a row that wraps: the longer of the two
+     labels and "Clear the week" do not sit side by side inside the gutter at
+     375px, and a label truncated to fit would hide the word that says which
+     button destroys what. */
+  .planner__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+  }
+
+  /* The same restraint the two cell buttons are given a few rules down, and
+     for the reason recorded there: index.css reserves --kowhai for what it
+     reaches 1.94:1 against, and an accent on the one control that discards a
+     week would read as the recommended way through the screen. */
+  .planner__fill,
+  .planner__clear {
+    padding: var(--space-2) var(--space-4);
+    background: var(--paper);
+    border: 1px solid var(--ink-soft);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
   /* table-layout: fixed so a long recipe name widens nothing: the four columns
      are settled by the first row and the name wraps inside its own cell. Left
      to itself a table widens to fit its longest word and pushes the page into
