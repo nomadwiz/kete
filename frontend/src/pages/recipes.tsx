@@ -189,7 +189,23 @@ export default function Recipes() {
               )}
 
               <div className="recipes__card-text">
-                <h2 className="recipes__name">{recipe.name}</h2>
+                {/* The way in to the recipe, and the only one -- C12
+                    (nomadwiz/kete#177) built /recipes/:id, and without this
+                    link the page is reachable only by typing an address. The
+                    link is on the name rather than around the whole card: a
+                    card-sized anchor swallows the photograph and the figures
+                    into its own accessible name, and a screen reader then
+                    reads the entire tile as the link text. Built here in the
+                    component body for the reason `openTo` above is -- PATHS is
+                    undefined while this module evaluates. */}
+                <h2 className="recipes__name">
+                  <Link
+                    className="recipes__name-link"
+                    to={PATHS.recipe.replace(":id", String(recipe.recipe_id))}
+                  >
+                    {recipe.name}
+                  </Link>
+                </h2>
                 <p className="recipes__meta">
                   {recipe.cuisine ? `${recipe.cuisine} · ` : ""}
                   {recipe.energy_kcal.toLocaleString("en-NZ")} kcal a serving
