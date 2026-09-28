@@ -31,14 +31,14 @@ export default function Recipes() {
   const error = useActionData() as string | undefined;
   const navigation = useNavigation();
 
-  // The path without its query string, twice over. A <Form> declaring no
-  // action prop does not submit to the bare path: useFormAction copies the
-  // current search into it, and this modal is addressed /recipes?new, so an
-  // equality against PATHS.recipes would be false for the whole submission and
-  // the Save button would never disable. The method half matters too -- the
-  // search below is a Form as well, and a GET submission also sets formAction,
-  // which would otherwise put the modal into a saving state while somebody
-  // searched. C25 (nomadwiz/kete#277) is lifting the first half of this out
+  // Both halves matter, and this screen is the one that needs both. The path
+  // is compared without its query string because useFormAction copies the
+  // current search into a Form declaring no action, so under this modal the
+  // whole formAction reads /recipes?new and an equality against PATHS.recipes
+  // would be false for the entire submission. The method is compared because
+  // this page carries two Forms: the search below is a GET and also sets
+  // formAction, which would otherwise put the modal into a saving state while
+  // somebody searched. C25 (nomadwiz/kete#277) is lifting the first half out
   // across the screens that get it wrong; take its helper over this.
   const saving =
     navigation.formMethod === "POST" &&
@@ -83,19 +83,28 @@ export default function Recipes() {
 
   // Escape and the Cancel button close through one path, because <dialog>
   // fires `close` for both and the element is shut by the time this runs. All
-  // it has left to do is drop the key that would reopen it. No `replace`: a
-  // person who opened the modal by navigating to ?new expects Back to close
-  // it, which is the other half of ADR 002's test.
+  // it has left to do is drop the key that would reopen it, and the guard is
+  // what stops the other direction looping: Back and a saved recipe both
+  // close the dialog by changing the address first, and the `close` they
+  // provoke then finds no key to delete.
+  //
+  // Replacing rather than pushing. Opening the modal is a link, so that entry
+  // is already in the history and Back from the open modal still closes it --
+  // the effect above sees the key go. Pushing here would put a second entry
+  // on top of it, and Back would reopen the form somebody had just dismissed.
   function closeModal() {
     if (!searchParams.has(QUERY.new_recipe)) {
       return;
     }
 
-    setSearchParams((previous) => {
-      previous.delete(QUERY.new_recipe);
+    setSearchParams(
+      (previous) => {
+        previous.delete(QUERY.new_recipe);
 
-      return previous;
-    });
+        return previous;
+      },
+      { replace: true },
+    );
   }
 
   return (
@@ -113,16 +122,20 @@ export default function Recipes() {
             address that results is the one to bookmark, share or refresh --
             none of which a search held in component state survives.
 
-            defaultValue rather than value keeps the field uncontrolled. The
-            component is not remounted when the search changes, so a term
-            reached by pressing Back leaves the box showing the previous one
-            until the page is reloaded; the list itself is right either way. */}
+            The field is uncontrolled, and `key` is what keeps it honest. An
+            input somebody has typed into ignores a later change to its
+            defaultValue, so a term reached by pressing Back would leave the
+            box reading the search before it -- and pressing Search again
+            would then silently undo the Back. Keying on the term remounts the
+            input when the address changes, which is the one thing that
+            reapplies a default. */}
         <Form className="recipes__search" role="search">
           <label className="recipes__search-label" htmlFor="recipe-search">
             Search your recipes
           </label>
           <div className="recipes__search-controls">
             <input
+              key={term}
               id="recipe-search"
               name={QUERY.recipe_search}
               type="search"
@@ -194,11 +207,25 @@ export default function Recipes() {
         </ul>
       )}
 
+      {/* onCancel is Escape, which fires before `close` and can be refused.
+          A save in flight is the one time it is: the POST may already have
+          reached the API, and closing would abort it client-side and throw
+          away both the nine typed fields and any refusal coming back, leaving
+          a person who cannot tell whether the recipe was written. Every other
+          time Escape closes, which is half of why this is a <dialog>.
+
+          aria-labelledby names a heading that exists only while the modal is
+          open, so the attribute goes with it rather than dangling. */}
       <dialog
         className="recipes__modal"
         ref={dialog}
+        onCancel={(event) => {
+          if (saving) {
+            event.preventDefault();
+          }
+        }}
         onClose={closeModal}
-        aria-labelledby="recipe-modal-title"
+        aria-labelledby={creating ? "recipe-modal-title" : undefined}
       >
         {/* Mounted only while the address says so, which is what empties the
             fields between one recipe and the next. RecipeForm's nine controls

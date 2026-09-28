@@ -169,6 +169,110 @@ describe("the recipe list", () => {
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
 
+  // Fills the nine controls RecipeForm draws and submits. Every one of them is
+  // sent whether or not it was typed into, because RecipeIn takes no partial
+  // create -- which is what the body assertion below checks.
+  async function writeARecipe() {
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText("Name"), "Laksa");
+    await user.type(screen.getByLabelText("Cuisine"), "Malaysian");
+    await user.type(screen.getByLabelText("Servings"), "4");
+    await user.type(screen.getByLabelText("Ingredients"), "Noodles");
+    await user.type(screen.getByLabelText("Method"), "Simmer");
+    await user.type(screen.getByLabelText("Energy (kcal)"), "1240");
+    await user.type(screen.getByLabelText("Protein (g)"), "38");
+    await user.type(screen.getByLabelText("Carbohydrate (g)"), "96");
+    await user.type(screen.getByLabelText("Fat (g)"), "44");
+    await user.click(screen.getByRole("button", { name: "Save recipe" }));
+  }
+
+  // The create path end to end. POST /recipes answers a recipe id and nothing
+  // else, so the row can only arrive from the loader running again -- which is
+  // the mechanism that lets this screen hold no state. The address is asserted
+  // as well as the shut dialog: leaving `new` on it would reopen the modal the
+  // moment anything re-rendered, and keeping `q` would return someone who had
+  // searched to a list their new recipe may not be in.
+  it("closes the modal on a save and shows the recipe the loader then answers", async () => {
+    signedIn();
+    let written = false;
+
+    stubFetch({
+      "/recipes?q=laksa": async () => jsonResponse(200, []),
+      "/recipes": async (init?: RequestInit) => {
+        if (init?.method === "POST") {
+          written = true;
+
+          return jsonResponse(201, { recipe_id: 7 });
+        }
+
+        return jsonResponse(200, written ? [RECIPES[0]] : []);
+      },
+    });
+
+    const { router } = renderAt("/recipes?q=laksa&new");
+
+    await writeARecipe();
+
+    expect(await screen.findByRole("heading", { name: "Laksa" })).toBeVisible();
+    expect(openDialog()!.open).toBe(false);
+    expect(router.state.location.pathname).toBe("/recipes");
+    expect(router.state.location.search).toBe("");
+  });
+
+  // All nine fields, spelled as RecipeIn spells them. Without this a save that
+  // posted eight of them, or posted `method` for `steps`, would pass every
+  // other test on this screen -- the 422 stub reads no body and the create
+  // test only cares that something was written.
+  it("posts the nine fields the contract asks for", async () => {
+    signedIn();
+    const { fetchStub } = stubFetch({
+      "/recipes": async (init?: RequestInit) =>
+        init?.method === "POST"
+          ? jsonResponse(201, { recipe_id: 7 })
+          : jsonResponse(200, []),
+    });
+
+    renderAt("/recipes?new");
+
+    await writeARecipe();
+
+    const posted = fetchStub.mock.calls
+      .map(([, init]) => init)
+      .filter((init) => init?.method === "POST");
+
+    expect(posted).toHaveLength(1);
+    expect(JSON.parse(String(posted[0]!.body))).toEqual({
+      name: "Laksa",
+      cuisine: "Malaysian",
+      servings: 4,
+      ingredients: "Noodles",
+      steps: "Simmer",
+      energy_kcal: 1240,
+      protein_g: 38,
+      carbs_g: 96,
+      fat_g: 44,
+    });
+  });
+
+  // Cancel shuts the element, and the element firing `close` is what puts the
+  // address back. A close that shut the dialog and left `new` where it was
+  // would look right for exactly as long as nothing re-rendered, and the
+  // effect would then reopen the form over the page.
+  it("puts the address back when the modal is dismissed", async () => {
+    signedIn();
+    stubFetch({ "/recipes": async () => jsonResponse(200, RECIPES) });
+
+    const { router } = renderAt("/recipes?new");
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(router.state.location.search).toBe("");
+    expect(openDialog()!.open).toBe(false);
+    expect(screen.queryByLabelText("Name")).toBeNull();
+  });
+
   // The 422 POST /recipes declares, which is the one failure on this route the
   // person can answer by typing something else. The assertions are the form's
   // own role="alert" and the value still in the field, not the message text:
@@ -186,16 +290,7 @@ describe("the recipe list", () => {
 
     renderAt("/recipes?new");
 
-    const user = userEvent.setup();
-
-    await user.type(await screen.findByLabelText("Name"), "Laksa");
-    await user.type(screen.getByLabelText("Cuisine"), "Malaysian");
-    await user.type(screen.getByLabelText("Servings"), "4");
-    await user.type(screen.getByLabelText("Energy (kcal)"), "1240");
-    await user.type(screen.getByLabelText("Protein (g)"), "38");
-    await user.type(screen.getByLabelText("Carbohydrate (g)"), "96");
-    await user.type(screen.getByLabelText("Fat (g)"), "44");
-    await user.click(screen.getByRole("button", { name: "Save recipe" }));
+    await writeARecipe();
 
     const refusal = await screen.findByRole("alert");
 

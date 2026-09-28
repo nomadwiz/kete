@@ -28,7 +28,14 @@ if (!HTMLDialogElement.prototype.showModal) {
     this.open = true;
   };
 
+  // The `open` guard matters: the real close() on a dialog that is already
+  // shut fires nothing, and a polyfill that fired anyway would let a handler
+  // pass here and loop in a browser -- or the reverse.
   HTMLDialogElement.prototype.close = function close() {
+    if (!this.open) {
+      return;
+    }
+
     this.open = false;
     this.dispatchEvent(new Event("close"));
   };

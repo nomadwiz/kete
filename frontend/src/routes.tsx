@@ -1,5 +1,6 @@
 import {
   redirect,
+  replace,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
@@ -215,16 +216,19 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
       throw error;
     }
 
-    // Back to the list with the modal shut and the search still running. The
-    // modal is open exactly while `new` is in the address, so deleting that
-    // one key closes it, and carrying the rest of the query string over is
-    // what keeps a person who searched, found nothing and wrote the recipe
-    // looking at the search they started from.
-    const address = new URL(req.url);
-
-    address.searchParams.delete(QUERY.new_recipe);
-
-    return redirect(`${PATHS.recipes}${address.search}`);
+    // The whole list, not the search that was running. The modal is open
+    // exactly while `new` is in the address, so dropping the query string
+    // closes it -- and dropping `q` with it is what makes the recipe just
+    // written visible. Carrying the search over was the first version and it
+    // lies: someone who searched for a laksa, found none and then wrote a dal
+    // would be returned to "Nothing matches laksa" with nothing on the screen
+    // saying the save had worked, which reads exactly like a save that did
+    // nothing. The new row appearing in the list is the confirmation.
+    //
+    // replace rather than redirect, so Back from the list goes wherever the
+    // person came from rather than to ?new, which would reopen an empty form
+    // one click from writing the same recipe twice.
+    return replace(PATHS.recipes);
   });
 }
 
