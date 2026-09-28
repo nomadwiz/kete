@@ -4,13 +4,13 @@ The browser tier of the Kete meal planner: React with TypeScript, built by Vite 
 
 ## Status
 
-The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and eight screens are wired through them: `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements`, `/account`, `/recipes` and `/planner` each do both — a loader to read, an action to write. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets`, `/dashboard`, `/account`, `/recipes` and `/planner` are built and styled. The recipe detail renders its own name and nothing else.
+The project, the router and eleven routed pages exist. `src/api/http.ts` talks to the API, `src/api/session.ts` adds the credential and the rules about losing it, one error boundary component catches what loaders and actions throw, and nine screens are wired through them: `/targets` and `/dashboard` load through a loader, `/sign-in` and `/sign-up` each post to an action, and `/measurements`, `/account`, `/recipes`, `/recipes/:id` and `/planner` each do both — a loader to read, an action to write. The shell around them exists too — two layouts, the loader that guards the protected addresses, and sign out. `/`, `/sign-up`, `/sign-in`, `/measurements`, `/targets`, `/dashboard`, `/account`, `/recipes`, `/recipes/:id` and `/planner` are built and styled.
 
 Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| The recipe detail page is unbuilt                                | C12 (#177)                       |
+| A recipe cannot be deleted from the client                       | C15 (#179)                       |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
 
@@ -131,7 +131,23 @@ The outer mount stays, because a failure in the public tree — and a throw from
 
 **Two empty states, because they are different facts.** "You have not written a recipe yet" sends a new user to the form; "nothing matches" offers the whole list back. Telling someone who has just searched that their library is empty would be false on the evidence in front of them.
 
-**A card does not open the recipe.** `/recipes/:id` is C12 (#177) and this screen links nowhere inward until it exists as more than its own name.
+**A card opens the recipe by its name, not by the whole card.** A card-sized anchor takes the photograph and the figures into its own accessible name, so a screen reader reads the entire tile as the link text.
+
+## The recipe detail page
+
+`/recipes/:id` both reads and writes, and one page holds the read view and the edit form. `recipeLoader` answers the record and `recipeAction` saves it, both in [`src/routes.tsx`](src/routes.tsx).
+
+**The edit form replaces the read view rather than floating over it**, addressed `?edit`. ADR 002 puts the switch in the query string and calls the result editing the recipe _in place_; a modal was weighed and declined, because the record being edited is the same record the page is already showing, so a dialog would draw the nine values twice — once editable, once not — and would cost the effect, the `cancel` handling and the close-event-to-address round trip that `/recipes` needs for a form that has no read view behind it. The form is [`src/components/recipe-form.tsx`](src/components/recipe-form.tsx), shared with the creation modal on `/recipes`, and it is mounted only while `edit` is in the address: its nine controls are uncontrolled and read their defaults at mount, which is both what keeps them showing what is stored and what lets a 422 keep what was typed.
+
+**Cancel is a button rather than a link, and it is refused while a save is in flight.** Navigating away during a save abandons a `PUT` that may already have reached the API, discarding the nine typed fields and any refusal coming back and leaving somebody unable to tell whether the recipe was saved. `disabled` is how a button refuses; a link has no equivalent. The pending state comes from `useSubmitting("POST")` — [`src/use-submitting.ts`](src/use-submitting.ts) — which is true for any POST to this route, so C15 (#179)'s delete will narrow its own control on the submitted intent rather than by parameterising the hook.
+
+**One action, branching on a submitted intent.** A submission carrying no intent is the save, which is the convention `recipe-form.tsx` set by declaring no intent field; C15 (#179)'s delete arrives as a second branch carrying `intent=delete`, and each branch owns its own destination, because a save lands back on the record and a delete cannot. `PUT /recipes/{recipe_id}` is a full replace with no partial update, so all nine `RecipeIn` fields travel whether or not they changed.
+
+**The two 404s on this route go to different surfaces, and the contract is why.** `backend/openapi.json` gives both the same sentence — "No such recipe, or it belongs to another account" — but what a person can do about it differs. On the read it means the address names nothing, which is not a failure of the system: the loader answers `null` and the page draws its own not-found panel linking back to `/recipes`, because "Something went wrong" is false for a recipe deleted in another tab and the boundary offers no way onward from an address that will never answer. The contract's second clause is not shown, since the endpoint answers 404 rather than 403 precisely so as not to confirm that somebody else's record exists. On the save it means the record vanished mid-edit, and there returning the message would print it into a form the revalidation is about to unmount — the following read 404s in turn and the not-found panel replaces the page with the typed fields gone and nothing saying why. So the save catches **422 and nothing else**, and its 404 reaches the `ErrorBoundary`, which is the surface for a failure there is no form left to return to.
+
+**An id that is not a whole number is answered as a missing recipe, without a request.** The API would refuse `/recipes/NaN` with a 422 about a path parameter, which is a sentence about the address rather than about the recipe, and this page already owns the right answer for an address that names nothing. The test is the raw path segment rather than `Number()`, which accepts `3.5`, `0x10` and `1e3`.
+
+**No figure is computed here.** The four the API sent are rendered as they arrived — no per-serving division, no totals — and a note beside them says Kete does not work them out from the ingredients, which `doc/design/product.md` §5 puts out of scope. Somebody reading four numbers under that heading would otherwise assume it did. `ingredients` and `steps` are free text stored as one string each, so the line breaks somebody typed are the only structure there is: they are drawn as one block kept by `white-space: pre-wrap` rather than split into list items, which would invent a structure the contract does not carry.
 
 ## The dashboard
 
