@@ -35,6 +35,16 @@
               }
             }
           },
+          "409": {
+            "description": "That username or email is already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -77,6 +87,16 @@
               }
             }
           },
+          "401": {
+            "description": "Incorrect username or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -105,6 +125,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -140,6 +180,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That username or email is already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -180,6 +250,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No measurements saved yet. A state, not a failure: the form offers an empty prefill.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -212,6 +302,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TargetsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -249,6 +359,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TargetsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No targets yet. A state, not a failure: the dashboard shows an empty panel.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -301,6 +431,16 @@
               }
             }
           },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -341,6 +481,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RecipeCreatedOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -388,6 +538,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RecipeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -447,6 +617,26 @@
               }
             }
           },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -485,6 +675,26 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -544,6 +754,76 @@
               }
             }
           },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The uploaded file is empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Image is larger than the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported image type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The image could not be stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Photo storage is not configured on this server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -578,8 +858,10 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
+              "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December.",
               "title": "Week"
-            }
+            },
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
           }
         ],
         "responses": {
@@ -593,6 +875,16 @@
                     "$ref": "#/components/schemas/PlanSlotOut"
                   },
                   "title": "Response Get Mealplan Mealplan Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -642,6 +934,36 @@
               }
             }
           },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such recipe, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That day and meal is already filled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -681,6 +1003,26 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such plan slot, or it belongs to another account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -724,6 +1066,36 @@
               }
             }
           },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The recipe library is empty. Add at least one recipe before generating a week.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The week changed while it was being generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -763,13 +1135,25 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
+              "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December.",
               "title": "Week"
-            }
+            },
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
           }
         ],
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -797,7 +1181,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
               }
             }
           }
@@ -821,12 +1207,27 @@
         ],
         "title": "Body_upload_photo_recipes__recipe_id__photo_post"
       },
+      "ErrorDetail": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorDetail",
+        "description": "The shape of every error this application raises.\n\nFastAPI's own request validation answers 422 with `detail` as a list of\nfield errors instead, so a client cannot read the two the same way. The\nrule is stated in doc/design/implementation.md section 3 in the\ndocuments repository, nomadwiz/kete-doc."
+      },
       "GenerateIn": {
         "properties": {
           "week": {
             "type": "string",
             "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
-            "title": "Week"
+            "title": "Week",
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
           }
         },
         "type": "object",
@@ -860,6 +1261,20 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthOut"
       },
       "LoginIn": {
         "properties": {
@@ -1064,7 +1479,8 @@
           "week": {
             "type": "string",
             "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
-            "title": "Week"
+            "title": "Week",
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
           },
           "day_of_week": {
             "type": "string",

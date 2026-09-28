@@ -119,6 +119,17 @@ Day = Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 # repeated as a database check so the two tiers cannot disagree about it.
 WEEK_PATTERN = r"^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$"
 
+# The pattern is in the exported contract; on its own it hands a generated
+# client a string and no hint that the calculation is the hard part. This
+# description travels with it into openapi.json.
+WEEK_DESCRIPTION = (
+    "ISO 8601 week, for example 2026-W39. The year is the ISO "
+    "week-numbering year and not the calendar year: format it with %G-W%V, "
+    "never %Y-W%V. JavaScript has no built-in for this. A week computed the "
+    "wrong way is well-formed, passes this pattern and points at the wrong "
+    "seven days, which shows up only in late December."
+)
+
 
 class RegisterIn(BaseModel):
     first_name: str
@@ -235,7 +246,7 @@ class PlanSlotOut(BaseModel):
 
 class PlanSlotIn(BaseModel):
     recipe_id: int
-    week: str = Field(pattern=WEEK_PATTERN)
+    week: str = Field(pattern=WEEK_PATTERN, description=WEEK_DESCRIPTION)
     day_of_week: Day
     meal_position: MealPosition
 
@@ -245,11 +256,51 @@ class PlanSlotCreatedOut(BaseModel):
 
 
 class GenerateIn(BaseModel):
-    week: str = Field(pattern=WEEK_PATTERN)
+    week: str = Field(pattern=WEEK_PATTERN, description=WEEK_DESCRIPTION)
 
 
 class GenerateOut(BaseModel):
     created: int
+
+
+class ErrorDetail(BaseModel):
+    """The shape of every error this application raises.
+
+    FastAPI's own request validation answers 422 with `detail` as a list of
+    field errors instead, so a client cannot read the two the same way. The
+    rule is stated in doc/design/implementation.md section 3 in the
+    documents repository, nomadwiz/kete-doc.
+    """
+    detail: str
+
+
+class HealthOut(BaseModel):
+    status: Literal["ok"]
+
+
+# --------------------------------------------------------------------------
+# Declared error responses
+# --------------------------------------------------------------------------
+# openapi.json is the whole contract, so an error a route can raise belongs
+# in it. Undeclared, the error half of the contract goes back to living in
+# hand-written documents, and a generated client sees only 422 and types
+# every other branch by hand. Two of these are states rather than failures:
+# GET /targets and GET /profile/metrics answer 404 when nothing is saved
+# yet, and the client builds an empty panel on exactly that.
+
+
+def _err(status: int, description: str) -> dict:
+    """One declared error response, in the shape ErrorDetail describes."""
+    return {status: {"model": ErrorDetail, "description": description}}
+
+
+# Only the missing-header case carries WWW-Authenticate: Bearer, which
+# HTTPBearer sends; a bad or expired token is refused by current_user_id
+# without it.
+AUTH = _err(401, "Bearer token missing, malformed or expired")
+NO_RECIPE = _err(404, "No such recipe, or it belongs to another account")
+NO_ACCOUNT = _err(404, "The account behind the token no longer exists")
+NAME_TAKEN = _err(409, "That username or email is already taken")
 
 
 # ==========================================================================
@@ -297,7 +348,8 @@ def _taken(constraint: str) -> str:
 # ==========================================================================
 # 1-2  Auth  (PUBLIC — no token)
 # ==========================================================================
-@app.post("/register", response_model=RegisterOut, status_code=201, tags=["auth"])
+@app.post("/register", response_model=RegisterOut, status_code=201,
+          tags=["auth"], responses=NAME_TAKEN)
 def register(body: RegisterIn, db: Session = Depends(get_db)):
     """Create a user row. The password is hashed; the plain text is never stored."""
     clash = db.query(models.User).filter(
@@ -321,7 +373,8 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     return RegisterOut(user_id=user.user_id)
 
 
-@app.post("/login", response_model=LoginOut, tags=["auth"])
+@app.post("/login", response_model=LoginOut, tags=["auth"],
+          responses=_err(401, "Incorrect username or password"))
 def login(body: LoginIn, db: Session = Depends(get_db)):
     """Find the user, check the password, hand back a token."""
     user = db.query(models.User).filter(
@@ -340,7 +393,8 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 # ==========================================================================
 # 3-6  Profile, metrics and targets  (protected)
 # ==========================================================================
-@app.get("/profile", response_model=ProfileOut, tags=["profile"])
+@app.get("/profile", response_model=ProfileOut, tags=["profile"],
+         responses={**AUTH, **NO_ACCOUNT})
 def get_profile(user_id: int = Depends(current_user_id),
                 db: Session = Depends(get_db)):
     """Return the signed-in user. user_id comes from the token, never the client."""
@@ -351,7 +405,8 @@ def get_profile(user_id: int = Depends(current_user_id),
                       username=user.username, email=user.email)
 
 
-@app.put("/profile", response_model=ProfileOut, tags=["profile"])
+@app.put("/profile", response_model=ProfileOut, tags=["profile"],
+         responses={**AUTH, **NO_ACCOUNT, **NAME_TAKEN})
 def update_profile(body: ProfileIn, user_id: int = Depends(current_user_id),
                    db: Session = Depends(get_db)):
     """Update the signed-in user's account details."""
@@ -379,7 +434,8 @@ def update_profile(body: ProfileIn, user_id: int = Depends(current_user_id),
                       username=user.username, email=user.email)
 
 
-@app.post("/profile/metrics", response_model=TargetsOut, tags=["profile"])
+@app.post("/profile/metrics", response_model=TargetsOut, tags=["profile"],
+          responses={**AUTH, **NO_ACCOUNT})
 def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)):
     """One request, two tables.
@@ -431,7 +487,10 @@ def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
                       computed_at=target.computed_at)
 
 
-@app.get("/profile/metrics", response_model=MetricsOut, tags=["profile"])
+@app.get("/profile/metrics", response_model=MetricsOut, tags=["profile"],
+         responses={**AUTH,
+                    **_err(404, "No measurements saved yet. A state, not a "
+                                "failure: the form offers an empty prefill.")})
 def get_metrics(user_id: int = Depends(current_user_id),
                 db: Session = Depends(get_db)):
     """Read back the saved body metrics, so the form can prefill.
@@ -452,7 +511,10 @@ def get_metrics(user_id: int = Depends(current_user_id),
                       activity_level=profile.activity_level)
 
 
-@app.get("/targets", response_model=TargetsOut, tags=["profile"])
+@app.get("/targets", response_model=TargetsOut, tags=["profile"],
+         responses={**AUTH,
+                    **_err(404, "No targets yet. A state, not a failure: the "
+                                "dashboard shows an empty panel.")})
 def get_targets(user_id: int = Depends(current_user_id),
                 db: Session = Depends(get_db)):
     """Read the computed targets.
@@ -507,7 +569,8 @@ def _detail(r: models.Recipe) -> RecipeDetail:
                         photo_url=storage.link_for(r.photo_url))
 
 
-@app.get("/recipes", response_model=list[RecipeSummary], tags=["recipes"])
+@app.get("/recipes", response_model=list[RecipeSummary], tags=["recipes"],
+         responses=AUTH)
 def list_recipes(q: str = "", user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)):
     """Browse and search. Scoped to the signed-in user by the token."""
@@ -517,13 +580,15 @@ def list_recipes(q: str = "", user_id: int = Depends(current_user_id),
     return [_summary(r) for r in query.order_by(models.Recipe.name).all()]
 
 
-@app.get("/recipes/{recipe_id}", response_model=RecipeDetail, tags=["recipes"])
+@app.get("/recipes/{recipe_id}", response_model=RecipeDetail,
+         tags=["recipes"], responses={**AUTH, **NO_RECIPE})
 def get_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
                db: Session = Depends(get_db)):
     return _detail(_owned_recipe(db, recipe_id, user_id))
 
 
-@app.post("/recipes", response_model=RecipeCreatedOut, status_code=201, tags=["recipes"])
+@app.post("/recipes", response_model=RecipeCreatedOut, status_code=201,
+          tags=["recipes"], responses=AUTH)
 def create_recipe(body: RecipeIn, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     recipe = models.Recipe(user_id=user_id, **body.model_dump())
@@ -533,7 +598,15 @@ def create_recipe(body: RecipeIn, user_id: int = Depends(current_user_id),
     return RecipeCreatedOut(recipe_id=recipe.recipe_id)
 
 
-@app.post("/recipes/{recipe_id}/photo", response_model=PhotoOut, tags=["recipes"])
+@app.post("/recipes/{recipe_id}/photo", response_model=PhotoOut,
+          tags=["recipes"],
+          responses={**AUTH, **NO_RECIPE,
+                     **_err(400, "The uploaded file is empty"),
+                     **_err(413, "Image is larger than the size limit"),
+                     **_err(415, "Unsupported image type"),
+                     **_err(502, "The image could not be stored"),
+                     **_err(503, "Photo storage is not configured on this "
+                                 "server")})
 def upload_photo(recipe_id: int, file: UploadFile = File(...),
                  user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)):
@@ -585,7 +658,8 @@ def upload_photo(recipe_id: int, file: UploadFile = File(...),
     return PhotoOut(photo_url=storage.link_for(key))
 
 
-@app.put("/recipes/{recipe_id}", response_model=RecipeDetail, tags=["recipes"])
+@app.put("/recipes/{recipe_id}", response_model=RecipeDetail,
+         tags=["recipes"], responses={**AUTH, **NO_RECIPE})
 def update_recipe(recipe_id: int, body: RecipeIn,
                   user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
@@ -597,7 +671,8 @@ def update_recipe(recipe_id: int, body: RecipeIn,
     return _detail(recipe)
 
 
-@app.delete("/recipes/{recipe_id}", status_code=204, tags=["recipes"])
+@app.delete("/recipes/{recipe_id}", status_code=204, tags=["recipes"],
+            responses={**AUTH, **NO_RECIPE})
 def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     """Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE)."""
@@ -627,8 +702,10 @@ def _slot_out(s: models.PlanSlot) -> PlanSlotOut:
                                          fat_g=int(s.recipe.fat_g or 0)))
 
 
-@app.get("/mealplan", response_model=list[PlanSlotOut], tags=["mealplan"])
-def get_mealplan(week: str = Query(pattern=WEEK_PATTERN),
+@app.get("/mealplan", response_model=list[PlanSlotOut], tags=["mealplan"],
+         responses=AUTH)
+def get_mealplan(week: str = Query(pattern=WEEK_PATTERN,
+                                   description=WEEK_DESCRIPTION),
                  user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)):
     """The week's plan, each slot with its recipe and its per-serving nutrition.
@@ -644,7 +721,10 @@ def get_mealplan(week: str = Query(pattern=WEEK_PATTERN),
     return [_slot_out(s) for s in slots]
 
 
-@app.post("/mealplan", response_model=PlanSlotCreatedOut, status_code=201, tags=["mealplan"])
+@app.post("/mealplan", response_model=PlanSlotCreatedOut, status_code=201,
+          tags=["mealplan"],
+          responses={**AUTH, **NO_RECIPE,
+                     **_err(409, "That day and meal is already filled")})
 def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     """Put one recipe in one day-and-meal slot."""
@@ -666,7 +746,10 @@ def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id),
     return PlanSlotCreatedOut(slot_id=slot.slot_id)
 
 
-@app.delete("/mealplan/{slot_id}", status_code=204, tags=["mealplan"])
+@app.delete("/mealplan/{slot_id}", status_code=204, tags=["mealplan"],
+            responses={**AUTH,
+                       **_err(404, "No such plan slot, or it belongs to "
+                                   "another account")})
 def remove_plan_slot(slot_id: int, user_id: int = Depends(current_user_id),
                      db: Session = Depends(get_db)):
     slot = db.query(models.PlanSlot).filter_by(
@@ -678,7 +761,13 @@ def remove_plan_slot(slot_id: int, user_id: int = Depends(current_user_id),
     return Response(status_code=204)
 
 
-@app.post("/mealplan/generate", response_model=GenerateOut, status_code=201, tags=["mealplan"])
+@app.post("/mealplan/generate", response_model=GenerateOut, status_code=201,
+          tags=["mealplan"],
+          responses={**AUTH,
+                     **_err(400, "The recipe library is empty. Add at least "
+                                 "one recipe before generating a week."),
+                     **_err(409, "The week changed while it was being "
+                                 "generated")})
 def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     """Fill a whole week from the user's recipe library.
@@ -713,8 +802,10 @@ def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
     return GenerateOut(created=created)
 
 
-@app.delete("/mealplan/week/{week}", status_code=204, tags=["mealplan"])
-def clear_week(week: str = Path(pattern=WEEK_PATTERN),
+@app.delete("/mealplan/week/{week}", status_code=204, tags=["mealplan"],
+            responses=AUTH)
+def clear_week(week: str = Path(pattern=WEEK_PATTERN,
+                                description=WEEK_DESCRIPTION),
                user_id: int = Depends(current_user_id),
                db: Session = Depends(get_db)):
     """Empty an entire week. Recipes themselves are untouched."""
@@ -723,7 +814,7 @@ def clear_week(week: str = Path(pattern=WEEK_PATTERN),
     return Response(status_code=204)
 
 
-@app.get("/health", tags=["meta"])
+@app.get("/health", response_model=HealthOut, tags=["meta"])
 def health():
     """Liveness only: is the process up and serving?
 
