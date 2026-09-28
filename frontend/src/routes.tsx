@@ -280,8 +280,8 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
 // The guard itself is not only a saved round trip. react-router decodes a path
 // parameter before a loader sees it, so /recipes/..%2Fprofile arrives here as
 // `../profile`, and an unescaped template would build /recipes/../profile --
-// which the URL constructor normalises to /profile, aiming this read at
-// another endpoint under the same bearer token. The test is the raw segment
+// which the browser normalises to /profile when it parses the address,
+// aiming this read at another endpoint under the same bearer token. The test is the raw segment
 // and not Number(): "3.5", " 3", "0x10" and "1e3" all survive Number() and
 // none of them is a recipe id.
 function recipeLoader({
@@ -326,8 +326,9 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
   // Escaped once, for the reason plannerAction escapes the week: react-router
   // decodes a path parameter before this runs, so /recipes/..%2Fprofile
   // arrives as `../profile`, and an unescaped template would build
-  // /recipes/../profile -- which the URL constructor normalises to /profile,
-  // aiming this write at another endpoint under the same bearer token.
+  // /recipes/../profile -- which the browser normalises to /profile when it
+  // parses the address, aiming this write at another endpoint under the same
+  // bearer token.
   // Escaped, the API answers 422, which is a refusal rather than a
   // redirection. Nothing on the screen can submit such an id, because
   // recipeLoader draws the not-found panel for one and there is no form to

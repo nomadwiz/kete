@@ -426,6 +426,68 @@ describe("the recipe detail page", () => {
     expect(screen.queryByText(/belongs to another account/)).toBeNull();
   });
 
+  // The other half of the same rule, and the reason the loader catches a 422
+  // beside the 404: this id is all digits, so the guard passes it, and the only
+  // parameter on this route is the id in the path -- so a 422 is a sentence
+  // about the address rather than about the recipe, and the address names
+  // nothing.
+  it("draws the same panel for an id the API refuses as out of range", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/99999999999999999999": async () =>
+        jsonResponse(422, {
+          detail: [{ msg: "Input should be a valid integer" }],
+        }),
+    });
+
+    renderAt("/recipes/99999999999999999999");
+
+    expect(
+      await screen.findByRole("heading", { name: "No such recipe" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Something went wrong" }),
+    ).toBeNull();
+  });
+
+  // react-router decodes a path parameter before a loader or an action sees
+  // it, so this address arrives as `../profile`. Unescaped, the template would
+  // build /recipes/../profile, and the browser normalises that to /profile
+  // when it parses the address -- aiming a PUT carrying a recipe body at the
+  // account endpoint under the same bearer token. The second assertion is the
+  // one that matters and it is deliberately not about the string: it resolves
+  // what was requested the way fetch does, so it goes red with the real
+  // destination rather than with a spelling.
+  //
+  // The action is driven through the router rather than through the screen,
+  // because there is no screen: recipeLoader refuses this id, so the page
+  // draws the not-found panel and there is no form to submit. That is the
+  // control this one backs up rather than duplicates.
+  it("escapes the id it writes to, so a hand-edited address cannot reach another endpoint", async () => {
+    signedIn();
+    const { calls } = stubFetch({
+      "/recipes/..%2Fprofile": async () => jsonResponse(200, LAKSA),
+    });
+
+    const { router } = renderAt("/recipes/..%2Fprofile");
+
+    await screen.findByRole("heading", { name: "No such recipe" });
+
+    const body = new FormData();
+
+    body.set("name", "Laksa");
+
+    await router.navigate("/recipes/..%2Fprofile", {
+      formMethod: "post",
+      formData: body,
+    });
+
+    expect(calls).toContain("/recipes/..%2Fprofile");
+    expect(
+      calls.map((path) => new URL(path, "http://api.test").pathname),
+    ).not.toContain("/profile");
+  });
+
   // An id that is not a whole number is the same thing as a recipe that is not
   // there, and the loader answers it without a request. The empty `calls` is
   // the assertion: stubFetch throws on any path it was not given, so a page
