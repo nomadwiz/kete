@@ -68,6 +68,22 @@ export default function Planner() {
   const error = useActionData() as string | null | undefined;
   const navigation = useNavigation();
 
+  // Whether anything is in flight. Both kinds of submit below are disabled
+  // while it is: a second click on Add places the same recipe again and is
+  // answered 409, a second Remove is answered 404, and either way the person
+  // is shown a failure for an operation that in fact succeeded.
+  //
+  // navigation.state, and deliberately not the
+  // `navigation.formAction === PATHS.planner` comparison the other screens
+  // use. A <Form> with no action prop submits to the current address including
+  // its query string -- react-router's useFormAction copies location.search in
+  // -- so on a screen whose address carries the week, that equality is false
+  // for the whole submission and the guard never engages. C25
+  // (nomadwiz/kete#277) corrects the two screens that have it. This component
+  // is only ever mounted on /planner, so anything in flight here is its own
+  // submission or a departure from the screen.
+  const busy = navigation.state !== "idle";
+
   // One pass over the answer rather than a scan of it in each of twenty-one
   // cells. The key pairs the two axes because neither identifies a position on
   // its own, and a PlanSlotOut carries no week -- every slot in this array is
@@ -94,7 +110,10 @@ export default function Planner() {
         <p className="planner__week">
           {week}
           <span className="planner__range">
-            {WEEK_RANGE.format(dates[0])} to {WEEK_RANGE.format(dates[6])}
+            {/* formatRange rather than two formats and a hand-written "to":
+                the same formatter elides the parts the two dates share, and
+                keeps the month and the year when the week crosses one. */}
+            {WEEK_RANGE.formatRange(dates[0], dates[6])}
           </span>
         </p>
 
@@ -129,7 +148,7 @@ export default function Planner() {
         </p>
       ) : null}
 
-      <table className="planner__grid" aria-busy={navigation.state !== "idle"}>
+      <table className="planner__grid" aria-busy={busy}>
         {/* The caption is the table's accessible name, given by the element
             rather than by an attribute pointing at it. */}
         <caption className="planner__caption">
@@ -192,6 +211,7 @@ export default function Planner() {
                           <button
                             className="planner__remove"
                             type="submit"
+                            disabled={busy}
                             aria-label={`Remove ${slot.recipe.name} from ${position}`}
                           >
                             Remove
@@ -239,6 +259,7 @@ export default function Planner() {
                         <button
                           className="planner__add"
                           type="submit"
+                          disabled={busy}
                           aria-label={`Add a recipe to ${position}`}
                         >
                           Add

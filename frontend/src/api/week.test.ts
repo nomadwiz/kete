@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { datesOf, isoWeek, shiftWeek } from "./week";
+import { datesOf, isWeek, isoWeek, shiftWeek } from "./week";
 
 // Every date here is late December or early January, because that is the only
 // time of year a wrong answer is visible. The rest of the year the calendar
@@ -77,6 +77,28 @@ describe("stepping a week forwards and back", () => {
 
   it("returns where it started after a step each way", () => {
     expect(shiftWeek(shiftWeek("2026-W53", 1), -1)).toBe("2026-W53");
+  });
+});
+
+describe("whether a string is a week at all", () => {
+  it("takes a week the year actually has", () => {
+    expect(isWeek("2026-W53")).toBe(true);
+    expect(isWeek("2026-W01")).toBe(true);
+  });
+
+  // The pattern the API enforces admits both of these. The first is the one
+  // that matters: it is well formed, it is accepted, and it names the seven
+  // days of 2026-W01 under a second address that no link in the application
+  // can navigate back to.
+  it("turns away a 53rd week in a year that has 52", () => {
+    expect(isWeek("2025-W53")).toBe(false);
+    expect(isWeek("2027-W53")).toBe(false);
+  });
+
+  it("turns away anything that is not shaped like a week", () => {
+    expect(isWeek("2026-W99")).toBe(false);
+    expect(isWeek("2026-39")).toBe(false);
+    expect(isWeek("")).toBe(false);
   });
 });
 

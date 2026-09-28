@@ -1,8 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { isoWeek } from "../api/week";
 import { jsonResponse, renderAt, stubFetch } from "../test/router";
 
 // Every test that draws the grid names its week in the address. A test that
@@ -75,6 +74,7 @@ function postedBody(calls: unknown[][]): unknown {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("a week with recipes in it", () => {
@@ -185,6 +185,53 @@ describe("placing a recipe", () => {
     });
   });
 
+  // The guard against a second click, which is not cosmetic: the first POST
+  // has usually been committed by the time the second is sent, so the second
+  // is answered 409 and the person is told the position was already filled by
+  // the very click that filled it.
+  it("refuses a second click while the first is still in flight", async () => {
+    signedIn();
+
+    // The POST is held open, so the screen stays in the state under test
+    // rather than passing through it.
+    let answer = () => {};
+    const held = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, []),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      "/mealplan": async () => {
+        await held;
+
+        return jsonResponse(201, { slot_id: 9 });
+      },
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    const user = userEvent.setup();
+    const add = () =>
+      screen.getByRole("button", { name: "Add a recipe to Monday breakfast" });
+
+    await user.selectOptions(
+      await screen.findByLabelText("Recipe for Monday breakfast"),
+      "3",
+    );
+    await user.click(add());
+
+    await vi.waitFor(() => expect(add()).toBeDisabled());
+
+    // Every other position too: one request is in flight, not one cell.
+    expect(
+      screen.getByRole("button", { name: "Add a recipe to Sunday dinner" }),
+    ).toBeDisabled();
+
+    answer();
+    await vi.waitFor(() => expect(add()).toBeEnabled());
+  });
+
   it("shows the server's own sentence when the position was filled first", async () => {
     signedIn();
     stubFetch({
@@ -271,13 +318,24 @@ describe("moving between weeks", () => {
         .map((link) => link.getAttribute("href")),
     ).toEqual(["/planner?week=2026-W51", "/planner?week=2026-W53"]);
   });
+});
 
-  it("puts a week that is not a week back on the one being shown", async () => {
+// Both of these land on whichever week is current, so the clock is pinned and
+// the expected value is a literal. Computing it here with the same function
+// the loader calls would assert only that the loader called it. Thursday
+// 24 September 2026 is in 2026-W39, which ../api/week.test.ts pins.
+describe("a week the address gets wrong", () => {
+  beforeEach(() => {
+    // Only Date. Testing Library waits on real timers, and faking those hangs
+    // the first query that has to wait for anything.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 24));
+  });
+
+  it("turns away a week number no year has", async () => {
     signedIn();
-    const thisWeek = isoWeek(new Date());
-
     stubFetch({
-      [`/mealplan?week=${thisWeek}`]: async () => jsonResponse(200, []),
+      [PLAN]: async () => jsonResponse(200, []),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -287,6 +345,24 @@ describe("moving between weeks", () => {
 
     // Rather than drawing this week under an address that names another, and
     // rather than passing it on to be answered 422.
-    expect(router.state.location.search).toBe(`?week=${thisWeek}`);
+    expect(router.state.location.search).toBe(`?week=${WEEK}`);
+  });
+
+  // The harder half, and the one a pattern cannot catch: 2025-W53 matches the
+  // expression the API enforces and names the seven days that belong to
+  // 2026-W01. Left alone it is a second address for the same week, holding a
+  // different plan that nothing can navigate back to.
+  it("turns away a 53rd week in a year that has 52", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, []),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    const { router } = renderAt("/planner?week=2025-W53");
+
+    await screen.findByRole("navigation", { name: "Week" });
+
+    expect(router.state.location.search).toBe(`?week=${WEEK}`);
   });
 });

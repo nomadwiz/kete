@@ -76,3 +76,13 @@ export function datesOf(week: string): Date[] {
 
   return Array.from({ length: 7 }, (_, day) => new Date(monday + day * DAY));
 }
+
+// Whether a string names a week that exists. The pattern is not enough on its
+// own: it admits 53 in every year, and only a long year has a 53rd week, so
+// 2025-W53 matches it and names the seven days that in fact belong to
+// 2026-W01. Stepping zero weeks goes out through the calendar and back, so a
+// string that survives the round trip is a week and one that does not is a
+// bucket nothing can navigate to a second time.
+export function isWeek(week: string): boolean {
+  return WEEK_PATTERN.test(week) && shiftWeek(week, 0) === week;
+}

@@ -8,7 +8,7 @@ import { ApiError, SessionExpired } from "./api/errors";
 import { request } from "./api/http";
 import { authed } from "./api/session";
 import { clearToken, readToken, writeToken } from "./api/token";
-import { isoWeek, WEEK_PATTERN } from "./api/week";
+import { isoWeek, isWeek } from "./api/week";
 import AppLayout from "./components/app-layout";
 import ErrorBoundary from "./components/error-boundary";
 import PublicLayout from "./components/public-layout";
@@ -169,7 +169,12 @@ async function plannerLoader({
   // reach the error boundary. Sending the reader to the week they will in fact
   // be shown is the better answer, and it leaves the address telling the truth
   // rather than drawing this week under a heading that says something else.
-  if (asked !== null && !WEEK_PATTERN.test(asked)) {
+  //
+  // isWeek and not the pattern alone: the pattern admits a 53rd week in every
+  // year, and a POST from a screen drawn for 2025-W53 would write slots into a
+  // bucket that no link can reach a second time, over seven days that another
+  // address already owns.
+  if (asked !== null && !isWeek(asked)) {
     throw redirect(`${PATHS.planner}?${QUERY.week}=${thisWeek}`);
   }
 
@@ -232,6 +237,13 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
           method: "POST",
           body: JSON.stringify(placement),
         });
+      } else {
+        // Not a shrug. Every form on the grid carries an intent, so an
+        // unrecognised one is a typo in a hidden field -- which, returned as
+        // null, is indistinguishable from success: the loader revalidates and
+        // the grid redraws unchanged. C17 (nomadwiz/kete#181) adds its two
+        // branches above this one.
+        throw new Error(`Unknown planner intent: ${intent}`);
       }
     } catch (error) {
       if (error instanceof ApiError) {
