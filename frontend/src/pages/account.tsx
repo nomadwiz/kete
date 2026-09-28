@@ -26,7 +26,16 @@ export default function Account() {
   const result = useActionData() as string | null | undefined;
   const error = typeof result === "string" ? result : null;
   const navigation = useNavigation();
-  const saving = navigation.formAction === PATHS.account;
+
+  // The path alone, not the whole formAction. A <Form> declaring no action
+  // prop does not submit to the bare path: useFormAction in react-router 8.4.0
+  // copies the current query string into it, so at an address carrying one an
+  // equality against PATHS.account would be false for the whole submission and
+  // the button would stay live under a save already in flight. Nothing sends a
+  // query string to /account today, which is exactly why the wrong version
+  // would look right here. C25 (#277) fixes the two screens that compare the
+  // whole thing; take its helper when it lands rather than keeping this.
+  const saving = navigation.formAction?.split("?")[0] === PATHS.account;
 
   return (
     <div className="account">
