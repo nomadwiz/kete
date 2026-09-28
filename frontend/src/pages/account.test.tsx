@@ -53,6 +53,30 @@ describe("the account form", () => {
     expect(screen.getByLabelText("Last name")).toHaveValue("Tane");
     expect(screen.getByLabelText("Username")).toHaveValue("aroha");
     expect(screen.getByLabelText("Email")).toHaveValue("aroha@example.com");
+
+    // Nothing has been submitted, so nothing is confirmed. The screen tells a
+    // save that worked from a form nobody has touched by the difference
+    // between the null its action returns and the undefined React Router
+    // answers until one has run -- so a release that stopped making that
+    // distinction would greet every visitor with "Your details are saved."
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  // The one place this screen departs from the two loaders beside it. GET
+  // /profile answers 404 when the account behind the token is gone, which is a
+  // failure rather than the "not filled in yet" state the metrics and targets
+  // loaders catch -- and a later edit making all three consistent would leave
+  // the screen reading fields off null.
+  it("sends a 404 to the error boundary rather than drawing an empty form", async () => {
+    signedIn();
+    stubFetch({
+      "/profile": async () => jsonResponse(404, { detail: "No such account" }),
+    });
+
+    renderAt("/account");
+
+    expect(await screen.findByText("Status 404.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
   });
 });
 
@@ -83,6 +107,23 @@ describe("the account form refused with a 409", () => {
     expect(screen.getByLabelText("First name")).toHaveValue("Aroha");
     expect(router.state.location.pathname).toBe("/account");
   });
+
+  // The other half of the same rule. 409 and 422 are answered by typing
+  // something different; every other status the write can answer with is not,
+  // so it goes to the boundary rather than appearing above a Save button that
+  // can never work. A catch that took every ApiError would print "No such
+  // account" as though it were a validation message.
+  it("sends a 404 from the write to the error boundary", async () => {
+    signedIn();
+    stubProfile(async () => jsonResponse(404, { detail: "No such account" }));
+
+    renderAt("/account");
+
+    await amendUsername("taken");
+
+    expect(await screen.findByText("Status 404.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });
 
 // PUT /profile is a full replace, so the contract's trap is a form that posts
@@ -103,11 +144,10 @@ describe("amending one field", () => {
       "Your details are saved.",
     );
 
-    const put = fetchStub.mock.calls.find(
-      ([, init]) => (init as RequestInit | undefined)?.method === "PUT",
-    );
+    const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
-    expect(JSON.parse(String((put?.[1] as RequestInit).body))).toEqual({
+    expect(put).toBeDefined();
+    expect(JSON.parse(String(put?.[1]?.body))).toEqual({
       ...PROFILE_BODY,
       username: "aroha-t",
     });

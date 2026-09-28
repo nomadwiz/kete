@@ -43,6 +43,11 @@ export default function Account() {
         </p>
       ) : null}
 
+      {/* The confirmation stays put while the person goes on editing, so it
+          can sit above changes that are not saved yet. Clearing it would mean
+          a change handler and a piece of state on a screen that deliberately
+          holds none -- and the fields it sits above are the ones that were
+          just saved, so what it says stays true of them. */}
       {result === null && !saving ? (
         <p className="account__saved" role="status">
           Your details are saved.
@@ -61,7 +66,7 @@ export default function Account() {
             <input
               id="first-name"
               name="first_name"
-              type="text"
+              autoComplete="given-name"
               defaultValue={saved.first_name}
               required
             />
@@ -74,7 +79,7 @@ export default function Account() {
             <input
               id="last-name"
               name="last_name"
-              type="text"
+              autoComplete="family-name"
               defaultValue={saved.last_name}
               required
             />
@@ -88,7 +93,7 @@ export default function Account() {
           <input
             id="username"
             name="username"
-            type="text"
+            autoComplete="username"
             defaultValue={saved.username}
             required
           />
@@ -104,6 +109,7 @@ export default function Account() {
           <input
             id="email"
             name="email"
+            autoComplete="email"
             type="email"
             defaultValue={saved.email}
             required

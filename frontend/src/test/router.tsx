@@ -27,7 +27,10 @@ export function jsonResponse(status: number, body: unknown): Response {
 //
 // The handler is given the request's own init, so a path a screen both reads
 // and writes -- /profile, which the account screen GETs and PUTs -- can answer
-// each method differently. Ignoring it is fine and most stubs do.
+// each method differently. Ignoring it is fine and most stubs do. `calls`
+// still records the path alone, so a test that needs the method or the body
+// reads fetchStub.mock.calls; widening `calls` would reword every assertion
+// already written against it.
 export function stubFetch(
   byPath: Record<string, (init?: RequestInit) => Promise<Response>>,
 ) {

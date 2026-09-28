@@ -10,7 +10,7 @@ Known gaps, each tracked as an issue rather than left in this file:
 
 | Gap                                                              | Issue                            |
 | ---------------------------------------------------------------- | -------------------------------- |
-| Three of the eleven pages are placeholders                       | #176–#184                        |
+| Three of the eleven pages are unbuilt or unstyled                | #176–#182, #184                  |
 | Types are hand-written rather than generated from the API schema | C21 (#235)                       |
 | The production build is not wired to a host                      | C20 (#185), K6 (#192), K9 (#195) |
 

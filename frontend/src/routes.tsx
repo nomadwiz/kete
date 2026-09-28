@@ -89,9 +89,7 @@ function profileLoader(): Promise<Profile> {
 }
 
 // PUT /profile is a full replace and takes no partial update, so all four
-// fields travel whether or not they changed. The reply is the saved account
-// and is discarded: the loader revalidates after this returns, so there is one
-// read of the account rather than two answers that can disagree.
+// fields travel whether or not they changed.
 async function profileAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const details: Profile = {
@@ -103,16 +101,30 @@ async function profileAction({ request: req }: ActionFunctionArgs) {
 
   return withSession(async () => {
     try {
-      await authed<Profile>("/profile", {
+      // The reply is the saved account and is discarded, as
+      // measurementsAction discards the targets its save computed: the loader
+      // revalidates after this returns, so the screen reads the account in
+      // one place rather than two that can disagree.
+      await authed<unknown>("/profile", {
         method: "PUT",
         body: JSON.stringify(details),
       });
     } catch (error) {
-      // The 409 this exists for -- the username or email is already somebody
-      // else's -- returned rather than thrown, so the message lands above the
-      // form the person is still standing in with what they typed. The
-      // boundary would take the page and the typed values with it.
-      if (error instanceof ApiError) {
+      // Two of the four statuses PUT /profile declares, and only those two.
+      // A 409 means the username or email is already somebody else's and a
+      // 422 that a field is malformed: both are answered by typing something
+      // different, so the message goes back to the form the person is still
+      // standing in with what they typed, which the boundary would take the
+      // page and the typed values with it.
+      //
+      // The 404 is not among them. It means the account behind the token no
+      // longer exists, which profileLoader sends to the boundary -- returning
+      // it here would print "the account no longer exists" as though it were
+      // a validation message and invite another Save that cannot work.
+      if (
+        error instanceof ApiError &&
+        (error.status === 409 || error.status === 422)
+      ) {
         return error.message;
       }
 
