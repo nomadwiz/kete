@@ -175,13 +175,16 @@ describe("a sign-in from the address a new account lands on", () => {
 
     const submit = () => screen.getByRole("button", { name: /^Sign(ing)? in/ });
 
-    await waitFor(() => expect(submit()).toBeDisabled());
-    expect(submit().closest("form")).toHaveAttribute("aria-busy", "true");
+    // Released in a finally, so a failed assertion above does not leave the
+    // request hanging and the router updating a tree the next test has
+    // replaced -- which would report this defect as a failure in that test.
+    try {
+      await waitFor(() => expect(submit()).toBeDisabled());
+      expect(submit().closest("form")).toHaveAttribute("aria-busy", "true");
+    } finally {
+      answerLogin();
+    }
 
-    // Released so the submission finishes inside the test rather than after it,
-    // which would leave the router updating a tree the next test has replaced.
-    answerLogin();
-
-    expect(await screen.findByText("2,480 kcal")).toBeInTheDocument();
+    await screen.findByText("2,480 kcal");
   });
 });

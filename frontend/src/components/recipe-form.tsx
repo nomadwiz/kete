@@ -17,11 +17,12 @@ export type RecipeFormProps = {
   // action: /recipes/:id answers a save and a delete from one action, and only
   // the host can tell which of the two is running.
   //
-  // Compute it with useSubmitting from src/use-submitting.ts, and never with
-  // a plain equality against `useNavigation().formAction`: that reads
-  // `/recipes?new` on the first host and `/recipes/7?edit` on the second,
-  // because react-router copies the current search into a Form declaring no
-  // action and ADR 002 addresses both hosts with one.
+  // `useSubmitting("POST")` from src/use-submitting.ts, never a plain
+  // equality against `useNavigation().formAction` -- ADR 002 addresses this
+  // component's two hosts with a query string, and that equality is false
+  // under one. On /recipes it is the whole answer. On /recipes/:id it is half:
+  // the delete Form posts to the same address, so the host narrows it with the
+  // intent key named at the foot of this file.
   busy?: boolean;
 };
 

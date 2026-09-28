@@ -15,7 +15,7 @@ export default function Measurement() {
   // change handler per field and a second copy of the form to keep in step.
   const saved = useLoaderData() as Metrics | null;
   const error = useActionData() as string | undefined;
-  const saving = useSubmitting();
+  const saving = useSubmitting("POST");
 
   return (
     <div className="measurement">

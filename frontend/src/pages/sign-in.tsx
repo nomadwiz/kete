@@ -8,7 +8,7 @@ export default function SignIn() {
   const error = useActionData() as string | undefined;
   const [params] = useSearchParams();
   const created = params.has(QUERY.account_created);
-  const signingIn = useSubmitting();
+  const signingIn = useSubmitting("POST");
 
   return (
     <div className="sign-in">
