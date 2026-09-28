@@ -101,21 +101,18 @@ export default function RecipeDetail() {
     ["Fat", `${recipe.fat_g.toLocaleString("en-NZ")} g`],
   ];
 
-  // The sentence C15 (nomadwiz/kete#179) is actually about, and the only place
-  // in the application the cascade is ever stated. backend/schema.sql declares
-  // plan_slots.recipe_id REFERENCES recipes ON DELETE CASCADE, so deleting a
-  // recipe empties every position holding it -- in this week and in any other
-  // -- and a generic "Are you sure?" would let somebody discard a planned week
-  // without knowing they had. It is the platform's own confirmation rather
-  // than a <dialog>, which is C17 (nomadwiz/kete#181)'s choice on the planner
-  // and its reasoning: window.confirm is modal, focus-trapped and dismissible
-  // from the keyboard for no code at all, and jsdom 30 implements no
-  // showModal, so a <dialog> on this page would be exercised against the shim
-  // in src/test/setup.ts rather than against the element. Its ceiling is
-  // C17's too: a browser whose "prevent this page from creating further
-  // dialogues" box has been ticked answers false without showing anything, so
-  // the button does nothing at all -- which fails closed, the right direction
-  // for a control that destroys a record, but reads as a broken button.
+  // The only place in the client the cascade is ever stated. backend/schema.sql
+  // declares plan_slots.recipe_id REFERENCES recipes ON DELETE CASCADE, so
+  // deleting a recipe empties every position holding it -- in this week and in
+  // any other -- and a generic "Are you sure?" would let somebody discard a
+  // planned week without knowing they had.
+  //
+  // window.confirm rather than a <dialog>, which is C17 (nomadwiz/kete#181)'s
+  // choice on the planner for the same kind of control. Its reasoning and its
+  // ceiling are argued in full in planner.tsx where the choice is made, and
+  // one of them is this project's: jsdom 30 implements no showModal, so a
+  // <dialog> here would be exercised against the shim in src/test/setup.ts
+  // rather than against the element.
   //
   // No count, and none is available: this screen reads one recipe, and
   // [GAP: nothing in backend/openapi.json answers how many plan slots point at
@@ -255,6 +252,17 @@ export default function RecipeDetail() {
             Edit this recipe
           </Link>
 
+          {/* Not gated on `saving`, although Cancel inside the form is gated
+              on it, and the asymmetry is deliberate. Cancel is refused because
+              leaving during a save discards nine typed fields and any refusal
+              coming back, and nothing afterwards says whether the recipe was
+              saved. Opening the form during a delete costs nothing typed, and
+              the case resolves itself: the delete lands, and a save made from
+              the form it opened is answered 404, which recipeAction sends to
+              the not-found panel saying the recipe may have been deleted.
+              Making this refusable would also mean making it a button, which
+              costs the edit view the address ADR 002 gives it. */}
+
           {/* Here rather than on /recipes, and the reason is ADR 002's rule
               about path strings: a delete offered from the list would post to
               this route, which means an `action` prop carrying a literal
@@ -269,6 +277,7 @@ export default function RecipeDetail() {
               intent the save. */}
           <Form
             method="post"
+            aria-busy={saving}
             onSubmit={(event) => {
               // react-router's Form runs this handler and then returns on a
               // prevented default, so a declined confirmation sends no

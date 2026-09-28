@@ -423,20 +423,22 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
         // DELETE /recipes/{recipe_id} declares 401, 404 and 422. The 401 is
         // withSession's.
         //
-        // The 404 is the one status on this route that a delete may read as
-        // success, and it is the verb that makes the difference: the person
-        // asked for the record not to exist, and it does not. Its sentence is
-        // "No such recipe, or it belongs to another account", but the second
-        // half is not reachable from this screen -- recipeLoader drew the page
-        // from this same id under this same token, so the only way here is a
-        // recipe already gone, deleted in another tab or by a submission this
-        // one raced. Sending that to the not-found panel would answer someone
-        // who has just asked for a deletion with a report that the thing is
-        // missing, and would leave them standing at an address that will never
-        // answer. Letting it reach the error boundary would be worse again:
-        // the boundary renders an ApiError's message verbatim, so it would
-        // print the clause about another account that the endpoint answers 404
-        // rather than 403 precisely to avoid.
+        // The 404 is the one status on this route a delete may read as
+        // success, and the verb is what makes the difference: the person asked
+        // for the record not to exist, and it does not. Its sentence is "No
+        // such recipe, or it belongs to another account", and neither half
+        // changes that answer. Only the first half is reachable from the
+        // screen, because recipeLoader drew the page from this same id under
+        // this same token, so the only way here is a recipe already gone --
+        // deleted in another tab, or by a submission this one raced. Reported
+        // as anything else it would answer someone who has just asked for a
+        // deletion with a report that the thing is missing, and leave them at
+        // an address that will never answer. A submission carrying somebody
+        // else's id, which this branch can be handed by a programmatic
+        // navigation, is told the same thing for the same reason the endpoint
+        // answers 404 rather than 403: any other answer confirms that record
+        // exists. And the error boundary must not see it at all -- it renders
+        // an ApiError's message verbatim, clause included.
         //
         // The 422 is deliberately not caught. The only parameter on this route
         // is the id in the path, and no screen can submit one the loader would
@@ -447,10 +449,9 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
         }
       }
 
-      // The library, never `here`: `here` is the record that has just been
-      // deleted, so its loader 404s and the person lands on the not-found
-      // panel instead of their recipes. replace rather than redirect, so Back
-      // does not return to that address either.
+      // The library, never `here`, for the reason given where this branch is
+      // described above. replace rather than redirect, so Back does not return
+      // to the deleted record's address either.
       return replace(PATHS.recipes);
     }
 

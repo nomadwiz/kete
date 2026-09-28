@@ -556,11 +556,13 @@ describe("deleting a recipe", () => {
     expect(asked).toMatch(/every position in every week/);
     expect(asked).toMatch(/no undo/);
 
-    // No digit anywhere in it. This screen reads one recipe and nothing counts
-    // the slots pointing at it, so any number here would be invented -- and a
-    // confirmation that says "2 meals" when it is nine is worse than one that
-    // says neither.
-    expect(asked).not.toMatch(/\d/);
+    // No digit anywhere in the sentence this page wrote. Nothing here counts
+    // the slots pointing at the recipe, so any number would be invented -- and
+    // a confirmation saying "2 meals" when it is nine is worse than one that
+    // says neither. The name is taken out first, because a fixture renamed to
+    // "Laksa 2" would otherwise fail this for a reason that has nothing to do
+    // with what it asserts.
+    expect(asked.replace(LAKSA.name, "")).not.toMatch(/\d/);
   });
 
   // react-router's Form runs onSubmit and then returns on a prevented default,
@@ -636,7 +638,7 @@ describe("deleting a recipe", () => {
   // delete button.
   it("escapes the id it deletes, so a hand-edited address cannot reach another endpoint", async () => {
     signedIn();
-    const { calls } = stubFetch({
+    const { calls, fetchStub } = stubFetch({
       "/recipes/..%2Fprofile": async () => new Response(null, { status: 204 }),
       "/recipes": async () => jsonResponse(200, []),
     });
@@ -658,6 +660,11 @@ describe("deleting a recipe", () => {
     expect(
       calls.map((path) => new URL(path, "http://api.test").pathname),
     ).not.toContain("/profile");
+
+    // The verb as well as the address, for the reason methodsOf is declared:
+    // this stub answers every method with a 204, so without this the test
+    // passes unchanged against a branch that had started sending a PUT.
+    expect(methodsOf(fetchStub)).toEqual(["DELETE"]);
   });
 
   // The 404 on DELETE /recipes/{recipe_id}, which on this verb is the outcome
@@ -697,6 +704,37 @@ describe("deleting a recipe", () => {
     expect(screen.queryByText(/belongs to another account/)).toBeNull();
   });
 
+  // The other half of the same catch, and the half the five tests above do not
+  // reach: a guard weakened to swallow every ApiError passes every one of
+  // them. It is also the failure that matters most in front of a deployed API,
+  // because a 500 from the backend or a 502 from the gateway is likelier here
+  // than the 404 -- and either leaves the recipe exactly where it was. Reported
+  // as a deletion it would drop the person on a library still showing the row,
+  // which reads as a list that has not caught up. Nothing on this screen
+  // repairs a 500, so it belongs to the error boundary.
+  it("does not report a failed delete as a deletion", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      "/recipes/7": async (init?: RequestInit) =>
+        init?.method === "DELETE"
+          ? jsonResponse(500, { detail: "Internal Server Error" })
+          : jsonResponse(200, LAKSA),
+    });
+
+    const { router } = renderAt("/recipes/7");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete this recipe" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Something went wrong" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/recipes/7");
+  });
+
   // The button names the write that is in flight, as RecipeForm's does, and is
   // dead while it runs: a second click on a delete that has already reached
   // the API is answered 404, which this action then reports as a success --
@@ -718,8 +756,15 @@ describe("deleting a recipe", () => {
       .setup()
       .click(await screen.findByRole("button", { name: "Delete this recipe" }));
 
-    expect(
-      await screen.findByRole("button", { name: "Deleting…" }),
-    ).toBeDisabled();
+    const button = await screen.findByRole("button", { name: "Deleting…" });
+
+    expect(button).toBeDisabled();
+
+    // The pair src/use-submitting.ts names: aria-busy on the form beside
+    // disabled on its submit. It carries more here than on the planner,
+    // because this button renames itself as it goes dead -- a change a screen
+    // reader is otherwise told nothing about, on an element that has just lost
+    // focus to the body.
+    expect(button.closest("form")).toHaveAttribute("aria-busy", "true");
   });
 });
