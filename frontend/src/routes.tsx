@@ -59,9 +59,16 @@ function requireSession() {
   return null;
 }
 
-async function recipesLoader(): Promise<RecipeSummary[]> {
+// Every loader and action that reaches the API runs its work through this, so
+// an expired token sends the user to sign in rather than to the error boundary
+// without each of them repeating the rule. The redirect lives here rather than
+// in src/api/ because ADR 002 keeps every path string in this file. A caller
+// whose own rule reads a status keeps it in its own catch inside the work:
+// SessionExpired extends Error and not ApiError, so a clause there testing
+// ApiError cannot swallow it.
+async function withSession<T>(work: () => Promise<T>): Promise<T> {
   try {
-    return await authed<RecipeSummary[]>("/recipes");
+    return await work();
   } catch (error) {
     if (error instanceof SessionExpired) {
       throw redirect(PATHS.sign_in);
@@ -69,6 +76,10 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
 
     throw error;
   }
+}
+
+function recipesLoader(): Promise<RecipeSummary[]> {
+  return withSession(() => authed<RecipeSummary[]>("/recipes"));
 }
 
 // Shared by /targets and /dashboard, which ask the same question of the same
@@ -84,20 +95,18 @@ async function recipesLoader(): Promise<RecipeSummary[]> {
 // -- but it would still tell a user who has simply not filled the form in yet
 // that something went wrong, which is the wrong answer whatever survives
 // around it.
-async function targetsLoader(): Promise<Targets | null> {
-  try {
-    return await authed<Targets>("/targets");
-  } catch (error) {
-    if (error instanceof SessionExpired) {
-      throw redirect(PATHS.sign_in);
-    }
+function targetsLoader(): Promise<Targets | null> {
+  return withSession(async () => {
+    try {
+      return await authed<Targets>("/targets");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
 
-    if (error instanceof ApiError && error.status === 404) {
-      return null;
+      throw error;
     }
-
-    throw error;
-  }
+  });
 }
 
 async function measurementsAction({ request: req }: ActionFunctionArgs) {
@@ -115,27 +124,26 @@ async function measurementsAction({ request: req }: ActionFunctionArgs) {
     activity_level: String(form.get("activity_level") ?? "") as ActivityLevel,
   };
 
-  try {
-    // The response carries the targets this save computed. They are discarded:
-    // the screen this redirects to reads them from GET /targets, so there is
-    // one place that renders them rather than two that can disagree.
-    await authed<unknown>("/profile/metrics", {
-      method: "POST",
-      body: JSON.stringify(metrics),
-    });
-  } catch (error) {
-    if (error instanceof SessionExpired) {
-      throw redirect(PATHS.sign_in);
+  return withSession(async () => {
+    try {
+      // The response carries the targets this save computed. They are
+      // discarded: the screen this redirects to reads them from GET /targets,
+      // so there is one place that renders them rather than two that can
+      // disagree.
+      await authed<unknown>("/profile/metrics", {
+        method: "POST",
+        body: JSON.stringify(metrics),
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return error.message;
+      }
+
+      throw error;
     }
 
-    if (error instanceof ApiError) {
-      return error.message;
-    }
-
-    throw error;
-  }
-
-  return redirect(PATHS.targets);
+    return redirect(PATHS.targets);
+  });
 }
 
 async function signUpAction({ request: req }: ActionFunctionArgs) {
