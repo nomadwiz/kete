@@ -2,7 +2,6 @@ import {
   Link,
   useActionData,
   useLoaderData,
-  useParams,
   useSearchParams,
 } from "react-router";
 
@@ -21,7 +20,6 @@ export default function RecipeDetail() {
   // a 404 and an id that is not a whole number.
   const recipe = useLoaderData() as Recipe | null;
   const [searchParams, setSearchParams] = useSearchParams();
-  const { id } = useParams();
 
   // The one piece of view state this screen has, and it comes out of the
   // address rather than out of this component -- ADR 002's rule and its stated
@@ -47,12 +45,6 @@ export default function RecipeDetail() {
   // tell them apart, and it does that by reading the submitted intent rather
   // than by giving this hook a parameter.
   const saving = useSubmitting("POST");
-
-  // The read address, built in the component body rather than at module scope:
-  // routes.tsx imports this page through the pages barrel and this page imports
-  // PATHS back, so the two modules are circular and PATHS is still undefined
-  // while this module evaluates. dashboard.tsx records the same trap.
-  const here = PATHS.recipe.replace(":id", String(id));
 
   // Dropping the key is the whole of closing the edit view, because the form is
   // drawn exactly while the key is there. Replacing rather than pushing:
@@ -223,8 +215,15 @@ export default function RecipeDetail() {
 
           {/* A link rather than a button, so the edit view has an address that
               can be refreshed, bookmarked and reached by Back -- which is the
-              whole reason ADR 002 puts the switch in the query string. */}
-          <Link className="recipe__edit" to={`${here}?${QUERY.recipe_edit}`}>
+              whole reason ADR 002 puts the switch in the query string.
+
+              A search with no path in front of it, which react-router resolves
+              against the address this page is already at. The first version
+              rebuilt that address from PATHS.recipe and useParams, which is
+              three lines to say what the router already knows -- and PATHS
+              .recipe is the pattern /recipes/:id, so every one of those lines
+              existed only to put the id back into it. */}
+          <Link className="recipe__edit" to={`?${QUERY.recipe_edit}`}>
             Edit this recipe
           </Link>
         </>
