@@ -113,21 +113,21 @@ The outer mount stays, because a failure in the public tree — and a throw from
 
 The enum spellings the API validates, the endpoint list and the authentication scheme are in [`../backend/README.md`](../backend/README.md), and the code that enforces them is [`../backend/main.py`](../backend/main.py). Where a description and the code disagree, the code is right — so read the code rather than copying either into this file.
 
-**The types are generated from the contract, not written against it.** [`../backend/openapi.json`](../backend/openapi.json) is the schema FastAPI builds from [`../backend/main.py`](../backend/main.py), exported by `../backend/export_openapi.py` and committed so that a build needs no running API. `openapi-typescript` turns it into [`src/types/api.ts`](src/types/api.ts), and `npm run build` regenerates that file before `tsc` reads it — so a field renamed or dropped in `main.py` reaches the screens that read it as a type error rather than as an empty space on the page.
+**The types are generated from the contract, not written against it.** [`../backend/openapi.json`](../backend/openapi.json) is the schema FastAPI builds from [`../backend/main.py`](../backend/main.py), exported by `../backend/export_openapi.py` and committed so that a build needs no running API. `openapi-typescript` turns it into [`src/types/api.ts`](src/types/api.ts), and `npm run dev`, `npm run build` and `npm test` each regenerate that file before they start — so a field renamed or dropped in `main.py` reaches the screens that read it as a type error rather than as an empty space on the page.
 
 **Never edit `src/types/api.ts`, and never add a hand-written type beside it.** Change `main.py`, run `python export_openapi.py`, and the next build carries the change through. The four files beside it are aliases and hold no field names of their own: `auth.ts`, `measurement.ts`, `recipe.ts` and `targets.ts` each name the schema a screen wants under the name that screen already imports, because the wire names differ in three places — `RegisterIn`, `LoginIn` and `LoginOut` for the two auth pairs, `MetricsIn` for the measurement form, `TargetsOut` for the figures. Add an alias when a screen needs one; `RecipeIn` serves both writing a recipe and editing one, so there is no create-and-update pair to look for.
 
-Two tests hold the chain together, one on each side of the contract. `../backend/tests/test_contract.py` fails when `openapi.json` stops describing `main.py`; [`src/types/api.test.ts`](src/types/api.test.ts) fails when `api.ts` stops matching `openapi.json`. The build regenerates and so cannot read a stale copy, but `npm test` and `npm run dev` read what is committed.
+`api.ts` is committed so that a clone can be read and linted without generating anything first, but nothing trusts the committed copy: every script that type-checks rewrites it first, so a stale one is overwritten rather than believed. The other side of the contract is held by `../backend/tests/test_contract.py`, which fails when `openapi.json` stops describing `main.py` — together the two mean a rename in `main.py` cannot reach a screen unnoticed.
 
 ## Scripts
 
 | Script                   | What it does                                                                     |
 | ------------------------ | -------------------------------------------------------------------------------- |
-| `npm run dev`            | Vite dev server on 5173, with hot reload                                         |
+| `npm run dev`            | Regenerates the types, then the Vite dev server on 5173, with hot reload         |
 | `npm run generate:types` | Rewrites `src/types/api.ts` from `../backend/openapi.json`                       |
 | `npm run build`          | Regenerates the types, type-checks, then writes the deployable bundle to `dist/` |
 | `npm run preview`        | Serves `dist/` — use it to test deep links against a real build                  |
-| `npm test`               | Vitest over `src`, once, in jsdom                                                |
+| `npm test`               | Regenerates the types, then Vitest over `src`, once, in jsdom                    |
 | `npm run lint`           | ESLint over the project, config files included                                   |
 | `npm run format`         | Rewrites files with Prettier                                                     |
 | `npm run format:check`   | Reports without rewriting; this is the one CI runs                               |
