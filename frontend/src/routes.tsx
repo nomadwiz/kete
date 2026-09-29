@@ -284,6 +284,12 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
 // aiming this read at another endpoint under the same bearer token. The test is the raw segment
 // and not Number(): "3.5", " 3", "0x10" and "1e3" all survive Number() and
 // none of them is a recipe id.
+//
+// This guard stays now that request() in src/api/http.ts refuses a traversal
+// for itself -- C29 (nomadwiz/kete#288). The two answer different questions:
+// this one refuses the id before a request is built at all, so no round trip
+// happens and the not-found panel draws, where the one in request() refuses an
+// address that has already been assembled. Do not remove it as a duplicate.
 function recipeLoader({
   params,
 }: LoaderFunctionArgs): Promise<RecipeDetail | null> {
@@ -333,6 +339,13 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
   // redirection. Nothing on the screen can submit such an id, because
   // recipeLoader draws the not-found panel for one and there is no form to
   // submit -- this is the hand-edited address, not the reachable case.
+  //
+  // The escape stays now that request() in src/api/http.ts refuses a traversal
+  // for itself -- C29 (nomadwiz/kete#288). Escaped here, the id reaches the
+  // API and is answered 422; left to request(), it is refused before the
+  // network and reaches the error boundary instead, which is the worse answer
+  // for a write the person made. `here` is built from the same escaped id, and
+  // that is not request()'s business at all. Do not remove it as a duplicate.
   const id = encodeURIComponent(params.id ?? "");
   const here = PATHS.recipe.replace(":id", id);
 
@@ -676,7 +689,10 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
         // screen -- but a hand-edited hidden field of "../profile" would
         // otherwise aim the DELETE at another endpoint under the same bearer
         // token, and a malformed one would become a different address instead
-        // of the 422 this intent's row exists to answer.
+        // of the 422 this intent's row exists to answer -- which is still the
+        // reason it stays now that request() in src/api/http.ts refuses a
+        // traversal for itself, C29 (nomadwiz/kete#288). Do not remove it as a
+        // duplicate.
         await authed<void>(`/mealplan/week/${encodeURIComponent(week)}`, {
           method: "DELETE",
         });
