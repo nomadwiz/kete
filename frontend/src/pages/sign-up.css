@@ -31,54 +31,16 @@
     font-size: var(--text-sm);
   }
 
+  /* The rest of the form is in ../form-skeleton.css. This screen is the one of
+     the four whose block is not a grid with a minmax(0, --form-width) track, so
+     the width it does not inherit from a track it sets here. */
   .sign-up__form {
-    display: grid;
-    gap: var(--space-6);
-    margin-top: var(--space-8);
     max-width: var(--form-width);
-  }
-
-  /* One name, so one row — until there is not room for one. */
-  .sign-up__pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
-  }
-
-  .sign-up__field {
-    display: grid;
-    gap: var(--space-2);
-  }
-
-  .sign-up__label {
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
-  .sign-up__field input {
-    width: 100%;
   }
 
   .sign-up__hint {
     font-size: var(--text-xs);
     color: var(--ink-soft);
-  }
-
-  .sign-up__submit {
-    justify-self: start;
-    padding: 0.7em 1.4em;
-    border: 0;
-    background: var(--kowhai);
-    color: var(--ink);
-    font-weight: 600;
-    transition:
-      background-color 120ms ease,
-      color 120ms ease;
-  }
-
-  .sign-up__submit:hover {
-    background: var(--ink);
-    color: var(--paper);
   }
 
   .sign-up__alt {
@@ -89,12 +51,5 @@
 
   .sign-up__alt a {
     color: var(--ink);
-  }
-
-  @media (max-width: 34rem) {
-    .sign-up__pair {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-6);
-    }
   }
 }
