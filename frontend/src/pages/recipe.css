@@ -39,6 +39,18 @@
     text-decoration-thickness: 2px;
   }
 
+  /* account.css's confirmation panel, and the same reasoning about the left
+     rule being the only thing that distinguishes it from a refusal. */
+  .recipe__saved {
+    max-width: var(--measure);
+    margin-top: var(--space-6);
+    padding: var(--space-3) var(--space-4);
+    background: var(--muka);
+    border: 1px solid var(--straw);
+    border-left: 3px solid var(--kowhai);
+    font-size: var(--text-sm);
+  }
+
   .recipe__cuisine {
     margin-top: var(--space-2);
     font-size: var(--text-sm);

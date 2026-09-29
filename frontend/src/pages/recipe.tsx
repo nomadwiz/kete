@@ -13,7 +13,7 @@ import { PATHS, QUERY } from "../routes";
 // type is aliased at the import and neither declaration is renamed, which is
 // what targets.tsx does with `Targets as TargetFigures`.
 import type { RecipeDetail as Recipe } from "../types/recipe";
-import { useSubmitting } from "../use-submitting";
+import { useWrite } from "../use-write";
 import "./recipe.css";
 
 export default function RecipeDetail() {
@@ -49,7 +49,15 @@ export default function RecipeDetail() {
   // has to distinguish them reads the submitted intent off useNavigation's
   // formData rather than giving this hook a parameter -- the hook takes no
   // path or intent by design, and src/use-submitting.ts says why.
-  const saving = useSubmitting("POST");
+  //
+  // `succeeded` covers the save only in practice, although the hook is true
+  // for either write. A delete that works replaces the address with the
+  // library, so this component is unmounted before it could announce
+  // anything; and a save the API answers 404 for is thrown as a replace to
+  // this same address, whose loader then answers null and draws the not-found
+  // panel above -- which returns before the confirmation below is reached. So
+  // the sentence is rendered only where it is true.
+  const { busy: saving, succeeded } = useWrite("POST");
 
   // Dropping the key is the whole of closing the edit view, because the form is
   // drawn exactly while the key is there. Replacing rather than pushing:
@@ -168,6 +176,17 @@ export default function RecipeDetail() {
         </>
       ) : (
         <>
+          {/* The edit form is replaced by the read view, in place, with the
+              heading unchanged -- so to anyone not watching the page the save
+              is silent. C28 (nomadwiz/kete#285). In the read branch rather
+              than above the pair, because it is a claim about the record now
+              on screen and the edit form is not showing that record. */}
+          {succeeded ? (
+            <p className="recipe__saved" role="status">
+              Your changes are saved.
+            </p>
+          ) : null}
+
           {recipe.cuisine ? (
             <p className="recipe__cuisine">{recipe.cuisine}</p>
           ) : null}

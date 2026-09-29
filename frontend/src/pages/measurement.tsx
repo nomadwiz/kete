@@ -1,7 +1,7 @@
 import { Form, useActionData, useLoaderData } from "react-router";
 
 import type { Metrics } from "../types/measurement";
-import { useSubmitting } from "../use-submitting";
+import { useWrite } from "../use-write";
 import "../form-skeleton.css";
 import "./measurement.css";
 
@@ -16,7 +16,11 @@ export default function Measurement() {
   // change handler per field and a second copy of the form to keep in step.
   const saved = useLoaderData() as Metrics | null;
   const error = useActionData() as string | undefined;
-  const saving = useSubmitting("POST");
+  // No confirmation on this screen, for sign-in.tsx's reason: a save that
+  // works redirects to /targets and this component is unmounted before it
+  // could announce anything. The hook is here for the focus it puts back when
+  // the Save button re-enables after a refusal.
+  const { busy: saving } = useWrite("POST");
 
   return (
     <div className="measurement">
