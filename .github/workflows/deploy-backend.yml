@@ -98,8 +98,17 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl enable kete-api
             sudo systemctl restart kete-api
+            sudo cp deploy/kete-nginx.conf /etc/nginx/conf.d/kete.conf
+            sudo nginx -t
+            sudo systemctl enable nginx
+            sudo systemctl reload-or-restart nginx
             for i in $(seq 1 15); do
-              curl -fsS http://127.0.0.1:8000/health && exit 0
+              if curl -fsS http://127.0.0.1:8000/health; then
+                # The API is up; now prove the public path through nginx too.
+                curl -fsS http://127.0.0.1/health && exit 0
+                echo "API answers on :8000 but not through nginx on :80" >&2
+                exit 1
+              fi
               sleep 2
             done
             echo "API did not answer /health within 30s" >&2
