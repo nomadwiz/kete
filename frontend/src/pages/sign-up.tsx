@@ -1,6 +1,7 @@
 import { Form, Link, useActionData } from "react-router";
 
 import { PATHS } from "../routes";
+import "../form-skeleton.css";
 import "./sign-up.css";
 
 export default function SignUp() {

@@ -2,7 +2,10 @@
    measure: the shared page column and gutter, one minmax(0, ...) track so a
    field can shrink below an input's own twenty-character minimum, and no
    centring, because a block taller than the viewport centres itself off the
-   top of the page where nothing can scroll to it. */
+   top of the page where nothing can scroll to it.
+
+   The form itself is in ../form-skeleton.css, which this screen shares with
+   sign-in, sign-up and measurement. */
 .account {
   --form-width: 26rem;
   --title: clamp(var(--text-xl), 6vw, 2.75rem);
@@ -45,59 +48,6 @@
     border-left-color: var(--kowhai);
   }
 
-  .account__form {
-    display: grid;
-    gap: var(--space-6);
-    margin-top: var(--space-8);
-  }
-
-  .account__field {
-    display: grid;
-    gap: var(--space-2);
-  }
-
-  .account__label {
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
-  .account__field input {
-    width: 100%;
-  }
-
-  /* The two halves of a name, which are read as one line and so are drawn as
-     one. The username and the email take the full width because either can be
-     long enough to scroll inside half of it. */
-  .account__pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
-  }
-
-  .account__submit {
-    justify-self: start;
-    padding: 0.7em 1.4em;
-    border: 0;
-    background: var(--kowhai);
-    color: var(--ink);
-    font-weight: 600;
-    transition:
-      background-color 120ms ease,
-      color 120ms ease;
-  }
-
-  .account__submit:hover:not(:disabled) {
-    background: var(--ink);
-    color: var(--paper);
-  }
-
-  .account__submit:disabled {
-    background: var(--muka);
-    box-shadow: inset 0 0 0 1px var(--ink-soft);
-    color: var(--ink-soft);
-    cursor: default;
-  }
-
   .account__onward {
     margin-top: var(--space-8);
     padding-top: var(--space-6);
@@ -110,14 +60,5 @@
     font-weight: 600;
     color: var(--ink);
     text-decoration-thickness: 2px;
-  }
-
-  /* measurement.css and sign-up.css break at this width, so the three forms
-     go to one column together. */
-  @media (max-width: 34rem) {
-    .account__pair {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-6);
-    }
   }
 }

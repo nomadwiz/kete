@@ -3,6 +3,7 @@ import { Form, Link, useActionData, useLoaderData } from "react-router";
 import { PATHS } from "../routes";
 import type { Profile } from "../types/profile";
 import { useWrite } from "../use-write";
+import "../form-skeleton.css";
 import "./account.css";
 
 export default function Account() {
