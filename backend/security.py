@@ -17,7 +17,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-only-secret-replace-me-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET", "")
+
+# Refuse to start rather than fall back to a published default. A token is only
+# as trustworthy as the secret that signed it: with a value anyone can read in
+# this repository, a stranger can mint a token for any user_id and the API
+# believes it. A server that will not boot is a loud, five-minute problem; one
+# that boots signing with a known secret is a silent, permanent one.
+if not JWT_SECRET or JWT_SECRET.startswith("dev-only-secret"):
+    raise RuntimeError(
+        "JWT_SECRET is missing or still the placeholder. Put a random value in "
+        "backend/.env before starting the API:\n"
+        "    python -c \"import secrets; print(secrets.token_hex(32))\"\n"
+        "Use a different value on the server from the one on your laptop."
+    )
 JWT_ALGORITHM = "HS256"
 TOKEN_HOURS = 12
 

@@ -17,6 +17,7 @@ Run locally:   uvicorn main:app --reload
 Interactive docs: http://localhost:8000/docs
 """
 
+import os
 from datetime import datetime, timezone
 from typing import Callable, Literal, Optional
 
@@ -48,11 +49,24 @@ app = FastAPI(
 )
 
 # CORS: the React client is served from a different origin (S3) than this API
-# (EC2), so without this every browser call is blocked. Tighten the origin list
-# once the real S3 URL exists.
+# (EC2), so without this every browser call is blocked.
+#
+# The list is configuration, not code, because the origin differs between a
+# laptop and the deployed site. Set CORS_ORIGINS in .env, comma-separated.
+#
+# It is never "*". A wildcard alongside allow_credentials is rejected outright
+# by browsers, and were it honoured it would let any page on the internet call
+# this API carrying a signed-in user's token.
+_DEV_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", _DEV_ORIGINS).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # TODO: replace with the S3 site URL
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
