@@ -99,6 +99,18 @@ def _assert_409(outcome, detail):
     assert error.detail == detail
 
 
+def _assert_404(outcome, detail):
+    error = outcome.get("error")
+    assert isinstance(error, HTTPException), f"expected a 404, got {error!r}"
+    assert error.status_code == 404
+    assert error.detail == detail
+
+
+def _delete_recipe(db, recipe_id):
+    """Session A's half of B20's race: the recipe goes while B is inserting."""
+    db.delete(db.get(models.Recipe, recipe_id))
+
+
 # --------------------------------------------------------------------------
 # POST /register
 # --------------------------------------------------------------------------
@@ -222,6 +234,23 @@ def test_add_plan_slot_ordinary_duplicate_is_still_409(Session):
     assert caught.value.detail == "Mon breakfast is already filled"
 
 
+# B20 (nomadwiz/kete#264). The endpoint's own check sees the recipe, because
+# A's delete is not committed. Its insert then waits on A's lock on the recipe
+# row, and fails on plan_slots_recipe_id_fkey once A commits. Before the fix
+# that failure was a bare IntegrityError: a 500.
+def test_add_plan_slot_recipe_deleted_mid_request_is_404(engine, Session):
+    user_id, recipe_id = _seed_user_with_recipe(Session)
+
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _delete_recipe(a, recipe_id),
+        act=lambda b: main.add_plan_slot(main.PlanSlotIn(
+            recipe_id=recipe_id, week=WEEK, day_of_week="Mon",
+            meal_position="breakfast"), user_id=user_id, db=b))
+
+    _assert_404(outcome, "Recipe not found")
+
+
 # --------------------------------------------------------------------------
 # POST /mealplan/generate — pressing Generate week twice
 # --------------------------------------------------------------------------
@@ -253,6 +282,18 @@ def test_generate_week_twice_in_turn_refills_the_week(Session):
 
     assert again.created == 21
     assert stored == 21
+
+
+def test_generate_week_recipe_deleted_mid_request_is_404(engine, Session):
+    user_id, recipe_id = _seed_user_with_recipe(Session)
+
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _delete_recipe(a, recipe_id),
+        act=lambda b: main.generate_week(
+            main.GenerateIn(week=WEEK), user_id=user_id, db=b))
+
+    _assert_404(outcome, "Recipe not found")
 
 
 # --------------------------------------------------------------------------
@@ -295,4 +336,20 @@ def test_a_failure_that_is_not_a_clash_is_not_a_409(Session):
             main._commit_or_409(db, "taken")
 
         assert "ck_slot_meal" in str(caught.value)
+        assert db.execute(text("SELECT 1")).scalar() == 1
+
+
+def test_a_foreign_key_failure_on_another_column_is_not_a_404(Session):
+    """Only a missing recipe is a 404. A slot pointing at a missing user is a
+    bug — the user id comes from the token, never from the client — and must
+    still surface as one."""
+    _, recipe_id = _seed_user_with_recipe(Session)
+
+    with Session() as db:
+        db.add(models.PlanSlot(user_id=999999, recipe_id=recipe_id, week=WEEK,
+                               day_of_week="Mon", meal_position="breakfast"))
+        with pytest.raises(IntegrityError) as caught:
+            main._commit_slots(db, "taken")
+
+        assert "plan_slots_user_id_fkey" in str(caught.value)
         assert db.execute(text("SELECT 1")).scalar() == 1

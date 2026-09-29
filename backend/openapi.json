@@ -1086,6 +1086,16 @@
               }
             }
           },
+          "404": {
+            "description": "A recipe was deleted while the week was being generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "409": {
             "description": "The week changed while it was being generated",
             "content": {

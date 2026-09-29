@@ -348,6 +348,32 @@ def _commit_or_409(db: Session, detail: str | Callable[[str], str]) -> None:
             detail=detail(constraint) if callable(detail) else detail) from exc
 
 
+FOREIGN_KEY_VIOLATION = "23503"   # PostgreSQL's SQLSTATE for a missing referenced row
+# PostgreSQL's default name for plan_slots.recipe_id's foreign key: neither
+# models.py nor schema.sql names it. test_conflicts.py races it, so a rename
+# that is not made here too fails there.
+SLOT_RECIPE_FK = "plan_slots_recipe_id_fkey"
+
+
+def _commit_slots(db: Session, clash_detail: str) -> None:
+    """Commit new plan slots: a clash is a 409, a recipe gone is a 404.
+
+    Both slot endpoints check the recipe exists, then insert slots pointing at
+    it. A delete in another tab can land between the two, and the insert then
+    fails on the foreign key. That is the recipe-not-found the check already
+    answers, arriving late, so it gets the same 404 rather than a 500. Any
+    other foreign-key or check failure is still a bug, and still raised.
+    """
+    try:
+        _commit_or_409(db, clash_detail)     # rolls back before re-raising
+    except IntegrityError as exc:
+        if (getattr(exc.orig, "pgcode", None) == FOREIGN_KEY_VIOLATION
+                and exc.orig.diag.constraint_name == SLOT_RECIPE_FK):
+            raise HTTPException(status_code=404,
+                                detail="Recipe not found") from exc
+        raise
+
+
 def _taken(constraint: str) -> str:
     """The pre-check's wording, from users_username_key or users_email_key.
 
@@ -756,7 +782,7 @@ def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id),
                            week=body.week, day_of_week=body.day_of_week,
                            meal_position=body.meal_position)
     db.add(slot)
-    _commit_or_409(db, filled)   # uq_plan_slot, if another request got there first
+    _commit_slots(db, filled)    # uq_plan_slot, if another request got there first
     db.refresh(slot)
     return PlanSlotCreatedOut(slot_id=slot.slot_id)
 
@@ -781,6 +807,8 @@ def remove_plan_slot(slot_id: int, user_id: int = Depends(current_user_id),
           responses={**AUTH,
                      **_err(400, "The recipe library is empty. Add at least "
                                  "one recipe before generating a week."),
+                     **_err(404, "A recipe was deleted while the week was "
+                                 "being generated"),
                      **_err(409, "The week changed while it was being "
                                  "generated")})
 def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
@@ -813,7 +841,7 @@ def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
 
     # Pressing Generate week twice runs two of these at once: both clear the
     # week, both deal 21 slots, and uq_plan_slot refuses the second.
-    _commit_or_409(db, "That week changed while it was being generated — try again")
+    _commit_slots(db, "That week changed while it was being generated — try again")
     return GenerateOut(created=created)
 
 
