@@ -738,7 +738,27 @@ async function measurementsAction({ request: req }: ActionFunctionArgs) {
         body: JSON.stringify(metrics),
       });
     } catch (error) {
-      if (error instanceof ApiError) {
+      // 422 and nothing else. POST /profile/metrics declares 401, 404 and
+      // 422: the 401 never arrives here, because authed turns it into
+      // SessionExpired and withSession redirects, and backend/openapi.json
+      // calls the 422 "Validation Error" -- answered by typing a different
+      // figure, so the message goes back to the form the person is still
+      // standing in with what they typed.
+      //
+      // The 404 is not answered by typing anything. On this route the
+      // contract calls it "The account behind the token no longer exists", so
+      // it goes to the error boundary, which is the surface for a failure
+      // there is no form left to return to. A catch that took every ApiError
+      // printed that sentence above the Save button as an inline validation
+      // message, as though retyping a weight might fix it, and nothing the
+      // person did on that screen could ever succeed.
+      //
+      // The test is what the contract says the status means on this route,
+      // not the number: the same 404 on GET /profile/metrics means "No
+      // measurements saved yet", which is why metricsLoader answers null for
+      // it and this does not. That asymmetry is the contract's and must not
+      // be ironed out.
+      if (error instanceof ApiError && error.status === 422) {
         return error.message;
       }
 
