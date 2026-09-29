@@ -3,7 +3,7 @@ import { Form, Link, useActionData, useLoaderData } from "react-router";
 import { datesOf, isoWeek, shiftWeek } from "../api/week";
 import { PATHS, QUERY } from "../routes";
 import type { DayOfWeek, MealPosition, PlanWeek } from "../types/plan";
-import { useSubmitting } from "../use-submitting";
+import { useWrite } from "../use-write";
 import "./planner.css";
 
 // A table, not a grid of divs, and the trade is worth stating because the
@@ -69,7 +69,13 @@ export default function Planner() {
   // This is the screen that puts the week in the query string, so comparing
   // the whole formAction against PATHS.planner would be false for every
   // submission this page ever makes. src/use-submitting.ts says why.
-  const busy = useSubmitting("POST");
+  //
+  // `succeeded` is one flag for all four intents, and the sentence below is
+  // written so that one flag is enough. Telling them apart would mean
+  // recording the submitted intent, because useNavigation's formData is gone
+  // by the time the grid has redrawn -- and there is nothing to tell apart
+  // that the count does not already say.
+  const { busy, succeeded } = useWrite("POST");
 
   // One pass over the answer rather than a scan of it in each of twenty-one
   // cells. The key pairs the two axes because neither identifies a position on
@@ -158,6 +164,23 @@ export default function Planner() {
       {error ? (
         <p className="planner__error" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {/* Twenty-one cells can change at once here and the table's aria-busy
+          says nothing about it: aria-busy is a state, not a live region, so a
+          filled or cleared week was silent. C28 (nomadwiz/kete#285).
+
+          The count rather than the verb, which is what makes one sentence
+          serve an Add, a Remove, a fill and a clear alike. It is read off the
+          week the loader has just revalidated, so it is what is on the screen
+          rather than what the action was asked to do, and the total is
+          computed from the two lists above rather than typed as 21 -- a meal
+          added to MEALS would otherwise make this sentence quietly wrong. */}
+      {succeeded ? (
+        <p className="planner__saved" role="status">
+          Your week is updated: {slots.length} of {DAYS.length * MEALS.length}{" "}
+          positions planned.
         </p>
       ) : null}
 

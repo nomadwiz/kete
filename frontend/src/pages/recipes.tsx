@@ -10,7 +10,7 @@ import {
 import RecipeForm from "../components/recipe-form";
 import { PATHS, QUERY } from "../routes";
 import type { RecipeSummary } from "../types/recipe";
-import { useSubmitting } from "../use-submitting";
+import { useWrite } from "../use-write";
 import "./recipes.css";
 
 export default function Recipes() {
@@ -35,7 +35,14 @@ export default function Recipes() {
   // sets formAction just as a POST does -- so a check on either half alone
   // puts the modal into a saving state that nothing is saving.
   // src/use-submitting.ts says why.
-  const saving = useSubmitting("POST");
+  //
+  // `succeeded` is the second half, and this screen cannot work it out for
+  // itself: recipesAction answers a save that worked with replace(), so
+  // useActionData is undefined by the time the list redraws and there is
+  // nothing here to read. src/use-write.ts remembers across that redirect --
+  // the address changes but this route element does not unmount, so the hook
+  // keeps its state.
+  const { busy: saving, succeeded } = useWrite("POST");
 
   // The address that opens the modal, built in the component body rather than
   // at module scope: routes.tsx imports this page through the pages barrel and
@@ -108,6 +115,18 @@ export default function Recipes() {
         Everything you have written down. Each one carries the figures for a
         single serving, which is what your week is compared against.
       </p>
+
+      {/* The new row in the list is the confirmation a sighted person gets,
+          and until C28 (nomadwiz/kete#285) it was the only one -- the modal
+          closes, a card appears somewhere in a grid, and nothing is announced.
+          Written here rather than posted to a region in AppLayout, for the
+          reason src/use-write.ts records, and worded as account.tsx words its
+          own because that screen is the one this copies. */}
+      {succeeded ? (
+        <p className="recipes__saved" role="status">
+          Your recipe is saved. It is in the list below.
+        </p>
+      ) : null}
 
       <div className="recipes__bar">
         {/* A GET Form, so searching is a navigation and the loader answers it.

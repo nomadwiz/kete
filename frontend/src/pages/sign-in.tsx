@@ -1,14 +1,19 @@
 import { Form, Link, useActionData, useSearchParams } from "react-router";
 
 import { PATHS, QUERY } from "../routes";
-import { useSubmitting } from "../use-submitting";
+import { useWrite } from "../use-write";
 import "./sign-in.css";
 
 export default function SignIn() {
   const error = useActionData() as string | undefined;
   const [params] = useSearchParams();
   const created = params.has(QUERY.account_created);
-  const signingIn = useSubmitting("POST");
+  // Nothing is announced here on success, because success is a redirect to
+  // the dashboard and this screen is gone before it could say anything. What
+  // this call is for is the other half of C28 (nomadwiz/kete#285): the button
+  // below disables itself mid-submission, and on a refusal it comes back with
+  // focus on <body> unless something puts it back. src/use-write.ts does.
+  const { busy: signingIn } = useWrite("POST");
 
   return (
     <div className="sign-in">

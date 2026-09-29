@@ -1,0 +1,14 @@
+/* The ring for a focus this application moved rather than the person moved.
+
+   index.css draws its outline on :focus-visible, and a browser withholds that
+   from a programmatic focus landing on a container -- so without this rule the
+   place src/use-write.ts puts focus after a write is real, is where the next
+   Tab starts from, and is invisible to anyone watching the screen.
+
+   The selector is the attribute that file sets and nothing else in this client
+   sets, so this styles that case and no other. It is deliberately :focus and
+   not :focus-visible, which is the whole point. */
+[tabindex="-1"]:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

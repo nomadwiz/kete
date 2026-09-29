@@ -74,12 +74,22 @@
   /* The error box the form screens share: --muka with a 3px --ink edge. This
      one carries the server's own sentence, most often that the position was
      filled by something else first. */
-  .planner__error {
+  .planner__error,
+  .planner__saved {
     margin-top: var(--space-6);
     padding: var(--space-3) var(--space-4);
     background: var(--muka);
     border-left: 3px solid var(--ink);
     font-size: var(--text-sm);
+  }
+
+  /* account.css's pairing, for the same reason it gives: the refusal and the
+     confirmation are one panel in one place and only the left rule tells them
+     apart, so what is read is the sentence rather than the colour -- which is
+     the half a screen reader gets and the half that survives the monochrome
+     printout in the report. */
+  .planner__saved {
+    border-left-color: var(--kowhai);
   }
 
   .planner__empty {
