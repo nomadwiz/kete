@@ -167,10 +167,20 @@ describe("the recipe detail page", () => {
 
     expect(router.state.location.search).toBe("");
     expect(router.state.historyAction).toBe("REPLACE");
-    expect(screen.queryByLabelText("Name")).toBeNull();
+    // The read view is awaited before the form's absence is asserted, rather
+    // than after it. Both orders assert the same switch; only this one cannot
+    // race it. Cancel is a navigation, so react-router runs the loader again
+    // and React commits the swapped branch a render after the router's own
+    // state changes -- the two assertions above already pass at that point. A
+    // synchronous queryBy ahead of the wait reads the DOM inside that gap and
+    // finds the form still mounted, which it did in roughly one run in four
+    // once C28 (#285) put another render on this path. Nothing about the page
+    // was wrong: the test was asserting how quickly the switch happened rather
+    // than that it happened.
     expect(
       await screen.findByRole("heading", { name: "Nutrition per serving" }),
     ).toBeVisible();
+    expect(screen.queryByLabelText("Name")).toBeNull();
 
     // Nothing was written. A Cancel that submitted would look identical on
     // screen, because the loader answers the same record either way. The
