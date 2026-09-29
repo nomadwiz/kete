@@ -16,4 +16,7 @@ export default defineConfig({
     // the timestamp assertion would pass in Auckland and fail everywhere else.
     env: { VITE_API_BASE_URL: "http://api.test", TZ: "Pacific/Auckland" },
   },
+  server: {
+    port: 7377,
+  },
 });

@@ -57,7 +57,7 @@ app = FastAPI(
 # It is never "*". A wildcard alongside allow_credentials is rejected outright
 # by browsers, and were it honoured it would let any page on the internet call
 # this API carrying a signed-in user's token.
-_DEV_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+_DEV_ORIGINS = "http://localhost:7377,http://127.0.0.1:7377"
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("CORS_ORIGINS", _DEV_ORIGINS).split(",")

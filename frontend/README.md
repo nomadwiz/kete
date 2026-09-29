@@ -28,7 +28,7 @@ The `.env` step is not optional. `VITE_API_BASE_URL` is the only address the cli
 
 **Vite inlines every `VITE_`-prefixed variable into the browser bundle**, where anyone who opens the page can read it. Put the API's address there. Never put a secret there.
 
-The dev server listens on **5173** and the API on **8000**, so development is already cross-origin — which is why the API enables CORS from the outset rather than as a deployment afterthought. Start the API first; [`../backend/README.md`](../backend/README.md) has the commands.
+The dev server listens on **7377** and the API on **8000**, so development is already cross-origin — which is why the API enables CORS from the outset rather than as a deployment afterthought. Start the API first; [`../backend/README.md`](../backend/README.md) has the commands.
 
 ## Serving the build
 
@@ -190,7 +190,7 @@ The enum spellings the API validates, the endpoint list and the authentication s
 
 | Script                   | What it does                                                                     |
 | ------------------------ | -------------------------------------------------------------------------------- |
-| `npm run dev`            | Regenerates the types, then the Vite dev server on 5173, with hot reload         |
+| `npm run dev`            | Regenerates the types, then the Vite dev server on 7377, with hot reload         |
 | `npm run generate:types` | Rewrites `src/types/api.ts` from `../backend/openapi.json`                       |
 | `npm run build`          | Regenerates the types, type-checks, then writes the deployable bundle to `dist/` |
 | `npm run preview`        | Serves `dist/` — use it to test deep links against a real build                  |
