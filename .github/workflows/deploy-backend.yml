@@ -59,24 +59,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Load the SSH key and the pinned host key
+      # Secrets reach the shell as environment variables, never pasted into the
+      # script text. The host and user are stripped of whitespace: a value pasted
+      # into GitHub's secret form easily keeps a trailing newline, which ssh
+      # rejects as "hostname contains invalid characters".
+      - name: Load the SSH key, the pinned host key and the host alias
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_ec2
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/id_ec2
           chmod 600 ~/.ssh/id_ec2
-          echo "${{ secrets.EC2_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          host=$(printf '%s' "$EC2_HOST" | tr -d '[:space:]')
+          user=$(printf '%s' "$EC2_USER" | tr -d '[:space:]')
+          printf 'Host kete\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_ec2\n  IdentitiesOnly yes\n' \
+            "$host" "$user" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Copy the backend to the instance
         run: |
           rsync -az --delete \
             --exclude '.env' --exclude '.env.*' --exclude '.venv/' \
             --exclude '__pycache__/' --exclude '.pytest_cache/' --exclude 'tests/' \
-            -e "ssh -i ~/.ssh/id_ec2" \
-            backend/ "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/kete/backend/"
+            backend/ kete:kete/backend/
 
       - name: Install dependencies, restart, and check it came back
         run: |
-          ssh -i ~/.ssh/id_ec2 "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" '
+          ssh kete '
             set -e
             cd ~/kete/backend
             [ -d .venv ] || python3.12 -m venv .venv
