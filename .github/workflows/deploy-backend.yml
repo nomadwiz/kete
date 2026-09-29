@@ -1,0 +1,95 @@
+# Deploys the backend to the EC2 instance on every push to main that touches
+# backend/. Tests run first; a failing test stops the deploy.
+#
+# The runner copies the tested commit to the instance over SSH, so the instance
+# holds no GitHub credentials and never pulls anything itself. The instance's
+# backend/.env (secrets) and .venv are excluded from the copy and never
+# overwritten.
+#
+# Repository secrets this needs (Settings -> Secrets and variables -> Actions):
+#   EC2_HOST         public DNS name or IP of the instance
+#   EC2_USER         login user, "ec2-user" on Amazon Linux 2023
+#   EC2_SSH_KEY      the full private key (.pem) for that user
+#   EC2_KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <EC2_HOST>`, run once,
+#                    so the runner refuses to talk to an impostor host
+
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  # A pull request runs the tests only, so a change is known to pass under the
+  # server's Python before it merges. Only a push to main deploys.
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two merges in quick succession deploy one after the other, never interleaved.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # the python3.12 the instance runs the API with
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r backend/requirements-dev.txt
+      - run: pytest -q
+        working-directory: backend
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load the SSH key and the pinned host key
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_ec2
+          chmod 600 ~/.ssh/id_ec2
+          echo "${{ secrets.EC2_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Copy the backend to the instance
+        run: |
+          rsync -az --delete \
+            --exclude '.env' --exclude '.env.*' --exclude '.venv/' \
+            --exclude '__pycache__/' --exclude '.pytest_cache/' --exclude 'tests/' \
+            -e "ssh -i ~/.ssh/id_ec2" \
+            backend/ "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/kete/backend/"
+
+      - name: Install dependencies, restart, and check it came back
+        run: |
+          ssh -i ~/.ssh/id_ec2 "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" '
+            set -e
+            cd ~/kete/backend
+            [ -d .venv ] || python3.12 -m venv .venv
+            .venv/bin/pip install --quiet -r requirements.txt
+            sudo cp deploy/kete-api.service /etc/systemd/system/kete-api.service
+            sudo systemctl daemon-reload
+            sudo systemctl enable kete-api
+            sudo systemctl restart kete-api
+            for i in $(seq 1 15); do
+              curl -fsS http://127.0.0.1:8000/health && exit 0
+              sleep 2
+            done
+            echo "API did not answer /health within 30s" >&2
+            sudo journalctl -u kete-api -n 50 --no-pager >&2
+            exit 1
+          '
