@@ -284,6 +284,12 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
 // aiming this read at another endpoint under the same bearer token. The test is the raw segment
 // and not Number(): "3.5", " 3", "0x10" and "1e3" all survive Number() and
 // none of them is a recipe id.
+//
+// This guard stays now that request() in src/api/http.ts refuses a traversal
+// for itself -- C29 (nomadwiz/kete#288). The two answer different questions:
+// this one refuses the id before a request is built at all, so no round trip
+// happens and the not-found panel draws, where the one in request() refuses an
+// address that has already been assembled. Do not remove it as a duplicate.
 function recipeLoader({
   params,
 }: LoaderFunctionArgs): Promise<RecipeDetail | null> {
@@ -333,6 +339,13 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
   // redirection. Nothing on the screen can submit such an id, because
   // recipeLoader draws the not-found panel for one and there is no form to
   // submit -- this is the hand-edited address, not the reachable case.
+  //
+  // The escape stays now that request() in src/api/http.ts refuses a traversal
+  // for itself -- C29 (nomadwiz/kete#288). Escaped here, the id reaches the
+  // API and is answered 422; left to request(), it is refused before the
+  // network and reaches the error boundary instead, which is the worse answer
+  // for a write the person made. `here` is built from the same escaped id, and
+  // that is not request()'s business at all. Do not remove it as a duplicate.
   const id = encodeURIComponent(params.id ?? "");
   const here = PATHS.recipe.replace(":id", id);
 
@@ -676,7 +689,10 @@ async function plannerAction({ request: req }: ActionFunctionArgs) {
         // screen -- but a hand-edited hidden field of "../profile" would
         // otherwise aim the DELETE at another endpoint under the same bearer
         // token, and a malformed one would become a different address instead
-        // of the 422 this intent's row exists to answer.
+        // of the 422 this intent's row exists to answer -- which is still the
+        // reason it stays now that request() in src/api/http.ts refuses a
+        // traversal for itself, C29 (nomadwiz/kete#288). Do not remove it as a
+        // duplicate.
         await authed<void>(`/mealplan/week/${encodeURIComponent(week)}`, {
           method: "DELETE",
         });
@@ -738,7 +754,27 @@ async function measurementsAction({ request: req }: ActionFunctionArgs) {
         body: JSON.stringify(metrics),
       });
     } catch (error) {
-      if (error instanceof ApiError) {
+      // 422 and nothing else. POST /profile/metrics declares 401, 404 and
+      // 422: the 401 never arrives here, because authed turns it into
+      // SessionExpired and withSession redirects, and backend/openapi.json
+      // calls the 422 "Validation Error" -- answered by typing a different
+      // figure, so the message goes back to the form the person is still
+      // standing in with what they typed.
+      //
+      // The 404 is not answered by typing anything. On this route the
+      // contract calls it "The account behind the token no longer exists", so
+      // it goes to the error boundary, which is the surface for a failure
+      // there is no form left to return to. A catch that took every ApiError
+      // printed that sentence above the Save button as an inline validation
+      // message, as though retyping a weight might fix it, and nothing the
+      // person did on that screen could ever succeed.
+      //
+      // The test is what the contract says the status means on this route,
+      // not the number: the same 404 on GET /profile/metrics means "No
+      // measurements saved yet", which is why metricsLoader answers null for
+      // it and this does not. That asymmetry is the contract's and must not
+      // be ironed out.
+      if (error instanceof ApiError && error.status === 422) {
         return error.message;
       }
 
