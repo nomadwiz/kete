@@ -26,16 +26,40 @@ afterEach(() => {
 
 // The first two of the three behaviours C22 (nomadwiz/kete#236) names. The
 // third is "a sign-in the API rejects", below.
+// Every address behind the guard, not a sample of one. The guard is a loader
+// on the layout route, so a screen reaches it only by being mounted inside
+// that layout -- and a screen mounted as a sibling of it instead, beside
+// /sign-out, would load and render for a signed-out visitor while a test of
+// /dashboard alone went on passing. Naming each address is what catches that,
+// and the list is short enough to be worth the repetition.
+const PROTECTED = [
+  "/dashboard",
+  "/measurements",
+  "/targets",
+  "/recipes",
+  "/recipes/1",
+  "/planner",
+  "/account",
+];
+
 describe("the guard on the signed-in layout", () => {
-  it("turns a signed-out visitor away from the dashboard without calling the API", async () => {
-    const { calls } = stubFetch({});
-    const { router } = renderAt("/dashboard");
+  // The absence of the request is the assertion C2 (nomadwiz/kete#167) names,
+  // and it is the stronger half. A guard that let the loader run and then
+  // redirected on the 401 would land on /sign-in too and pass a check of the
+  // address alone -- while having sent the API a request with no credential,
+  // which is the thing the guard exists to make impossible.
+  it.each(PROTECTED)(
+    "turns a signed-out visitor away from %s without calling the API",
+    async (path) => {
+      const { calls } = stubFetch({});
+      const { router } = renderAt(path);
 
-    await screen.findByRole("heading", { name: "Sign in" });
+      await screen.findByRole("heading", { name: "Sign in" });
 
-    expect(router.state.location.pathname).toBe("/sign-in");
-    expect(calls).toEqual([]);
-  });
+      expect(router.state.location.pathname).toBe("/sign-in");
+      expect(calls).toEqual([]);
+    },
+  );
 });
 
 describe("signing out", () => {
@@ -139,6 +163,50 @@ describe("a sign-in the API rejects", () => {
     );
     expect(router.state.location.pathname).toBe("/sign-in");
     expect(window.localStorage.getItem("kete.token")).toBeNull();
+  });
+});
+
+// The third of C22's behaviours on a write. The dashboard's "signs the user
+// out on a 401" test covers a loader, where nothing competes for the error;
+// an action is where the rule is breakable, because several of them catch
+// ApiError to put a refusal above the form the person is standing in.
+//
+// What keeps a 401 out of those catches is that authed() does not rethrow it
+// as an ApiError at all -- it disposes the token and throws SessionExpired,
+// which no `error instanceof ApiError` clause can match. That is a design
+// choice stated in a comment above withSession and asserted nowhere, so an
+// action rewritten to read `error.status` off a caught ApiError would print
+// "Your session has ended" above a Save button, leave the user on /account
+// holding a token that has already been thrown away, and break no test.
+describe("a write refused with a 401", () => {
+  it("disposes the credential and lands the user on sign in, rather than answering the form", async () => {
+    signedIn();
+    stubFetch({
+      "/profile": async (init?: RequestInit) =>
+        init?.method === "PUT"
+          ? jsonResponse(401, { detail: "Expired" })
+          : jsonResponse(200, {
+              first_name: "Aroha",
+              last_name: "Tane",
+              username: "aroha",
+              email: "aroha@example.com",
+            }),
+    });
+
+    const { router } = renderAt("/account");
+
+    const user = userEvent.setup();
+    const username = await screen.findByLabelText("Username");
+
+    await user.clear(username);
+    await user.type(username, "renamed");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await screen.findByRole("heading", { name: "Sign in" });
+
+    expect(window.localStorage.getItem("kete.token")).toBeNull();
+    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 
