@@ -2,6 +2,7 @@ import { Form, useActionData, useLoaderData } from "react-router";
 
 import type { Metrics } from "../types/measurement";
 import { useSubmitting } from "../use-submitting";
+import "../form-skeleton.css";
 import "./measurement.css";
 
 export default function Measurement() {

@@ -1,0 +1,141 @@
+/* The form skeleton four screens share: sign-in, sign-up, measurement and
+   account. It was written out four times before it was written here once, and
+   that was deliberate -- the vault's code rules say to extract on the third
+   repetition, not the second, so the second copy was correct to leave alone and
+   this file is what the third and fourth ones cost. C27 (nomadwiz/kete#280).
+
+   HOW A BLOCK OPTS IN, AND WHY IT IS NOT A SHARED BLOCK NAME. Every rule below
+   lists one `.block .block__part` pair per screen that wants it. A new form
+   screen adds its own pair to the rules it wants and leaves itself out of the
+   ones it does not -- sign-in appears in every rule except `__pair` and the
+   breakpoint, because it has no paired fields. The obvious alternative was a
+   shared block, `.form__field` and the rest, mixed into each screen's markup.
+   It was not taken, for two reasons. The blocks are named for their page on
+   purpose: the class on an element says which screen it belongs to, which is
+   what makes that screen's own overrides findable from the element and not
+   only from the file. And a shared block name is a markup change across four
+   screens to buy a shorter selector list in one file, which is the wrong side
+   of that trade. So the cost of this decision is real and is paid here: the
+   selector lists are long, and they grow by one line per screen. That is the
+   price of the block names, not an oversight, and shortening them back to four
+   per-page copies is the thing this file exists to undo.
+
+   WHY EACH SELECTOR CARRIES ITS BLOCK AS AN ANCESTOR. `.sign-up .sign-up__form`
+   rather than the bare `.sign-up__form` it could be, because each of these
+   rules was nested inside its block before it moved here, and a nested rule
+   resolves to exactly that descendant selector. Keeping the ancestor keeps the
+   specificity at 0,2,0, which is what the per-page rules had -- and nothing
+   here can be checked in a test, because jsdom applies no CSS at all. A page
+   that needs to override one of these rules still wins on source order: every
+   screen imports this file before its own.
+
+   WHY components/recipe-form.css IS NOT IN HERE, AND MUST NOT BE FOLDED IN. It
+   carries the same shape and it breaks at the same 34rem, but it asks a
+   container query rather than a media query, because it is drawn inside a modal
+   that does not know the viewport's width. On a wide screen a 26rem modal
+   reports 90rem to a media query and keeps its eight nutrition controls two-up,
+   squeezed -- which is the exact case the breakpoint exists for. Folding it in
+   here would swap its container query for this file's media query and undo that
+   silently, with nothing failing. */
+
+.sign-in .sign-in__form,
+.sign-up .sign-up__form,
+.measurement .measurement__form,
+.account .account__form {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-8);
+}
+
+/* Two fields read as one line, so they are drawn as one: sign-up's first and
+   last name, account's two halves of the same name, and measurement's weight
+   with height and age with sex -- where the equation reads the first pair as
+   body size and the second as its two remaining terms, so the shape of the form
+   says which figure does what. Anything that can be long on its own, such as
+   account's username and email, takes the full width instead and is not a pair.
+   sign-in is absent because it pairs nothing. */
+.sign-up .sign-up__pair,
+.measurement .measurement__pair,
+.account .account__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.sign-in .sign-in__field,
+.sign-up .sign-up__field,
+.measurement .measurement__field,
+.account .account__field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sign-in .sign-in__label,
+.sign-up .sign-up__label,
+.measurement .measurement__label,
+.account .account__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.sign-in .sign-in__field input,
+.sign-up .sign-up__field input,
+.measurement .measurement__field input,
+.account .account__field input {
+  width: 100%;
+}
+
+.sign-in .sign-in__submit,
+.sign-up .sign-up__submit,
+.measurement .measurement__submit,
+.account .account__submit {
+  justify-self: start;
+  padding: 0.7em 1.4em;
+  border: 0;
+  background: var(--kowhai);
+  color: var(--ink);
+  font-weight: 600;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.sign-in .sign-in__submit:hover:not(:disabled),
+.sign-up .sign-up__submit:hover:not(:disabled),
+.measurement .measurement__submit:hover:not(:disabled),
+.account .account__submit:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* The pending treatment, for the three screens whose submit can be disabled --
+   sign-in makes two requests before it can say where the visitor goes,
+   measurement writes two tables and then loads a second screen, and account
+   writes one and stays put. sign-up's button is never disabled today and this
+   rule is inert there, but it is listed anyway: it had a plain `:hover` where
+   the other three had `:hover:not(:disabled)`, and leaving it out would mean
+   keeping that fourth near-copy for a difference nothing observes. No hue
+   carries the state: the palette has none spare, and the label already says
+   what is happening. The rule is an inset shadow rather than a border because
+   the button has none, and gaining one would shift its text by a pixel. */
+.sign-in .sign-in__submit:disabled,
+.sign-up .sign-up__submit:disabled,
+.measurement .measurement__submit:disabled,
+.account .account__submit:disabled {
+  background: var(--muka);
+  box-shadow: inset 0 0 0 1px var(--ink-soft);
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+/* One row, until there is not room for one. The three screens that pair fields
+   break together at the same width, so a phone gets the same single column on
+   all of them rather than three different answers to the same question. */
+@media (max-width: 34rem) {
+  .sign-up .sign-up__pair,
+  .measurement .measurement__pair,
+  .account .account__pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+}

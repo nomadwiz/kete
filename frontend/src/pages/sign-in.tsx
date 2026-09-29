@@ -2,6 +2,7 @@ import { Form, Link, useActionData, useSearchParams } from "react-router";
 
 import { PATHS, QUERY } from "../routes";
 import { useSubmitting } from "../use-submitting";
+import "../form-skeleton.css";
 import "./sign-in.css";
 
 export default function SignIn() {

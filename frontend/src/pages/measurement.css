@@ -5,7 +5,10 @@
    about twenty characters and an auto track cannot shrink below it. What this
    screen does not take is align-content: center with a min-height: the form is
    twice sign-in's height, and a centred block taller than its box overflows
-   upward, off the top of the page, where nothing can scroll to it. */
+   upward, off the top of the page, where nothing can scroll to it.
+
+   The form itself is in ../form-skeleton.css, which this screen shares with
+   sign-in, sign-up and account. */
 .measurement {
   --form-width: 26rem;
   --title: clamp(var(--text-xl), 6vw, 2.75rem);
@@ -39,73 +42,11 @@
     font-size: var(--text-sm);
   }
 
-  .measurement__form {
-    display: grid;
-    gap: var(--space-6);
-    margin-top: var(--space-8);
-  }
-
-  /* Weight with height, age with sex. The equation reads the first pair as body
-     size and the second as its two remaining terms, and activity level stands
-     alone below them because it multiplies the result rather than entering the
-     equation. So the shape of the form says which figure does what, and nothing
-     but the pairing is spent saying it. */
-  .measurement__pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
-  }
-
-  .measurement__field {
-    display: grid;
-    gap: var(--space-2);
-  }
-
-  .measurement__label {
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
   /* A select is sized by its widest option unless it is told otherwise, so the
-     two of them would set their own widths and break the pairing. */
-  .measurement__field input,
+     two of them would set their own widths and break the pairing. This is the
+     only screen of the four with a select, so the rule stays here rather than
+     joining its input counterpart in ../form-skeleton.css. */
   .measurement__field select {
     width: 100%;
-  }
-
-  .measurement__submit {
-    justify-self: start;
-    padding: 0.7em 1.4em;
-    border: 0;
-    background: var(--kowhai);
-    color: var(--ink);
-    font-weight: 600;
-    transition:
-      background-color 120ms ease,
-      color 120ms ease;
-  }
-
-  .measurement__submit:hover:not(:disabled) {
-    background: var(--ink);
-    color: var(--paper);
-  }
-
-  /* Sign-in's pending treatment, and sign-in.css records why the rule is an
-     inset shadow rather than a border. Saving writes two tables and then loads
-     a second screen, so the wait is worth saying. */
-  .measurement__submit:disabled {
-    background: var(--muka);
-    box-shadow: inset 0 0 0 1px var(--ink-soft);
-    color: var(--ink-soft);
-    cursor: default;
-  }
-
-  /* One figure, so one column -- until there is not room for two. The width is
-     sign-up.css's, so the two forms break at the same place. */
-  @media (max-width: 34rem) {
-    .measurement__pair {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-6);
-    }
   }
 }
