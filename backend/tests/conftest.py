@@ -9,8 +9,14 @@ uses. Unset, the whole suite is skipped.
 """
 
 import os
+import secrets
 import sys
 from pathlib import Path
+
+# security.py refuses to import without a real JWT_SECRET, and the tests import
+# main, which imports it. Give the suite a throwaway secret of its own so it
+# does not depend on whatever happens to be in the developer's .env.
+os.environ.setdefault("JWT_SECRET", secrets.token_hex(32))
 
 import pytest
 from sqlalchemy import create_engine, make_url, text
