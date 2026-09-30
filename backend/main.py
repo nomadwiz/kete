@@ -278,6 +278,48 @@ class GenerateOut(BaseModel):
     created: int
 
 
+class NutrientComparison(BaseModel):
+    """One nutrient on one day, against the stored daily target.
+
+    These four descriptions travel into openapi.json, for the reason the
+    declared error responses below give: a fact a client has to know is part
+    of the contract, and a comment here is not. The sign of `difference` and
+    the length of `days` were both comments until a cross-lane review pointed
+    out that C18's grid was being built on them.
+    """
+    total: int = Field(
+        description="The day's planned total for this nutrient: the sum of "
+                    "its slots' per-serving figures, exactly as "
+                    "GET /mealplan reports them.")
+    target: int = Field(
+        description="The stored daily target for this nutrient.")
+    difference: int = Field(
+        description="total minus target. Negative is under target, positive "
+                    "is over.")
+    percent: int = Field(
+        description="total as a whole-number percentage of target, rounded "
+                    "half up, so 46.5 becomes 47. A stored target is never "
+                    "zero, so this is always a whole number.")
+
+
+class DaySummary(BaseModel):
+    day_of_week: Day
+    energy_kcal: NutrientComparison
+    protein_g: NutrientComparison
+    carbs_g: NutrientComparison
+    fat_g: NutrientComparison
+
+
+class WeekSummaryOut(BaseModel):
+    week: str
+    days: list[DaySummary] = Field(
+        min_length=7, max_length=7,
+        description="Always seven entries, Mon to Sun, in that order. A day "
+                    "with nothing planned is present with zero totals, the "
+                    "full negative difference and 0 percent: an empty day is "
+                    "a result, not a missing one.")
+
+
 class ErrorDetail(BaseModel):
     """The shape of every error this application raises.
 
@@ -442,7 +484,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 
 
 # ==========================================================================
-# 3-6  Profile, metrics and targets  (protected)
+# 3-7  Profile, metrics and targets  (protected)
 # ==========================================================================
 @app.get("/profile", response_model=ProfileOut, tags=["profile"],
          responses={**AUTH, **NO_ACCOUNT})
@@ -573,6 +615,15 @@ def get_targets(user_id: int = Depends(current_user_id),
     Note this reads `nutrition_targets` only. It never touches `profiles`, so
     the sensitive body metrics are not re-read every time a screen loads.
     """
+    return _stored_targets(db, user_id)
+
+
+def _stored_targets(db: Session, user_id: int) -> TargetsOut:
+    """The user's targets as whole numbers, or 404 if none are saved yet.
+
+    Shared by GET /targets and GET /mealplan/summary, so the two can never
+    disagree about the figures or about what "no targets" means.
+    """
     target = db.query(models.NutritionTarget).filter_by(user_id=user_id).first()
     if target is None:
         raise HTTPException(
@@ -586,7 +637,7 @@ def get_targets(user_id: int = Depends(current_user_id),
 
 
 # ==========================================================================
-# 7-12  Recipes  (protected)
+# 8-13  Recipes  (protected)
 # ==========================================================================
 def _owned_recipe(db: Session, recipe_id: int, user_id: int) -> models.Recipe:
     """Fetch a recipe, but only if it belongs to the signed-in user.
@@ -736,10 +787,11 @@ def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
 
 
 # ==========================================================================
-# 13-17  Weekly meal plan  (protected)
+# 14-19  Weekly meal plan  (protected)
 # ==========================================================================
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MEALS = ["breakfast", "lunch", "dinner"]
+NUTRIENTS = ["energy_kcal", "protein_g", "carbs_g", "fat_g"]
 
 
 def _slot_out(s: models.PlanSlot) -> PlanSlotOut:
@@ -759,17 +811,75 @@ def get_mealplan(week: str = Query(pattern=WEEK_PATTERN,
                                    description=WEEK_DESCRIPTION),
                  user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)):
-    """The week's plan, each slot with its recipe and its per-serving nutrition.
+    """The week's plan, each slot with its recipe and its per-serving nutrition."""
+    return [_slot_out(s) for s in _week_slots(db, user_id, week)]
+
+
+def _week_slots(db: Session, user_id: int, week: str) -> list[models.PlanSlot]:
+    """One user's slots for one week, recipes included.
 
     joinedload fetches the recipes in the same statement, so a full week costs
     one query rather than one more per distinct recipe.
     """
-    slots = (db.query(models.PlanSlot)
-               .filter_by(user_id=user_id, week=week)
-               .options(joinedload(models.PlanSlot.recipe))
-               .order_by(models.PlanSlot.slot_id)
-               .all())
-    return [_slot_out(s) for s in slots]
+    return (db.query(models.PlanSlot)
+              .filter_by(user_id=user_id, week=week)
+              .options(joinedload(models.PlanSlot.recipe))
+              .order_by(models.PlanSlot.slot_id)
+              .all())
+
+
+def _percent(total: int, target: int) -> int:
+    """total as a whole-number percentage of target, rounded half up.
+
+    Integer arithmetic, so 0.5 always rounds up (Python's round() would take
+    it to the even neighbour) and no float error creeps in.
+
+    target is never zero, and it takes two facts rather than one. ck_target_*
+    in models.py refuse a stored target that is not > 0, but the columns are
+    Numeric(7, 2) and Numeric(6, 2), so 0.50 would satisfy that and
+    _stored_targets would then int() it to 0. What closes the gap is that
+    compute_targets is the only writer of nutrition_targets anywhere in this
+    file, and it only ever writes whole numbers. A seed script or a hand-edit
+    in psql could still store 0.50; tightening the constraints to >= 1 is what
+    would close it at the database, where ADR 001 chose to close it.
+    """
+    return (total * 200 + target) // (target * 2)
+
+
+@app.get("/mealplan/summary", response_model=WeekSummaryOut, tags=["mealplan"],
+         responses={**AUTH,
+                    **_err(404, "No targets yet, so there is nothing to "
+                                "compare against. Save body metrics first.")})
+def get_mealplan_summary(week: str = Query(pattern=WEEK_PATTERN,
+                                           description=WEEK_DESCRIPTION),
+                         user_id: int = Depends(current_user_id),
+                         db: Session = Depends(get_db)):
+    """Each day's planned totals against the daily targets (FR-16).
+
+    Seven entries, Mon to Sun. A day with nothing planned is still returned,
+    with zero totals: an empty day is a result, not a missing one. Each day's
+    total is the sum of its slots' per-serving figures exactly as GET /mealplan
+    shows them, so the grid and these totals always add up. The design is ADR
+    001 in nomadwiz/kete-doc.
+    """
+    targets = _stored_targets(db, user_id)   # 404 before any slot is read
+
+    totals = {day: dict.fromkeys(NUTRIENTS, 0) for day in DAYS}
+    for slot in _week_slots(db, user_id, week):
+        shown = _slot_out(slot).recipe
+        for n in NUTRIENTS:
+            totals[slot.day_of_week][n] += getattr(shown, n)
+
+    def compare(total: int, target: int) -> NutrientComparison:
+        return NutrientComparison(total=total, target=target,
+                                  difference=total - target,
+                                  percent=_percent(total, target))
+
+    return WeekSummaryOut(week=week, days=[
+        DaySummary(day_of_week=day,
+                   **{n: compare(totals[day][n], getattr(targets, n))
+                      for n in NUTRIENTS})
+        for day in DAYS])
 
 
 @app.post("/mealplan", response_model=PlanSlotCreatedOut, status_code=201,
