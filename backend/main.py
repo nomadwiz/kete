@@ -348,6 +348,42 @@ def _commit_or_409(db: Session, detail: str | Callable[[str], str]) -> None:
             detail=detail(constraint) if callable(detail) else detail) from exc
 
 
+FOREIGN_KEY_VIOLATION = "23503"   # PostgreSQL's SQLSTATE for a missing referenced row
+# PostgreSQL's default name for plan_slots.recipe_id's foreign key: neither
+# models.py nor schema.sql names it. test_conflicts.py races it, so a rename
+# that is not made here too fails there.
+SLOT_RECIPE_FK = "plan_slots_recipe_id_fkey"
+
+
+def _commit_slots(db: Session, clash_detail: str,
+                  missing_detail: str = "Recipe not found",
+                  missing_status: int = 404) -> None:
+    """Commit new plan slots: a clash is a 409, a recipe gone is its caller's.
+
+    Both slot endpoints read their recipes, then insert slots pointing at
+    them. A delete in another tab can land between the two, and the insert then
+    fails on the foreign key. That is a missing recipe arriving late, so it is
+    answered deliberately rather than as a 500. Any other foreign-key or check
+    failure is still a bug, and still raised.
+
+    The answer belongs to the call site, because the two endpoints were asked
+    different questions. POST /mealplan was handed a recipe_id: it is gone and
+    a retry fails the same way, so it is the 404 "Recipe not found" that
+    _owned_recipe gives. POST /mealplan/generate was handed a week and re-reads
+    the whole library on every request, so a retry succeeds: the library
+    changed under it, which is the 409 "try again" it already gives for a week
+    that changed.
+    """
+    try:
+        _commit_or_409(db, clash_detail)     # rolls back before re-raising
+    except IntegrityError as exc:
+        if (getattr(exc.orig, "pgcode", None) == FOREIGN_KEY_VIOLATION
+                and (exc.orig.diag.constraint_name or "") == SLOT_RECIPE_FK):
+            raise HTTPException(status_code=missing_status,
+                                detail=missing_detail) from exc
+        raise
+
+
 def _taken(constraint: str) -> str:
     """The pre-check's wording, from users_username_key or users_email_key.
 
@@ -756,7 +792,7 @@ def add_plan_slot(body: PlanSlotIn, user_id: int = Depends(current_user_id),
                            week=body.week, day_of_week=body.day_of_week,
                            meal_position=body.meal_position)
     db.add(slot)
-    _commit_or_409(db, filled)   # uq_plan_slot, if another request got there first
+    _commit_slots(db, filled)    # uq_plan_slot, if another request got there first
     db.refresh(slot)
     return PlanSlotCreatedOut(slot_id=slot.slot_id)
 
@@ -781,8 +817,8 @@ def remove_plan_slot(slot_id: int, user_id: int = Depends(current_user_id),
           responses={**AUTH,
                      **_err(400, "The recipe library is empty. Add at least "
                                  "one recipe before generating a week."),
-                     **_err(409, "The week changed while it was being "
-                                 "generated")})
+                     **_err(409, "The week or the recipe library changed "
+                                 "while it was being generated")})
 def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     """Fill a whole week from the user's recipe library.
@@ -812,8 +848,13 @@ def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
             created += 1
 
     # Pressing Generate week twice runs two of these at once: both clear the
-    # week, both deal 21 slots, and uq_plan_slot refuses the second.
-    _commit_or_409(db, "That week changed while it was being generated — try again")
+    # week, both deal 21 slots, and uq_plan_slot refuses the second. A recipe
+    # deleted mid-deal is the same kind of race, and a retry succeeds too.
+    _commit_slots(
+        db,
+        "That week changed while it was being generated — try again",
+        "A recipe was deleted while the week was being generated — try again",
+        missing_status=409)
     return GenerateOut(created=created)
 
 

@@ -1087,7 +1087,7 @@
             }
           },
           "409": {
-            "description": "The week changed while it was being generated",
+            "description": "The week or the recipe library changed while it was being generated",
             "content": {
               "application/json": {
                 "schema": {
