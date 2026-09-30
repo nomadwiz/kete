@@ -354,6 +354,66 @@ def test_generate_week_recipe_deleted_mid_request_keeps_the_planned_week(
     assert sorted(s.meal_position for s in survived) == sorted(main.MEALS)
     assert {s.recipe_id for s in survived} == {keeper_id}
 
+
+# --------------------------------------------------------------------------
+# POST /profile/metrics — two first saves (B18, nomadwiz/kete#262)
+# --------------------------------------------------------------------------
+# Not a 409. Saving your own measurements is an upsert, so the second of two
+# overlapping first saves is simply the later save: it answers 200 and its
+# figures are the ones kept.
+def _metrics(weight_kg):
+    return main.MetricsIn(weight_kg=weight_kg, height_cm=175, age=30,
+                          sex="male", activity_level="moderate")
+
+
+def _first_save(db, user_id, weight_kg):
+    """Session A's half of B18's race: another first save, not yet committed."""
+    body = _metrics(weight_kg)
+    db.add(models.Profile(user_id=user_id, **body.model_dump()))
+    db.add(models.NutritionTarget(
+        user_id=user_id, **main.compute_targets(**body.model_dump())))
+
+
+def _stored_metrics(Session, user_id):
+    with Session() as db:
+        profiles = db.query(models.Profile).filter_by(user_id=user_id).all()
+        targets = db.query(models.NutritionTarget).filter_by(user_id=user_id).all()
+        return ([float(p.weight_kg) for p in profiles],
+                [int(t.energy_kcal) for t in targets])
+
+
+def test_save_metrics_race_on_a_first_save_is_200(engine, Session):
+    with Session() as db:
+        user_id = _user(db, "new", "new@example.com").user_id
+        db.commit()
+    second = main.compute_targets(**_metrics(90).model_dump())
+
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _first_save(a, user_id, 70),
+        act=lambda b: main.save_metrics(_metrics(90), user_id=user_id, db=b))
+
+    assert "error" not in outcome, f"expected 200, got {outcome['error']!r}"
+    assert outcome["value"].energy_kcal == second["energy_kcal"]
+    # Exactly one row in each table, holding the second request's figures.
+    assert _stored_metrics(Session, user_id) == ([90.0], [second["energy_kcal"]])
+
+
+def test_save_metrics_twice_in_turn_keeps_one_row_of_each(Session):
+    with Session() as db:
+        user_id = _user(db, "new", "new@example.com").user_id
+        db.commit()
+
+    with Session() as db:
+        main.save_metrics(_metrics(70), user_id=user_id, db=db)
+    with Session() as db:
+        again = main.save_metrics(_metrics(90), user_id=user_id, db=db)
+
+    second = main.compute_targets(**_metrics(90).model_dump())
+    assert again.energy_kcal == second["energy_kcal"]
+    assert _stored_metrics(Session, user_id) == ([90.0], [second["energy_kcal"]])
+
+
 # --------------------------------------------------------------------------
 # _commit_or_409 and _commit_slots — the promises no endpoint test observes
 # --------------------------------------------------------------------------
