@@ -2,7 +2,8 @@
 Races that a check cannot win: B15 (nomadwiz/kete#157) and B20 (#264).
 
 B15 is the clash: a 409 even when two requests race. B20 is the recipe that
-disappears between the check and the insert: a 404 rather than a 500. Both have
+disappears between the check and the insert: a deliberate code rather than a
+500. Both have
 the same shape, which is why they share a file -- an endpoint checks, then
 writes, and the database is what refuses the write.
 
@@ -20,9 +21,10 @@ rather than hoping for it:
 
 Before either fix, B raised the bare IntegrityError that reaches the client as
 a 500. For B15 the endpoint must answer 409, in the same words as its own
-check. For B20 it must answer the 404 the check would have given, and
-POST /mealplan/generate says what happened rather than naming a recipe the
-caller never chose.
+check. For B20, POST /mealplan must answer the 404 its check would have given.
+POST /mealplan/generate answers 409 instead, because it re-reads the library
+on every request and a retry succeeds, and it says what happened rather than
+naming a recipe the caller never chose.
 """
 
 import threading
@@ -292,7 +294,7 @@ def test_generate_week_twice_in_turn_refills_the_week(Session):
     assert stored == 21
 
 
-def test_generate_week_recipe_deleted_mid_request_is_404(engine, Session):
+def test_generate_week_recipe_deleted_mid_request_is_409(engine, Session):
     user_id, recipe_id = _seed_user_with_recipe(Session)
 
     outcome = _race(
@@ -301,14 +303,14 @@ def test_generate_week_recipe_deleted_mid_request_is_404(engine, Session):
         act=lambda b: main.generate_week(
             main.GenerateIn(week=WEEK), user_id=user_id, db=b))
 
-    _assert_404(outcome,
+    _assert_409(outcome,
                 "A recipe was deleted while the week was being generated — "
                 "try again")
 
 
 def test_generate_week_recipe_deleted_mid_request_keeps_the_planned_week(
         engine, Session):
-    """The 404 undoes the clear as well as the inserts, so the week survives.
+    """The 409 undoes the clear as well as the inserts, so the week survives.
 
     generate_week empties the week before it refills it, and both happen in one
     transaction. If the clear were ever to commit separately from the inserts,
@@ -342,7 +344,7 @@ def test_generate_week_recipe_deleted_mid_request_keeps_the_planned_week(
         act=lambda b: main.generate_week(
             main.GenerateIn(week=WEEK), user_id=user_id, db=b))
 
-    _assert_404(outcome,
+    _assert_409(outcome,
                 "A recipe was deleted while the week was being generated — "
                 "try again")
 

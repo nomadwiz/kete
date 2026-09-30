@@ -356,28 +356,30 @@ SLOT_RECIPE_FK = "plan_slots_recipe_id_fkey"
 
 
 def _commit_slots(db: Session, clash_detail: str,
-                  missing_detail: str = "Recipe not found") -> None:
-    """Commit new plan slots: a clash is a 409, a recipe gone is a 404.
+                  missing_detail: str = "Recipe not found",
+                  missing_status: int = 404) -> None:
+    """Commit new plan slots: a clash is a 409, a recipe gone is its caller's.
 
-    Both slot endpoints check the recipe exists, then insert slots pointing at
-    it. A delete in another tab can land between the two, and the insert then
-    fails on the foreign key. That is the recipe-not-found the check already
-    answers, arriving late, so it gets the same 404 rather than a 500. Any
-    other foreign-key or check failure is still a bug, and still raised.
+    Both slot endpoints read their recipes, then insert slots pointing at
+    them. A delete in another tab can land between the two, and the insert then
+    fails on the foreign key. That is a missing recipe arriving late, so it is
+    answered deliberately rather than as a 500. Any other foreign-key or check
+    failure is still a bug, and still raised.
 
-    missing_detail belongs to the call site, because the two endpoints were
-    asked different questions. POST /mealplan was handed a recipe_id, so
-    "Recipe not found" answers it in the same words as _owned_recipe.
-    POST /mealplan/generate was handed a week and dealt from the whole
-    library, so naming a recipe the caller never chose explains nothing to
-    them; it says what happened instead.
+    The answer belongs to the call site, because the two endpoints were asked
+    different questions. POST /mealplan was handed a recipe_id: it is gone and
+    a retry fails the same way, so it is the 404 "Recipe not found" that
+    _owned_recipe gives. POST /mealplan/generate was handed a week and re-reads
+    the whole library on every request, so a retry succeeds: the library
+    changed under it, which is the 409 "try again" it already gives for a week
+    that changed.
     """
     try:
         _commit_or_409(db, clash_detail)     # rolls back before re-raising
     except IntegrityError as exc:
         if (getattr(exc.orig, "pgcode", None) == FOREIGN_KEY_VIOLATION
                 and (exc.orig.diag.constraint_name or "") == SLOT_RECIPE_FK):
-            raise HTTPException(status_code=404,
+            raise HTTPException(status_code=missing_status,
                                 detail=missing_detail) from exc
         raise
 
@@ -815,10 +817,8 @@ def remove_plan_slot(slot_id: int, user_id: int = Depends(current_user_id),
           responses={**AUTH,
                      **_err(400, "The recipe library is empty. Add at least "
                                  "one recipe before generating a week."),
-                     **_err(404, "A recipe was deleted while the week was "
-                                 "being generated"),
-                     **_err(409, "The week changed while it was being "
-                                 "generated")})
+                     **_err(409, "The week or the recipe library changed "
+                                 "while it was being generated")})
 def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
     """Fill a whole week from the user's recipe library.
@@ -848,11 +848,13 @@ def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
             created += 1
 
     # Pressing Generate week twice runs two of these at once: both clear the
-    # week, both deal 21 slots, and uq_plan_slot refuses the second.
+    # week, both deal 21 slots, and uq_plan_slot refuses the second. A recipe
+    # deleted mid-deal is the same kind of race, and a retry succeeds too.
     _commit_slots(
         db,
         "That week changed while it was being generated — try again",
-        "A recipe was deleted while the week was being generated — try again")
+        "A recipe was deleted while the week was being generated — try again",
+        missing_status=409)
     return GenerateOut(created=created)
 
 
