@@ -1,10 +1,11 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // defineConfig comes from vitest/config rather than vite, which is the same
 // function widened to accept the `test` block below. The build is unaffected.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],

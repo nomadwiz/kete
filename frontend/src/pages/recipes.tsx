@@ -225,8 +225,14 @@ export default function Recipes() {
                     {recipe.name}
                   </Link>
                 </h2>
+                {/* Cuisine and energy take their own lines rather than being
+                    joined with a middle dot. A meta string built as "A · B" is
+                    template chrome that turns up whatever the subject, and it
+                    also truncates badly when a cuisine name is long. */}
+                {recipe.cuisine ? (
+                  <p className="recipes__meta">{recipe.cuisine}</p>
+                ) : null}
                 <p className="recipes__meta">
-                  {recipe.cuisine ? `${recipe.cuisine} · ` : ""}
                   {recipe.energy_kcal.toLocaleString("en-NZ")} kcal a serving
                 </p>
               </div>

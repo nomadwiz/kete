@@ -1,104 +1,96 @@
 import { Form, Link, useActionData } from "react-router";
 
+import { Button } from "../components/ui/button";
+import { Field, FieldPair } from "../components/ui/field";
+import { Notice } from "../components/ui/notice";
+import { Screen } from "../components/ui/screen";
 import { PATHS } from "../routes";
-import "../form-skeleton.css";
-import "./sign-up.css";
 
 export default function SignUp() {
   const error = useActionData() as string | undefined;
 
   return (
-    <div className="sign-up">
-      <h1 className="sign-up__title">Create an account</h1>
-      <p className="sign-up__lede">
-        Then sign in and record your measurements. Kete works out your daily
-        targets from them.
-      </p>
+    <Screen
+      title="Create an account"
+      lede="Then sign in and record your measurements. Kete works out your daily targets from them."
+    >
+      <div className="grid max-w-(--form-width) gap-6">
+        {error ? (
+          <Notice tone="refusal" role="alert">
+            {error}
+          </Notice>
+        ) : null}
 
-      {error ? (
-        <p className="sign-up__error" role="alert">
-          {error}
+        <Form className="grid gap-6" method="post">
+          <FieldPair>
+            <Field htmlFor="first-name" label="First name">
+              <input
+                id="first-name"
+                name="first_name"
+                autoComplete="given-name"
+                required
+              />
+            </Field>
+
+            <Field htmlFor="last-name" label="Last name">
+              <input
+                id="last-name"
+                name="last_name"
+                autoComplete="family-name"
+                required
+              />
+            </Field>
+          </FieldPair>
+
+          <Field htmlFor="username" label="Username">
+            <input
+              id="username"
+              name="username"
+              autoComplete="username"
+              required
+            />
+          </Field>
+
+          <Field htmlFor="email" label="Email">
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+            />
+          </Field>
+
+          <Field htmlFor="password" label="Password">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              aria-describedby="password-hint"
+            />
+            <p className="text-xs text-muted-foreground" id="password-hint">
+              At least 8 characters.
+            </p>
+          </Field>
+
+          {/* No `disabled` here, and that is deliberate rather than an omission:
+              this screen does not call useWrite, so there is no busy state to
+              reflect. ADR 005's list omits it for the same reason. */}
+          <Button className="justify-self-start" variant="accent" type="submit">
+            Create an account
+          </Button>
+        </Form>
+
+        <p className="border-t border-rule pt-4 text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link className="text-ink underline" to={PATHS.sign_in}>
+            Sign in
+          </Link>
         </p>
-      ) : null}
-
-      <Form className="sign-up__form" method="post">
-        <div className="sign-up__pair">
-          <div className="sign-up__field">
-            <label className="sign-up__label" htmlFor="first-name">
-              First name
-            </label>
-            <input
-              id="first-name"
-              name="first_name"
-              autoComplete="given-name"
-              required
-            />
-          </div>
-
-          <div className="sign-up__field">
-            <label className="sign-up__label" htmlFor="last-name">
-              Last name
-            </label>
-            <input
-              id="last-name"
-              name="last_name"
-              autoComplete="family-name"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="sign-up__field">
-          <label className="sign-up__label" htmlFor="username">
-            Username
-          </label>
-          <input
-            id="username"
-            name="username"
-            autoComplete="username"
-            required
-          />
-        </div>
-
-        <div className="sign-up__field">
-          <label className="sign-up__label" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-          />
-        </div>
-
-        <div className="sign-up__field">
-          <label className="sign-up__label" htmlFor="password">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            minLength={8}
-            required
-            aria-describedby="password-hint"
-          />
-          <p className="sign-up__hint" id="password-hint">
-            At least 8 characters.
-          </p>
-        </div>
-
-        <button className="sign-up__submit" type="submit">
-          Create an account
-        </button>
-      </Form>
-
-      <p className="sign-up__alt">
-        Already have an account? <Link to={PATHS.sign_in}>Sign in</Link>
-      </p>
-    </div>
+      </div>
+    </Screen>
   );
 }

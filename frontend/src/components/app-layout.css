@@ -1,0 +1,97 @@
+/* The signed-in shell. Its sibling public-layout.css does the same job for the
+   signed-out screens and stays lighter, because a visitor has no areas to move
+   between and no frame to sit inside yet. */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: var(--column);
+  margin-inline: auto;
+
+  /* The warp. Two hairlines at the column's edges, so the seven screens inside
+     are bounded rather than centred in empty space. On a phone they land on the
+     viewport edges and read as the page's own margin. */
+  border-inline: 1px solid var(--color-rule);
+
+  .app-shell__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: var(--space-4) var(--space-6);
+    padding-inline: var(--gutter);
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .app-shell__brand {
+    display: flex;
+    align-items: center;
+    padding-block: var(--space-4);
+    margin-right: auto;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    font-stretch: var(--stretch-brand);
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+
+  .app-shell__nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    height: 100%;
+    column-gap: var(--space-5);
+    font-size: var(--text-sm);
+  }
+
+  .app-shell__nav li {
+    display: flex;
+  }
+
+  /* The bar under the current screen is a segment of the header's own rule,
+     recoloured -- not a pill, not a tint behind the label. margin-bottom pulls
+     the link's 2px edge over the header's 1px one so the two occupy the same
+     line rather than stacking into a 3px step. */
+  .app-shell__link {
+    display: flex;
+    align-items: center;
+    padding-block: var(--space-4);
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    text-decoration: none;
+    color: var(--color-muted-foreground);
+    transition: color 150ms ease;
+  }
+
+  .app-shell__link:hover {
+    color: var(--color-foreground);
+  }
+
+  .app-shell__link[aria-current="page"] {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-foreground);
+    font-weight: 600;
+  }
+
+  .app-shell__bar form {
+    display: flex;
+    align-items: center;
+  }
+
+  .app-shell__main {
+    flex: 1;
+  }
+}
+
+/* Below the column there is no room for the brand, six areas and sign out on
+   one line. The nav takes its own row and the rule under it still reads as the
+   header's edge, because the row is inside the header. */
+@media (max-width: 60rem) {
+  .app-shell .app-shell__nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .app-shell .app-shell__link {
+    padding-block: var(--space-3);
+  }
+}

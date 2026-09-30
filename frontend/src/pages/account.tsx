@@ -1,10 +1,12 @@
 import { Form, Link, useActionData, useLoaderData } from "react-router";
 
+import { Button } from "../components/ui/button";
+import { Field, FieldPair } from "../components/ui/field";
+import { Notice } from "../components/ui/notice";
+import { Screen } from "../components/ui/screen";
 import { PATHS } from "../routes";
 import type { Profile } from "../types/profile";
 import { useWrite } from "../use-write";
-import "../form-skeleton.css";
-import "./account.css";
 
 export default function Account() {
   // The saved account details. The four controls take them as defaultValue
@@ -34,110 +36,104 @@ export default function Account() {
   const { busy: saving, succeeded } = useWrite("POST");
 
   return (
-    <div className="account">
-      <h1 className="account__title">Your account</h1>
+    <Screen
+      title="Your account"
+      lede="Your name, the username you sign in with, and the address Kete writes to. Change any of them and save."
+    >
+      <div className="grid max-w-(--form-width) gap-6">
+        {error ? (
+          <Notice tone="refusal" role="alert">
+            {error}
+          </Notice>
+        ) : null}
 
-      <p className="account__lede">
-        Your name, the username you sign in with, and the address Kete writes
-        to. Change any of them and save.
-      </p>
+        {/* The confirmation stays put while the person goes on editing, so it
+            can sit above changes that are not saved yet. Clearing it would mean
+            a change handler and a piece of state on a screen that deliberately
+            holds none -- and the fields it sits above are the ones that were
+            just saved, so what it says stays true of them. */}
+        {succeeded ? (
+          <Notice tone="progress" role="status">
+            Your details are saved.
+          </Notice>
+        ) : null}
 
-      {error ? (
-        <p className="account__error" role="alert">
-          {error}
-        </p>
-      ) : null}
+        {/* All four fields are posted whether or not they changed. PUT /profile
+            replaces the account rather than patching it, so a form that sent
+            only what changed would blank the rest. */}
+        <Form className="grid gap-6" method="post" aria-busy={saving}>
+          <FieldPair>
+            <Field htmlFor="first-name" label="First name">
+              <input
+                id="first-name"
+                name="first_name"
+                autoComplete="given-name"
+                defaultValue={saved.first_name}
+                required
+              />
+            </Field>
 
-      {/* The confirmation stays put while the person goes on editing, so it
-          can sit above changes that are not saved yet. Clearing it would mean
-          a change handler and a piece of state on a screen that deliberately
-          holds none -- and the fields it sits above are the ones that were
-          just saved, so what it says stays true of them. */}
-      {succeeded ? (
-        <p className="account__saved" role="status">
-          Your details are saved.
-        </p>
-      ) : null}
+            <Field htmlFor="last-name" label="Last name">
+              <input
+                id="last-name"
+                name="last_name"
+                autoComplete="family-name"
+                defaultValue={saved.last_name}
+                required
+              />
+            </Field>
+          </FieldPair>
 
-      {/* All four fields are posted whether or not they changed. PUT /profile
-          replaces the account rather than patching it, so a form that sent
-          only what changed would blank the rest. */}
-      <Form className="account__form" method="post" aria-busy={saving}>
-        <div className="account__pair">
-          <div className="account__field">
-            <label className="account__label" htmlFor="first-name">
-              First name
-            </label>
+          <Field htmlFor="username" label="Username">
             <input
-              id="first-name"
-              name="first_name"
-              autoComplete="given-name"
-              defaultValue={saved.first_name}
+              id="username"
+              name="username"
+              autoComplete="username"
+              defaultValue={saved.username}
               required
             />
-          </div>
+          </Field>
 
-          <div className="account__field">
-            <label className="account__label" htmlFor="last-name">
-              Last name
-            </label>
+          <Field htmlFor="email" label="Email">
+            {/* type="email" against the format the schema puts on this field,
+                so the browser refuses an address the server would answer 422
+                for. Change one side of that pair and the other is now wrong. */}
             <input
-              id="last-name"
-              name="last_name"
-              autoComplete="family-name"
-              defaultValue={saved.last_name}
+              id="email"
+              name="email"
+              autoComplete="email"
+              type="email"
+              defaultValue={saved.email}
               required
             />
-          </div>
-        </div>
+          </Field>
 
-        <div className="account__field">
-          <label className="account__label" htmlFor="username">
-            Username
-          </label>
-          <input
-            id="username"
-            name="username"
-            autoComplete="username"
-            defaultValue={saved.username}
-            required
-          />
-        </div>
+          <Button
+            className="justify-self-start"
+            variant="accent"
+            type="submit"
+            disabled={saving}
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </Form>
 
-        <div className="account__field">
-          <label className="account__label" htmlFor="email">
-            Email
-          </label>
-          {/* type="email" against the format the schema puts on this field,
-              so the browser refuses an address the server would answer 422
-              for. Change one side of that pair and the other is now wrong. */}
-          <input
-            id="email"
-            name="email"
-            autoComplete="email"
-            type="email"
-            defaultValue={saved.email}
-            required
-          />
-        </div>
-
-        <button className="account__submit" type="submit" disabled={saving}>
-          {saving ? "Saving…" : "Save changes"}
-        </button>
-      </Form>
-
-      {/* The issue's second clause. The measurements are a separate form
-          because they are a separate endpoint -- GET /profile answers these
-          four fields and nothing about the body -- so this screen points at
-          it rather than drawing it. The link is written here in the component
-          body: the page reaches PATHS through a circular import and it is
-          still undefined while this module evaluates. */}
-      <p className="account__onward">
-        Your body measurements are kept apart from these details.{" "}
-        <Link className="account__link" to={PATHS.measurements}>
-          Change your measurements
-        </Link>
-      </p>
-    </div>
+        {/* The measurements are a separate form because they are a separate
+            endpoint -- GET /profile answers these four fields and nothing about
+            the body -- so this screen points at it rather than drawing it. The
+            link is written in the component body: the page reaches PATHS through
+            a circular import and it is still undefined while this module
+            evaluates. */}
+        <p className="border-t border-rule pt-4 text-sm text-muted-foreground">
+          Your body measurements are kept apart from these details.{" "}
+          <Link
+            className="text-ink underline decoration-accent decoration-2 underline-offset-4"
+            to={PATHS.measurements}
+          >
+            Change your measurements
+          </Link>
+        </p>
+      </div>
+    </Screen>
   );
 }

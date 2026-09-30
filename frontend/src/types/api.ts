@@ -203,9 +203,6 @@ export interface paths {
         /**
          * Get Mealplan
          * @description The week's plan, each slot with its recipe and its per-serving nutrition.
-         *
-         *     joinedload fetches the recipes in the same statement, so a full week costs
-         *     one query rather than one more per distinct recipe.
          */
         get: operations["get_mealplan_mealplan_get"];
         put?: never;
@@ -214,6 +211,32 @@ export interface paths {
          * @description Put one recipe in one day-and-meal slot.
          */
         post: operations["add_plan_slot_mealplan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mealplan/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Mealplan Summary
+         * @description Each day's planned totals against the daily targets (FR-16).
+         *
+         *     Seven entries, Mon to Sun. A day with nothing planned is still returned,
+         *     with zero totals: an empty day is a result, not a missing one. Each day's
+         *     total is the sum of its slots' per-serving figures exactly as GET /mealplan
+         *     shows them, so the grid and these totals always add up. The design is ADR
+         *     001 in nomadwiz/kete-doc.
+         */
+        get: operations["get_mealplan_summary_mealplan_summary_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -317,6 +340,18 @@ export interface components {
             /** File */
             file: string;
         };
+        /** DaySummary */
+        DaySummary: {
+            /**
+             * Day Of Week
+             * @enum {string}
+             */
+            day_of_week: "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
+            energy_kcal: components["schemas"]["NutrientComparison"];
+            protein_g: components["schemas"]["NutrientComparison"];
+            carbs_g: components["schemas"]["NutrientComparison"];
+            fat_g: components["schemas"]["NutrientComparison"];
+        };
         /**
          * ErrorDetail
          * @description The shape of every error this application raises.
@@ -407,6 +442,38 @@ export interface components {
              * @enum {string}
              */
             activity_level: "sedentary" | "light" | "moderate" | "active" | "very_active";
+        };
+        /**
+         * NutrientComparison
+         * @description One nutrient on one day, against the stored daily target.
+         *
+         *     These four descriptions travel into openapi.json, for the reason the
+         *     declared error responses below give: a fact a client has to know is part
+         *     of the contract, and a comment here is not. The sign of `difference` and
+         *     the length of `days` were both comments until a cross-lane review pointed
+         *     out that C18's grid was being built on them.
+         */
+        NutrientComparison: {
+            /**
+             * Total
+             * @description The day's planned total for this nutrient: the sum of its slots' per-serving figures, exactly as GET /mealplan reports them.
+             */
+            total: number;
+            /**
+             * Target
+             * @description The stored daily target for this nutrient.
+             */
+            target: number;
+            /**
+             * Difference
+             * @description total minus target. Negative is under target, positive is over.
+             */
+            difference: number;
+            /**
+             * Percent
+             * @description total as a whole-number percentage of target, rounded half up, so 46.5 becomes 47. A stored target is never zero, so this is always a whole number.
+             */
+            percent: number;
         };
         /** PhotoOut */
         PhotoOut: {
@@ -607,6 +674,16 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WeekSummaryOut */
+        WeekSummaryOut: {
+            /** Week */
+            week: string;
+            /**
+             * Days
+             * @description Always seven entries, Mon to Sun, in that order. A day with nothing planned is present with zero totals, the full negative difference and 0 percent: an empty day is a result, not a missing one.
+             */
+            days: components["schemas"]["DaySummary"][];
         };
     };
     responses: never;
@@ -1356,6 +1433,56 @@ export interface operations {
             };
         };
     };
+    get_mealplan_summary_mealplan_summary_get: {
+        parameters: {
+            query: {
+                /** @description ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December. */
+                week: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeekSummaryOut"];
+                };
+            };
+            /** @description Bearer token missing, malformed or expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No targets yet, so there is nothing to compare against. Save body metrics first. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     remove_plan_slot_mealplan__slot_id__delete: {
         parameters: {
             query?: never;
@@ -1443,7 +1570,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description The week changed while it was being generated */
+            /** @description The week or the recipe library changed while it was being generated */
             409: {
                 headers: {
                     [name: string]: unknown;

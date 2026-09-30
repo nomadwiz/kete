@@ -7,6 +7,11 @@ import {
 } from "react-router";
 
 import RecipeForm from "../components/recipe-form";
+import { Button } from "../components/ui/button";
+import { buttonVariants } from "../components/ui/button-variants";
+import { Figures } from "../components/ui/figures";
+import { Notice } from "../components/ui/notice";
+import { Screen } from "../components/ui/screen";
 import { PATHS, QUERY } from "../routes";
 // The component this file default-exports is also called RecipeDetail, and the
 // clash is real rather than cosmetic: this is the first file to need both. The
@@ -77,20 +82,24 @@ export default function RecipeDetail() {
 
   if (!recipe) {
     return (
-      <div className="recipe">
-        <h1 className="recipe__title">No such recipe</h1>
-
+      // The same Screen as every other state of this route, so a recipe that
+      // is gone lands on the page's own shape rather than on bare markup at
+      // the top of the viewport.
+      <Screen
+        title="No such recipe"
+        lede="Nothing in your library is at this address."
+      >
         {/* Not the contract's own sentence, and recipeLoader in routes.tsx
             says why. Deletion is named instead, because it is the case a
             person actually arrives from -- a recipe removed in another tab,
             or a save of one that has gone. */}
-        <p className="recipe__missing">
-          Nothing in your library is at this address. It may have been deleted.{" "}
+        <p className="recipe__missing border-t border-rule pt-4">
+          It may have been deleted.{" "}
           <Link className="recipe__missing-link" to={PATHS.recipes}>
             Back to your recipes
           </Link>
         </p>
-      </div>
+      </Screen>
     );
   }
 
@@ -130,21 +139,22 @@ export default function RecipeDetail() {
   const emptiesEveryPositionUsingIt = `Delete ${recipe.name}?\n\nThe recipe goes from your library, and every position in every week that is holding it is emptied too. There is no undo.`;
 
   return (
-    <div className="recipe">
-      <p className="recipe__back">
+    // The record's own name, not what is currently typed into the form: a save
+    // the API refused leaves the heading naming the recipe as it is still
+    // stored.
+    <Screen
+      above={
         <Link className="recipe__back-link" to={PATHS.recipes}>
           Your recipes
         </Link>
-      </p>
-
-      {/* The record's own name, not what is currently typed into the form: a
-          save the API refused leaves the heading naming the recipe as it is
-          still stored. */}
-      <h1 className="recipe__title">{recipe.name}</h1>
-
-      {editing ? (
-        <>
-          {/* Mounted only while the address says so, and that is what empties
+      }
+      title={recipe.name}
+      lede={recipe.cuisine || undefined}
+    >
+      <div className="recipe">
+        {editing ? (
+          <>
+            {/* Mounted only while the address says so, and that is what empties
               the fields. RecipeForm's nine controls are uncontrolled and read
               their defaults at mount, so a form left mounted behind a closed
               view would open again holding whatever was last typed rather than
@@ -157,41 +167,38 @@ export default function RecipeDetail() {
               declares none, so it posts to this route and recipeAction answers
               it. Passing the loaded record is the only thing that makes this
               the edit case rather than the create one. */}
-          <RecipeForm recipe={recipe} error={error} busy={saving} />
+            <RecipeForm recipe={recipe} error={error} busy={saving} />
 
-          {/* A button rather than a link back to the read address, because it
+            {/* A button rather than a link back to the read address, because it
               has to be refusable: a navigation away during a save abandons a
               PUT that may already have reached the API, throwing away both the
               nine typed fields and any refusal coming back, and leaving a
               person who cannot tell whether the recipe was saved. `disabled` is
               how a button refuses; a link has no equivalent. */}
-          <button
-            className="recipe__cancel"
-            type="button"
-            disabled={saving}
-            onClick={closeEdit}
-          >
-            Cancel
-          </button>
-        </>
-      ) : (
-        <>
-          {/* The edit form is replaced by the read view, in place, with the
+            <Button
+              className="recipe__cancel"
+              type="button"
+              size="sm"
+              disabled={saving}
+              onClick={closeEdit}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* The edit form is replaced by the read view, in place, with the
               heading unchanged -- so to anyone not watching the page the save
               is silent. C28 (nomadwiz/kete#285). In the read branch rather
               than above the pair, because it is a claim about the record now
               on screen and the edit form is not showing that record. */}
-          {succeeded ? (
-            <p className="recipe__saved" role="status">
-              Your changes are saved.
-            </p>
-          ) : null}
+            {succeeded ? (
+              <Notice tone="progress" role="status">
+                Your changes are saved.
+              </Notice>
+            ) : null}
 
-          {recipe.cuisine ? (
-            <p className="recipe__cuisine">{recipe.cuisine}</p>
-          ) : null}
-
-          {/* photo_url is optional and nullable, so the absent case is a state
+            {/* photo_url is optional and nullable, so the absent case is a state
               this page draws rather than an <img> with nothing to load -- which
               renders as a broken-image glyph in every browser. It is also a
               presigned link that expires an hour after the API minted it, which
@@ -200,45 +207,41 @@ export default function RecipeDetail() {
 
               alt="" because the name is above it: a photograph of the dish adds
               nothing a screen reader has not already been given. */}
-          {recipe.photo_url ? (
-            <img className="recipe__photo" src={recipe.photo_url} alt="" />
-          ) : (
-            <div className="recipe__photo recipe__photo--none" />
-          )}
+            {recipe.photo_url ? (
+              <img className="recipe__photo" src={recipe.photo_url} alt="" />
+            ) : (
+              <div className="recipe__photo recipe__photo--none" />
+            )}
 
-          <p className="recipe__servings">
-            Makes {recipe.servings}{" "}
-            {recipe.servings === 1 ? "serving" : "servings"}
-          </p>
+            <p className="recipe__servings">
+              Makes {recipe.servings}{" "}
+              {recipe.servings === 1 ? "serving" : "servings"}
+            </p>
 
-          {/* The four figures the API sent, rendered and not worked out. Kete
+            {/* The four figures the API sent, rendered and not worked out. Kete
               computes no nutrition figure anywhere in the browser -- there is
               one implementation of the arithmetic and it is the API's -- and
               this page does not divide, total or convert any of them. */}
-          <section className="recipe__nutrition">
-            <h2 className="recipe__heading">Nutrition per serving</h2>
+            <section className="recipe__nutrition">
+              <h2 className="recipe__heading">Nutrition per serving</h2>
 
-            {/* The sentence doc/design/product.md §5 puts out of scope, said
+              {/* The sentence doc/design/product.md §5 puts out of scope, said
                 here as well as on the form. Somebody reading four figures under
                 a heading like this one will otherwise assume Kete worked them
                 out from the ingredients, and every weekly comparison drawn from
                 them is only as good as what was typed in. */}
-            <p className="recipe__note">
-              As you entered them. Kete does not work these out from your
-              ingredients.
-            </p>
+              <p className="recipe__note">
+                As you entered them. Kete does not work these out from your
+                ingredients.
+              </p>
 
-            <dl className="recipe__figures">
-              {figures.map(([name, value]) => (
-                <div className="recipe__figure" key={name}>
-                  <dt className="recipe__figure-name">{name}</dt>
-                  <dd className="recipe__figure-value">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
+              <Figures
+                className="mt-3"
+                rows={figures.map(([label, value]) => ({ label, value }))}
+              />
+            </section>
 
-          {/* Both are free text the person typed, stored as one string each, so
+            {/* Both are free text the person typed, stored as one string each, so
               they are drawn as one block with the line breaks kept by CSS
               rather than split into list items here. Splitting would invent a
               structure the contract does not carry, and a method written as one
@@ -247,17 +250,17 @@ export default function RecipeDetail() {
               `steps` is the API's name for what a cook calls the method. The
               heading takes the human word and the field keeps the contract's,
               which is what RecipeForm does with the same pair. */}
-          <section className="recipe__prose">
-            <h2 className="recipe__heading">Ingredients</h2>
-            <p className="recipe__text">{recipe.ingredients}</p>
-          </section>
+            <section className="recipe__prose">
+              <h2 className="recipe__heading">Ingredients</h2>
+              <p className="recipe__text">{recipe.ingredients}</p>
+            </section>
 
-          <section className="recipe__prose">
-            <h2 className="recipe__heading">Method</h2>
-            <p className="recipe__text">{recipe.steps}</p>
-          </section>
+            <section className="recipe__prose">
+              <h2 className="recipe__heading">Method</h2>
+              <p className="recipe__text">{recipe.steps}</p>
+            </section>
 
-          {/* A link rather than a button, so the edit view has an address that
+            {/* A link rather than a button, so the edit view has an address that
               can be refreshed, bookmarked and reached by Back -- which is the
               whole reason ADR 002 puts the switch in the query string.
 
@@ -267,45 +270,59 @@ export default function RecipeDetail() {
               three lines to say what the router already knows -- and PATHS
               .recipe is the pattern /recipes/:id, so every one of those lines
               existed only to put the id back into it. */}
-          {/* Not refused while a delete runs, although Cancel is refused
+            {/* Not refused while a delete runs, although Cancel is refused
               while a save runs: opening the form costs nothing typed, and a
               save made from it is answered 404, which lands on the not-found
               panel saying the recipe may have been deleted. */}
-          <Link className="recipe__edit" to={`?${QUERY.recipe_edit}`}>
-            Edit this recipe
-          </Link>
+            <Link
+              className={buttonVariants({ size: "sm" })}
+              to={`?${QUERY.recipe_edit}`}
+            >
+              Edit this recipe
+            </Link>
 
-          {/* On this page and not on the list, because a delete offered from
+            {/* On this page and not on the list, because a delete offered from
               /recipes would post to this route and so need an `action` prop
               carrying a literal path, which ADR 002 keeps out of everything
               but routes.tsx. For the same rule this Form declares no `action`
               and posts to the address the page is at; the hidden field selects
               the branch, RecipeForm declaring none being what makes a
               submission carrying no intent the save. */}
-          <Form
-            method="post"
-            aria-busy={saving}
-            onSubmit={(event) => {
-              // react-router's Form runs this handler and then returns on a
-              // prevented default, so a declined confirmation sends no
-              // request at all rather than one whose answer is thrown away.
-              if (!window.confirm(emptiesEveryPositionUsingIt)) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <input type="hidden" name="intent" value="delete" />
+            <Form
+              method="post"
+              aria-busy={saving}
+              onSubmit={(event) => {
+                // react-router's Form runs this handler and then returns on a
+                // prevented default, so a declined confirmation sends no
+                // request at all rather than one whose answer is thrown away.
+                if (!window.confirm(emptiesEveryPositionUsingIt)) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              <input type="hidden" name="intent" value="delete" />
 
-            {/* Dead while the delete is in flight, and named for it. A second
+              {/* Dead while the delete is in flight, and named for it. A second
                 click sends a second DELETE, which the API answers 404 -- read
                 here as the success it is, so nothing would look wrong, but it
                 is still a request nobody meant to make. */}
-            <button className="recipe__delete" type="submit" disabled={saving}>
-              {saving ? "Deleting…" : "Delete this recipe"}
-            </button>
-          </Form>
-        </>
-      )}
-    </div>
+              {/* The one control in the client that destroys something, and the
+                only caller of --kokowai. Colour is not what says so: the
+                confirmation above names the cascade in words, and this button
+                is told from a secondary one by being filled rather than by its
+                hue -- the two measure 1.08:1 against each other. */}
+              <Button
+                type="submit"
+                variant="destructive"
+                size="sm"
+                disabled={saving}
+              >
+                {saving ? "Deleting…" : "Delete this recipe"}
+              </Button>
+            </Form>
+          </>
+        )}
+      </div>
+    </Screen>
   );
 }

@@ -1,142 +1,268 @@
-/* Tokens, reset and base elements. Nothing page-specific belongs here. */
+/* Tokens, reset and base elements. Nothing page-specific belongs here.
 
-:root {
-  --ink: #17251e;
-  --paper: #e8e9e1;
-  --muka: #fafaf5;
-  --straw: #c7bc96;
-  --kowhai: #c98b1e;
-  --ink-soft: #525c55;
+   THREE LAYERS, AND WHY THE ORDER MATTERS. `@theme` holds the primitives -- the
+   measured values -- and the semantic names above them. `:root` republishes the
+   primitives under their bare names so that a stylesheet written before the kit
+   keeps resolving while the screens convert one at a time. `@layer base` holds
+   the reset and base element styling, placed in a layer on purpose: Tailwind's
+   preflight is also `@layer base`, ours comes after it and wins, and a utility
+   still beats both because utilities sit in a later layer. Unlayered CSS beats
+   every layer, which is why only two rules at the foot of this file are
+   unlayered -- see the comment there.
 
-  /* --straw and --kowhai are structure and accent. Neither is ever text on
-     --paper: both fall below 4.5:1 there. */
+   A COMPONENT REFERENCES A SEMANTIC NAME, NEVER A PRIMITIVE. `bg-accent` carries
+   the rule that the accent is a fill and never a word on the page; `bg-kowhai`
+   carries nothing. ../../../doc/design/visual-language.md section 1.3 is the
+   table, and section 1.1 holds every measured ratio. */
 
-  --focus: var(--ink);
+@import "tailwindcss";
 
-  --font:
+@theme {
+  /* Primitives. Every ratio in visual-language.md section 1.1 was measured
+     against these exact values, so they are literals rather than computed:
+     the value that ships is the value that was measured. */
+  --color-ink: #17251e;
+  --color-paper: #e8e9e1;
+  --color-muka: #fafaf5;
+  --color-straw: #c7bc96;
+  --color-kowhai: #c98b1e;
+  --color-ink-soft: #525c55;
+  --color-kokowai: #96331f;
+
+  /* Semantic names -- the purpose layer. The rule each one carries is in
+     visual-language.md section 1.3, and it is the rule rather than the colour
+     that a reviewer checks a component against. */
+  --color-background: var(--color-paper);
+  --color-surface: var(--color-muka);
+  --color-foreground: var(--color-ink);
+  --color-muted-foreground: var(--color-ink-soft); /* 5.69:1, may be text */
+  --color-border: var(--color-ink-soft); /* a control's edge, 5.69:1 */
+  --color-rule: var(--color-straw); /* a divider, never a control's edge */
+  --color-accent: var(--color-kowhai); /* a fill, never text */
+  --color-destructive: var(
+    --color-kokowai
+  ); /* 6.16:1, and never the only signal */
+  --color-ring: var(--color-ink);
+
+  --font-sans:
     "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 
+  /* These override Tailwind's own text-* sizes rather than sitting beside
+     them, so `text-xs` means this project's --text-xs and not 0.75rem. */
   --text-xs: 0.8125rem;
   --text-sm: 0.9375rem;
   --text-base: 1.0625rem;
   --text-lg: 1.3125rem;
   --text-xl: 1.75rem;
   --text-display: clamp(2.75rem, 7vw, 5rem);
+  /* The screen title. It was --title in :root, copied from eight stylesheets;
+     as a --text-* entry it also reaches the utility layer as text-title. */
+  --text-title: clamp(var(--text-xl), 6vw, 2.75rem);
 
-  --measure: 34rem;
+  /* One base, and Tailwind multiplies it: p-4 is calc(--spacing * 4) = 1rem,
+     which is what --space-4 already meant. The whole existing scale is n x
+     0.25rem, so nothing is translated and the numbers keep their meanings.
+     Anything off the scale has to be written p-[13px], which is the point. */
+  --spacing: 0.25rem;
 
-  /* The page column every screen is laid out in, and its side gutter. Tokens
-     rather than a literal because four stylesheets now set the same two
-     values, and a column that drifts between screens is visible. */
-  --column: 68rem;
-  --gutter: clamp(var(--space-4), 5vw, var(--space-8));
+  --radius-control: 3px;
+
+  /* Bricolage Grotesque is variable over width, 75% to 100%, as well as weight.
+     Display type is set narrow and tight and body type is left alone, so the
+     contrast between a heading and a paragraph is a change of proportion rather
+     than only of size -- which is the one typographic move available here
+     without loading a second family. index.html requests the wdth axis. */
+  --stretch-display: 80%;
+  --stretch-brand: 85%;
+
+  /* The width at which two fields reading as one line stop fitting side by
+     side. It was a max-width media query in form-skeleton.css and is a named
+     breakpoint here so it is not written as an arbitrary value at each call
+     site. Tailwind's own scale starts at sm: 40rem, which is too late. */
+  --breakpoint-xs: 34rem;
+}
+
+:root {
+  /* The bare names, republished for the stylesheets that predate the kit.
+     One source of truth: these point at @theme rather than repeating a hex,
+     so a token cannot drift from the value that was measured. Each one goes
+     when the last stylesheet referencing it is converted. */
+  --ink: var(--color-ink);
+  --paper: var(--color-paper);
+  --muka: var(--color-muka);
+  --straw: var(--color-straw);
+  --kowhai: var(--color-kowhai);
+  --ink-soft: var(--color-ink-soft);
+  --kokowai: var(--color-kokowai);
+
+  --focus: var(--color-ink);
+
+  --font: var(--font-sans);
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
   --space-12: 3rem;
   --space-16: 4rem;
   --space-24: 6rem;
 
-  --radius-control: 3px;
+  --measure: 34rem;
+
+  /* The page column every screen is laid out in, and its side gutter. */
+  --column: 68rem;
+  --gutter: clamp(var(--space-4), 5vw, var(--space-8));
+
+  /* Hoisted here because a token is not a token while it is copied. --title
+     stood in eight stylesheets, --form-width in four and --card-width in two,
+     and a column that drifts between screens is visible. */
+  --title: clamp(var(--text-xl), 6vw, 2.75rem);
+  --form-width: 26rem;
+  --card-width: 26rem;
 
   color-scheme: light;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  p,
+  ul,
+  ol,
+  figure {
+    margin: 0;
+  }
+
+  ul,
+  ol {
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Tailwind's preflight sets `font-size: inherit; font-weight: inherit` on
+     every heading, so a heading with no class of its own renders at body size.
+     Eight screens size their own title and are unaffected; five headings are
+     not, and they are the ones nobody looks at until something has already
+     gone wrong -- the three branches of components/error-boundary.tsx, the h1
+     of pages/not-found.tsx, and one h2 on pages/home.tsx. No test can see it,
+     because jsdom applies no CSS. So the scale is restored here rather than
+     screen by screen, and a screen wanting a larger title still overrides it:
+     a page stylesheet is unlayered and beats this layer. */
+  h1,
+  h2,
+  h3 {
+    font-weight: 600;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: var(--text-xl);
+  }
+
+  h2 {
+    font-size: var(--text-lg);
+  }
+
+  /* h3 sits at body size and is told apart by its weight, not its size. The
+     type scale has no step between --text-base and --text-lg, and inventing
+     one for a level this client uses nowhere yet would be a token with no
+     caller. */
+  h3 {
+    font-size: var(--text-base);
+  }
+
+  /* Every figure in this client sits in a column of other figures -- a day's
+     four macronutrients against four targets, twenty-one slots of energy, a
+     recipe's nutrition per serving. Proportional digits make those columns
+     ragged and make two numbers of the same width look different lengths.
+     Bricolage Grotesque carries a tabular set, so this costs nothing. */
+  td,
+  th,
+  dd,
+  output {
+    font-variant-numeric: tabular-nums;
+  }
+
+  a {
+    color: inherit;
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: from-font;
+  }
+
+  img,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    border-radius: var(--radius-control);
+  }
+
+  /* A control's boundary is --color-border, not --color-rule. WCAG 2.1 asks
+     3:1 of the boundary of a user interface component; --straw reaches 1.55:1
+     against the page and --ink-soft 5.69:1. So --straw rules a structure and
+     --ink-soft marks something that takes input. */
+  input,
+  select,
+  textarea {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    padding: 0.55em 0.7em;
+  }
+
+  /* :user-invalid, not :invalid -- an empty required field is invalid from the
+     moment the page loads, and marking it before anyone has typed is noise.
+     A kit that validates in JavaScript does not replace this. */
+  input:user-invalid,
+  select:user-invalid,
+  textarea:user-invalid {
+    border-color: var(--color-foreground);
+    box-shadow: inset 0 0 0 1px var(--color-foreground);
+  }
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font);
-  font-size: var(--text-base);
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-}
-
-h1,
-h2,
-h3,
-p,
-ul,
-ol,
-figure {
-  margin: 0;
-}
-
-ul,
-ol {
-  padding: 0;
-  list-style: none;
-}
-
-h1,
-h2,
-h3 {
-  font-weight: 600;
-  line-height: 1.1;
-  text-wrap: balance;
-}
-
-a {
-  color: inherit;
-  text-underline-offset: 0.18em;
-  text-decoration-thickness: from-font;
-}
-
-img,
-svg {
-  display: block;
-  max-width: 100%;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-button {
-  cursor: pointer;
-  border-radius: var(--radius-control);
-}
-
-/* A control's boundary is --ink-soft, not --straw. WCAG 2.1 asks 3:1 of the
-   boundary of a user interface component; --straw reaches 1.55:1 against the
-   page and --ink-soft 5.69:1. So --straw rules a structure and --ink-soft
-   marks something that takes input. */
-input,
-select,
-textarea {
-  background: var(--muka);
-  border: 1px solid var(--ink-soft);
-  border-radius: var(--radius-control);
-  padding: 0.55em 0.7em;
-}
-
-/* :user-invalid, not :invalid — an empty required field is invalid from the
-   moment the page loads, and marking it before anyone has typed is noise. */
-input:user-invalid,
-select:user-invalid,
-textarea:user-invalid {
-  border-color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--ink);
-}
+/* THE TWO RULES BELOW ARE DELIBERATELY UNLAYERED, and that is what keeps them.
+   Unlayered CSS beats every cascade layer, so no utility class can remove a
+   focus ring or reinstate an animation somebody asked not to see. Everything
+   else in this file is in a layer precisely so a utility can override it;
+   these two are the exceptions, and they are exceptions on purpose. */
 
 :focus-visible {
   outline: 2px solid var(--focus);
