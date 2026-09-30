@@ -755,6 +755,7 @@ def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
 # ==========================================================================
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MEALS = ["breakfast", "lunch", "dinner"]
+NUTRIENTS = ["energy_kcal", "protein_g", "carbs_g", "fat_g"]
 
 
 def _slot_out(s: models.PlanSlot) -> PlanSlotOut:
@@ -789,9 +790,6 @@ def _week_slots(db: Session, user_id: int, week: str) -> list[models.PlanSlot]:
               .options(joinedload(models.PlanSlot.recipe))
               .order_by(models.PlanSlot.slot_id)
               .all())
-
-
-NUTRIENTS = ["energy_kcal", "protein_g", "carbs_g", "fat_g"]
 
 
 def _percent(total: int, target: int) -> int:
