@@ -541,17 +541,18 @@ def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
     Both writes happen in a single transaction, so either both land or neither
     does. That matters: stored targets must never disagree with the metrics
     they came from.
-
-    Both are upserts on UNIQUE (user_id), not a read then an insert. Two
-    overlapping first saves (two tabs, a retry) would both read no row, both
-    insert, and the second would fail on the constraint as a 500. With
-    ON CONFLICT the second waits for the first, then updates the row it wrote:
-    the later save wins, which is what saving means. Not _commit_or_409 —
-    answering someone's own Save with "that already exists" would be wrong.
     """
     if not db.get(models.User, user_id):
         raise HTTPException(status_code=404, detail="User not found")
     now = datetime.now(timezone.utc)
+
+    # Both writes are upserts on UNIQUE (user_id), not a read then an insert.
+    # Two overlapping first saves (two tabs, a retry) would both read no row,
+    # both insert, and the second would fail on the constraint as a 500. With
+    # ON CONFLICT the second waits for the first, then updates the row it
+    # wrote: the later save wins, which is what saving means. Not
+    # _commit_or_409 — answering someone's own Save with "that already exists"
+    # would be wrong. B18 (#262).
 
     # --- 1. the raw metrics ---
     metrics = body.model_dump()
@@ -564,16 +565,14 @@ def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
     computed = compute_targets(**metrics)
 
     # --- 3. the derived targets ---
-    target = db.execute(
+    # RETURNING, so the answer is what was stored: the columns are Numeric, so
+    # int() of the stored value can differ from int() of the computed float.
+    target = db.scalars(
         pg_insert(models.NutritionTarget)
         .values(user_id=user_id, computed_at=now, **computed)
         .on_conflict_do_update(index_elements=[models.NutritionTarget.user_id],
                                set_=dict(computed_at=now, **computed))
-        .returning(models.NutritionTarget.energy_kcal,
-                   models.NutritionTarget.protein_g,
-                   models.NutritionTarget.carbs_g,
-                   models.NutritionTarget.fat_g,
-                   models.NutritionTarget.computed_at)).one()
+        .returning(models.NutritionTarget)).one()
 
     db.commit()          # both rows written together
 

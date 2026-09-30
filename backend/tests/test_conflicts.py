@@ -1,11 +1,16 @@
 """
-Races that a check cannot win: B15 (nomadwiz/kete#157) and B20 (#264).
+Races that a check cannot win: B15 (nomadwiz/kete#157), B20 (#264) and
+B18 (#262).
 
 B15 is the clash: a 409 even when two requests race. B20 is the recipe that
 disappears between the check and the insert: a deliberate code rather than a
-500. Both have
-the same shape, which is why they share a file -- an endpoint checks, then
-writes, and the database is what refuses the write.
+500. Both have the same shape, which is why they share a file -- an endpoint
+checks, then writes, and the database is what refuses the write.
+
+B18 is the one race here where the database waits instead of refusing.
+POST /profile/metrics is an upsert, so the second of two overlapping first
+saves blocks on the first, then updates its row and answers 200: step 3 below
+ends in success for it, not in a refused write.
 
 Each endpoint here checks for a clash, then writes. Two requests can both pass
 the check before either commits, and then the database's unique constraint is

@@ -283,7 +283,7 @@
           "profile"
         ],
         "summary": "Save Metrics",
-        "description": "One request, two tables.\n\n1. Save the raw body metrics into `profiles`.\n2. Run the nutrition engine on them.\n3. Save the computed result into `nutrition_targets`.\n\nBoth writes happen in a single transaction, so either both land or neither\ndoes. That matters: stored targets must never disagree with the metrics\nthey came from.\n\nBoth are upserts on UNIQUE (user_id), not a read then an insert. Two\noverlapping first saves (two tabs, a retry) would both read no row, both\ninsert, and the second would fail on the constraint as a 500. With\nON CONFLICT the second waits for the first, then updates the row it wrote:\nthe later save wins, which is what saving means. Not _commit_or_409 —\nanswering someone's own Save with \"that already exists\" would be wrong.",
+        "description": "One request, two tables.\n\n1. Save the raw body metrics into `profiles`.\n2. Run the nutrition engine on them.\n3. Save the computed result into `nutrition_targets`.\n\nBoth writes happen in a single transaction, so either both land or neither\ndoes. That matters: stored targets must never disagree with the metrics\nthey came from.",
         "operationId": "save_metrics_profile_metrics_post",
         "requestBody": {
           "content": {
