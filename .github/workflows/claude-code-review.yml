@@ -1,0 +1,151 @@
+# Reviews every pull request with the agent-skills and ponytail plugins and posts
+# the result as a request-changes review, not a comment. A comment is something to
+# scroll past; a review is a state the author has to answer.
+#
+# The other half of this runs in nomadwiz/kete-doc and reads this repository. This
+# one reads that one, because the two drift in opposite directions and only the
+# direction guarded here is expensive: the documents say what Kete should be, so a
+# change that departs from one is a defect in the change.
+#
+# The documents are checked out at kete-doc/, not at the parent of this repository,
+# although CLAUDE.md links to them as ../doc/... . Checking them out over the
+# workspace root would replace this file on disk with that repository's copy of it,
+# and claude-code-action refuses to run when this file differs from the copy on the
+# default branch. The prompt translates the paths instead.
+#
+# Repository secrets this needs (Settings -> Secrets and variables -> Actions):
+#   CLAUDE_CODE_OAUTH_TOKEN  the Claude Code subscription token
+#   KETE_CROSS_REPO_TOKEN    a fine-grained personal access token with
+#                            Contents: read on nomadwiz/kete and
+#                            nomadwiz/kete-doc. Both repositories are private, so
+#                            the default GITHUB_TOKEN cannot read the other one.
+
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write # submit a review, and dismiss the previous one
+  issues: read
+  id-token: write
+
+# A second push while a review is running cancels the first, so two reviews never
+# race onto one pull request.
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  claude-review:
+    # A draft is not reviewed. ready_for_review is already a trigger, so nothing
+    # is lost: the review runs the moment the draft flag comes off.
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the application
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the reviewer reads history; depth 1 has none
+
+      # doc/contributing.md pins the cross-lane review rule's start to a commit in
+      # this repository, and several documents assert SHAs in it, so the documents
+      # come with their full history too.
+      - name: Check out the documents
+        uses: actions/checkout@v4
+        with:
+          repository: nomadwiz/kete-doc
+          ref: master # kete-doc's default branch is master, not main
+          path: kete-doc
+          token: ${{ secrets.KETE_CROSS_REPO_TOKEN }}
+          fetch-depth: 0
+
+      # A CHANGES_REQUESTED review stays in force across every later push. A
+      # COMMENT review does not clear it, and GITHUB_TOKEN is forbidden from
+      # APPROVE, which is the one event that would. Without this step the first
+      # run that finds a nit blocks the pull request until somebody dismisses it
+      # by hand, and the reviewer becomes something people work around.
+      - name: Dismiss the previous review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and .state == "CHANGES_REQUESTED") | .id' \
+          | while read -r id; do
+              gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
+                -f message='Superseded by a newer review.' -f event=DISMISS
+            done
+
+      - name: Review
+        uses: anthropics/claude-code-action@v1
+        env:
+          # The review is posted by github-actions[bot], which is the login the
+          # dismissal step above looks for. The two must agree.
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: |
+            https://github.com/addyosmani/agent-skills.git
+            https://github.com/DietrichGebert/ponytail.git
+          plugins: |
+            agent-skills@addy-agent-skills
+            ponytail@ponytail
+          claude_args: >-
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Task,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}, the Kete application. The working directory is that repository. The documents repository, nomadwiz/kete-doc, is checked out at `kete-doc/` on its `master` branch with full history.
+
+            ## Read the contract first
+
+            Read `CLAUDE.md` in the working directory, then `kete-doc/CLAUDE.md` and `kete-doc/doc/contributing.md`.
+
+            `CLAUDE.md` links to the documents as `../doc/...`, which is where they sit in a working clone. Here they are under `kete-doc/doc/` — so `../doc/design/product.md` is `kete-doc/doc/design/product.md`. Translate every such link; none of them is broken.
+
+            Enforce what those files say. Do not restate them, do not reinterpret them, and do not apply a rule they do not contain. `CLAUDE.md` is deliberately a map: where it and the file it points at disagree, the other file is right.
+
+            Three of its rules decide most reviews here, so check them on every change:
+
+            - **Scope.** `kete-doc/doc/design/product.md` section 5 lists what Kete deliberately does not do, and `kete-doc/doc/design/implementation.md` section 5 what was reviewed and must not be "improved". Building something from either list is the defect to catch first.
+            - **Lanes.** `kete-doc/doc/design/ownership.md` maps each path to an owner. A change reaching into another lane's files takes that member's contribution evidence away from them, and `kete-doc/doc/contributing.md` compels a cross-lane review for it.
+            - **Review.** `kete-doc/doc/contributing.md` compels a review when a change touches another lane's files, changes the API contract or the database schema, changes the scope in `product.md`, or changes the rules. It also requires the author to say in one line which they chose. Flag a pull request that meets one of those tests and says nothing.
+
+            ## Run both reviewers over the diff
+
+            - `/agent-skills:review` for correctness, architecture and security.
+            - `/ponytail:ponytail-review` for what can be deleted.
+
+            ## Check the two repositories for drift
+
+            The documents say what Kete should be. The code says what it is. Report a mismatch, name both sides, and resolve neither — which side moves is the author's decision, not yours.
+
+            `CLAUDE.md` says "The code beats every description of it." Read that as descriptive, not normative: the code is the authority on what exists, the documents on what should exist. Do not use that sentence to close a finding. Its own last clause says the difference is worth raising as an issue.
+
+            **Here the expensive direction is the change.** A document going stale about correct code is cheap and the documents repository's own reviewer catches it. A change departing from a document that was not updated with it is what this review is for. Where the diff makes a document wrong, say which document and which line.
+
+            **Only a present-tense claim can drift.** A count or a statement inside a dated historical record is correct as written and must not be flagged: a commit message describing what was true then, a delivery-stage table describing that stage, an ADR describing what was true when it was written.
+
+            Three checks, cheapest first:
+
+            1. `jq '[.paths[] | keys[]] | length' backend/openapi.json` gives the operation count and `jq -r '.paths | keys[]' backend/openapi.json` the routes. Compare both against every present-tense endpoint count and route list in `kete-doc/doc/`, section 10 of `kete-doc/doc/output/report.md` in particular, since that is where the brief requires the access URLs.
+            2. Where the diff adds, removes or renames a route, a table, a column or a file the documents name, say which document now needs changing.
+            3. Any present-tense claim in `kete-doc/doc/` about what the system does, against what this diff makes it do.
+
+            ## Post exactly one review
+
+            Put each located finding on its line with `mcp__github_inline_comment__create_inline_comment`. Then post one verdict, and only one:
+
+            - Anything found: `gh pr review ${{ github.event.pull_request.number }} --request-changes --body-file <file>`
+            - Nothing found: `gh pr review ${{ github.event.pull_request.number }} --comment --body-file <file>`
+
+            Never `--approve`. The token is forbidden from it and the call fails.
+
+            Open the body with one sentence saying whether anything blocks. Then group the findings under `### Correctness`, `### Drift against the documents`, `### Project rules` and `### What can be deleted`, leaving out any group that is empty. Quote the rule or the document you measured against, so the author can check your reading. A finding with no file and line is not a finding.
+
+            This review is not a substitute for the cross-lane review `kete-doc/doc/contributing.md` compels. Where that file requires a person, say so in the body.
+
+            Report only what you can point at. Where something cannot be determined from this code and those documents, say so and stop. Never pick the most plausible reading and carry on.
