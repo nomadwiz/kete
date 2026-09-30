@@ -70,12 +70,25 @@ import "./use-write.css";
 // finishes, this leaves it alone, because the browser restoring focus after a
 // <dialog> closes and a person who has clicked elsewhere mid-save are both
 // cases where stealing it back would be the defect.
-export function useWrite(method: FormMethod): {
+//
+// A write posted through a fetcher passes the fetcher as well:
+// `useWrite("POST", fetcher)`. The navigation never sees a fetcher, so without
+// it `busy` would stay false for the whole write and useActionData would never
+// carry its answer -- the busy flag and the result are the fetcher's own, and
+// everything below them, the success rule and the focus, is the same.
+// recipe.tsx's photograph control is the one that does, C14
+// (nomadwiz/kete#184).
+export function useWrite(
+  method: FormMethod,
+  fetcher?: { state: string; data?: unknown },
+): {
   busy: boolean;
   succeeded: boolean;
 } {
-  const busy = useSubmitting(method);
-  const result = useActionData();
+  const submitting = useSubmitting(method);
+  const actionData = useActionData();
+  const busy = fetcher ? fetcher.state !== "idle" : submitting;
+  const result = fetcher ? fetcher.data : actionData;
   const { key } = useLocation();
 
   // The edge is read during the render that carries it, not in an effect,

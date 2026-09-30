@@ -313,6 +313,25 @@ function recipeLoader({
   });
 }
 
+// What backend/storage.py would refuse, refused before the upload starts:
+// ALLOWED_TYPES is image/jpeg, image/png and image/webp, and MAX_BYTES is
+// 5 MB. Answers the sentence to show, or null for a file worth sending.
+//
+// Type first: a 6 MB GIF is wrong for a reason shrinking it will not fix. The
+// type is what the browser infers from the extension, not the bytes, so the
+// server's own check stays the one that decides.
+function photoProblem(file: File): string | null {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return "Choose a JPEG, PNG or WebP photograph.";
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return "That photograph is larger than 5 MB. Choose a smaller one.";
+  }
+
+  return null;
+}
+
 // One action for the whole screen, branching on a submitted intent rather than
 // giving each verb a route of its own -- ADR 002, and the shape plannerAction
 // uses. A submission carrying no intent is the save, which is the convention
@@ -466,6 +485,72 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
       // described above. replace rather than redirect, so Back does not return
       // to the deleted record's address either.
       return replace(PATHS.recipes);
+    }
+
+    // C14 (nomadwiz/kete#184). Submitted by a fetcher rather than a navigation,
+    // so what this returns reaches the photograph control's own fetcher.data
+    // and never RecipeForm's error slot, and the loader revalidates afterwards
+    // either way -- which is how the new photograph reaches the screen. The
+    // reply is a presigned link good for an hour, discarded here for that
+    // reason as well as the usual one: the loader mints a fresh one.
+    if (intent === "photo") {
+      const file = form.get("file");
+
+      if (typeof file === "string" || file === null) {
+        throw new Error("The photograph form sent no file field.");
+      }
+
+      const problem = photoProblem(file);
+
+      if (problem) {
+        return problem;
+      }
+
+      // The form as submitted, less the key that only routed it here: the
+      // endpoint's one multipart field is `file`, already named so by the
+      // input.
+      form.delete("intent");
+
+      try {
+        await authed<unknown>(`/recipes/${id}/photo`, {
+          method: "POST",
+          body: form,
+        });
+      } catch (error) {
+        // POST /recipes/{recipe_id}/photo declares 400, 401, 404, 413, 415,
+        // 422, 502 and 503. The 401 is withSession's.
+        if (error instanceof ApiError) {
+          // About the file, so the server's own sentence is the useful one.
+          // photoProblem should have caught all three before the upload; these
+          // are what reaches the person if the two lists ever drift apart.
+          if ([400, 413, 415].includes(error.status)) {
+            return error.message;
+          }
+
+          // About the bucket, not the file, and the sentence has to say so --
+          // 503's own detail names S3_BUCKET, which nobody using this can act
+          // on. Nothing was written: the endpoint records the new key only
+          // once the object is stored.
+          if (error.status === 502 || error.status === 503) {
+            return "Your photograph could not be stored just now. The recipe is unchanged; try again in a few minutes.";
+          }
+
+          // The recipe went while the edit view was open, answered the way
+          // the save answers it and for the same reason. Where it went because
+          // of a delete from this screen, that navigation started after this
+          // fetcher's action did, and react-router drops a fetcher's redirect
+          // in that case (`pendingNavigationLoadId > originatingLoadId` in its
+          // router) -- so the delete's PATHS.recipes still wins, as the header
+          // above requires.
+          if (error.status === 404) {
+            throw replace(here);
+          }
+        }
+
+        throw error;
+      }
+
+      return null;
     }
 
     // Not a shrug, and not a guard either: it is the fall-through. A
