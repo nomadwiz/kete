@@ -1,8 +1,10 @@
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createMemoryRouter, RouterProvider, useFetcher } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { jsonResponse, renderAt, stubFetch } from "./test/router";
+import { useWrite } from "./use-write";
 
 // The behaviour src/use-write.ts gives every screen at once, tested in one
 // place for the reason it was written in one place: C28 (nomadwiz/kete#285)
@@ -420,5 +422,72 @@ describe("the button is still dead while the write is in flight", () => {
         screen.getByRole("button", { name: "Save changes" }),
       ).toBeEnabled(),
     );
+  });
+});
+
+// C14 (nomadwiz/kete#184). A fetcher is invisible to the navigation, so the
+// hook has to be handed it. No screen can drive this under jsdom -- the one
+// fetcher form in the client uploads a file, which jsdom never puts in a
+// submission (recipe.test.tsx says why) -- so the route here is the test's own,
+// with a form that sends text.
+describe("a write posted through a fetcher", () => {
+  function Probe() {
+    const fetcher = useFetcher<string | null>();
+    const { busy, succeeded } = useWrite("POST", fetcher);
+
+    return (
+      <fetcher.Form method="post">
+        <label htmlFor="answer">Answer</label>
+        <input id="answer" name="answer" />
+        <button type="submit" disabled={busy}>
+          {busy ? "Sending…" : "Send"}
+        </button>
+        {succeeded ? <p role="status">Sent.</p> : null}
+      </fetcher.Form>
+    );
+  }
+
+  it("is busy while it runs, and only an answer that is not a string succeeds", async () => {
+    let answer: () => void = () => {};
+
+    const router = createMemoryRouter([
+      {
+        path: "/",
+        Component: Probe,
+        action: async ({ request }) => {
+          const said = String((await request.formData()).get("answer"));
+
+          await new Promise<void>((resolve) => {
+            answer = resolve;
+          });
+
+          return said === "no" ? "Refused." : null;
+        },
+      },
+    ]);
+
+    render(<RouterProvider router={router} />);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText("Answer"), "no");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Sending…" }),
+    ).toBeDisabled();
+
+    answer();
+
+    await screen.findByRole("button", { name: "Send" });
+    expect(screen.queryByRole("status")).toBeNull();
+
+    await user.clear(screen.getByLabelText("Answer"));
+    await user.type(screen.getByLabelText("Answer"), "yes");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByRole("button", { name: "Sending…" });
+
+    answer();
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Sent.");
   });
 });

@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import {
   Form,
   Link,
@@ -334,10 +333,12 @@ export default function RecipeDetail() {
 
 // C14 (nomadwiz/kete#184). A form of its own beside RecipeForm, never inside
 // it -- a form nested in a form is invalid HTML -- and posted through a fetcher
-// rather than as a navigation. useWrite and useSubmitting read the navigation,
-// so a fetcher leaves Save and Delete alone while a photograph uploads, and its
-// answer lands in fetcher.data rather than in the useActionData RecipeForm
-// prints. Mounted with the edit view, so its last answer goes when that closes.
+// rather than as a navigation. Save and Delete read the navigation, so a
+// fetcher leaves them alone while a photograph uploads, and its answer lands
+// in fetcher.data rather than in the useActionData RecipeForm prints. useWrite
+// is handed the fetcher, so the success rule and the focus after the write are
+// ADR 005's like every other form's. Mounted with the edit view, so its last
+// answer goes when that closes.
 //
 // Progress is a <progress> with no value, which every browser draws and
 // announces as indeterminate. A percentage needs XMLHttpRequest's upload
@@ -345,21 +346,7 @@ export default function RecipeDetail() {
 // request() would lose the traversal check and the 401 rule that path carries.
 function Photograph({ src }: { src?: string | null }) {
   const photo = useFetcher<string | null>();
-  const uploading = photo.state !== "idle";
-
-  // ADR 005's first decision for a write useWrite cannot see: the button is
-  // disabled while the upload runs, which drops focus to <body>, so it is put
-  // back afterwards -- only after an upload, and only if nothing else took it.
-  const button = useRef<HTMLButtonElement>(null);
-  const sent = useRef(false);
-
-  useEffect(() => {
-    if (uploading) {
-      sent.current = true;
-    } else if (sent.current && document.activeElement === document.body) {
-      button.current?.focus();
-    }
-  }, [uploading]);
+  const { busy: uploading, succeeded } = useWrite("POST", photo);
 
   return (
     <photo.Form
@@ -395,7 +382,7 @@ function Photograph({ src }: { src?: string | null }) {
         </Notice>
       ) : null}
 
-      {!uploading && photo.data === null ? (
+      {succeeded ? (
         <Notice tone="progress" role="status">
           Photograph saved.
         </Notice>
@@ -403,7 +390,7 @@ function Photograph({ src }: { src?: string | null }) {
 
       {uploading ? <progress aria-label="Uploading photograph" /> : null}
 
-      <Button ref={button} type="submit" size="sm" disabled={uploading}>
+      <Button type="submit" size="sm" disabled={uploading}>
         {uploading ? "Uploading…" : "Upload photograph"}
       </Button>
     </photo.Form>
