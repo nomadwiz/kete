@@ -81,6 +81,16 @@ jobs:
                 -f message='Superseded by a newer review.' -f event=DISMISS
             done
 
+      # The agent-skills plugin's manifest names a github source, and the plugin
+      # installer clones that over SSH, which a runner has no key for. Ponytail is
+      # unaffected: its manifest declares source "./", so it installs from the
+      # marketplace clone already on disk and never fetches again. The rewrite is
+      # safe because the clone is anonymous and the repository is public — the
+      # extraheader actions/checkout leaves behind is per-repository and does not
+      # reach the plugin cache.
+      - name: Let the plugin installer clone over HTTPS
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
       - name: Review
         uses: anthropics/claude-code-action@v1
         env:
