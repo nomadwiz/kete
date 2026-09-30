@@ -5,9 +5,6 @@
    box overflows upward, where nothing can scroll to it -- and this screen is
    the tallest of the three, because the areas sit below the figures. */
 .dashboard {
-  --card-width: 26rem;
-  --title: clamp(var(--text-xl), 6vw, 2.75rem);
-
   display: grid;
   grid-template-columns: minmax(0, var(--card-width));
   max-width: var(--column);

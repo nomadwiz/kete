@@ -9,9 +9,6 @@
    The form itself is in ../form-skeleton.css, which this screen shares with
    sign-up, measurement and account. */
 .sign-in {
-  --form-width: 26rem;
-  --title: clamp(var(--text-xl), 6vw, 2.75rem);
-
   display: grid;
   grid-template-columns: minmax(0, var(--form-width));
   align-content: center;
