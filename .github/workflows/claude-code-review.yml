@@ -27,7 +27,7 @@ on:
     types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
-  contents: read
+  contents: write # merge a clean pull request, and update one that is behind
   pull-requests: write # submit a review, and dismiss the previous one
   issues: read
   id-token: write
@@ -51,7 +51,7 @@ jobs:
         with:
           fetch-depth: 0 # the reviewer reads history; depth 1 has none
 
-      # doc/contributing.md pins the cross-lane review rule's start to a commit in
+      # doc/contributing.md pins the review rule's start to a commit in
       # this repository, and several documents assert SHAs in it, so the documents
       # come with their full history too.
       - name: Check out the documents
@@ -129,8 +129,8 @@ jobs:
             Three of its rules decide most reviews here, so check them on every change:
 
             - **Scope.** `kete-doc/doc/design/product.md` section 5 lists what Kete deliberately does not do, and `kete-doc/doc/design/implementation.md` section 5 what was reviewed and must not be "improved". Building something from either list is the defect to catch first.
-            - **Lanes.** `kete-doc/doc/design/ownership.md` maps each path to an owner. A change reaching into another lane's files takes that member's contribution evidence away from them, and `kete-doc/doc/contributing.md` compels a cross-lane review for it.
-            - **Review.** `kete-doc/doc/contributing.md` compels a review when a change touches another lane's files, changes the API contract or the database schema, changes the scope in `product.md`, or changes the rules. It also requires the author to say in one line which they chose. Flag a pull request that meets one of those tests and says nothing.
+            - **Lanes.** `kete-doc/doc/design/ownership.md` maps each path to an owner. A change reaching into another lane's files takes that member's contribution evidence away from them, and `kete-doc/doc/contributing.md` compels a person's review for it.
+            - **Review.** `kete-doc/doc/contributing.md` compels a person's review when a change touches another lane's files, changes the API contract or the database schema, changes the scope in `product.md`, or changes the rules. It asks the author to open such a pull request as a draft while that person reads it, and to say in one line which they chose. Flag a pull request that meets one of those tests and says nothing — a finding here is what stops this review merging it before the person has read it.
 
             ## Run both reviewers over the diff
 
@@ -175,13 +175,13 @@ jobs:
 
             Use `"event": "COMMENT"` with an empty `comments` array when you found nothing. Never `"APPROVE"`: the token is forbidden from it and the call fails.
 
+            **A clean verdict merges the pull request.** A `COMMENT` carrying a summary and no inline comments is squash-merged by the step that runs after you, without anybody looking at it first. So post one only where you would merge the change yourself, and use `REQUEST_CHANGES` wherever you would want a person to look — including where this pull request meets one of the review tests above and asked for nobody.
+
             Every `line` must be one the diff touches, or GitHub rejects the whole review with a 422. `side` is `"RIGHT"` for an added or changed line and `"LEFT"` for a removed one. A finding about a file the diff does not touch goes in the body, not in `comments`.
 
             **Post nothing separately — one review is the deliverable.** Comments without a verdict leave the pull request unblocked with findings scattered through it, and a verdict without its comments makes the author hunt for the lines. A run that posts comments and no verdict fails the job.
 
             Open the body with one sentence saying whether anything blocks. Then group the findings under `### Correctness`, `### Drift against the documents`, `### Project rules` and `### What can be deleted`, leaving out any group that is empty. Quote the rule or the document you measured against, so the author can check your reading. A finding with no file and line is not a finding.
-
-            This review is not a substitute for the cross-lane review `kete-doc/doc/contributing.md` compels. Where that file requires a person, say so in the body.
 
             Report only what you can point at. Where something cannot be determined from this code and those documents, say so and stop. Never pick the most plausible reading and carry on.
 
@@ -199,3 +199,69 @@ jobs:
             --jq "[.[] | select(.submitted_at > \"$REVIEW_SINCE\") | select((.body|length) > 0)] | length")
           [ "$n" -gt 0 ] || { echo "The review step posted no verdict for this run." >&2; exit 1; }
           echo "Verdict posted."
+
+      # Claude merges what it found clean, so a pull request nothing is blocking
+      # does not wait on somebody noticing that nothing is blocking it.
+      #
+      # Clean means all three: this run posted a verdict, the verdict is a plain
+      # COMMENT rather than CHANGES_REQUESTED, and it carries no inline findings.
+      # All three are needed, because COMMENTED alone does not mean clean — the
+      # runs of 01-10-2026 that posted comments and no verdict landed as COMMENTED
+      # too, with an empty body and one inline comment each (kete-doc#27).
+      #
+      # The decision is deliberately not Claude's. The diff under review is
+      # untrusted input, and a model holding the merge button is a model a diff can
+      # argue into merging. This step reads the verdict already posted and the
+      # API's own counts, so nothing inside a pull request can move it.
+      - name: Merge what the review found clean
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          id=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq "[.[] | select(.submitted_at > \"$REVIEW_SINCE\")
+                       | select(.state == \"COMMENTED\")
+                       | select((.body|length) > 0)] | last | .id // empty")
+          if [ -z "$id" ]; then
+            echo "This run requested changes, or posted no clean verdict. Not merging."
+            exit 0
+          fi
+
+          findings=$(gh api "repos/$REPO/pulls/$PR/reviews/$id/comments" --jq 'length')
+          if [ "$findings" -ne 0 ]; then
+            echo "The verdict carries $findings inline findings. Not merging."
+            exit 0
+          fi
+
+          # A branch behind its base was reviewed against something that is no
+          # longer what it will become, which is #302's lesson. Update it and stop:
+          # the update pushes, that push is another synchronize event, and the run
+          # it fires reviews the merged result and merges it.
+          #
+          # The update merges $BASE into the branch. It is never a rebase, because
+          # kete-doc/doc/overview.md forbids history-rewriting operations and a
+          # rebase of a pushed branch needs a force push to land.
+          behind=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq '.behind_by')
+          if [ "$behind" -gt 0 ]; then
+            if gh api -X PUT "repos/$REPO/pulls/$PR/update-branch" --silent 2>/dev/null; then
+              echo "Branch was $behind commits behind $BASE. Updated; the next run merges it."
+            else
+              echo "Branch is $behind commits behind $BASE and will not update — a conflict. Left open."
+            fi
+            exit 0
+          fi
+
+          # Squashed, so one pull request is one commit on $BASE. GitHub writes a
+          # Co-authored-by trailer for every author in the squashed range, which is
+          # what keeps this inside kete-doc/doc/contributing.md's authorship rule
+          # rather than being the squash that rule forbids.
+          if gh api -X PUT "repos/$REPO/pulls/$PR/merge" -f merge_method=squash --silent; then
+            echo "Merged #$PR."
+          else
+            echo "Merge refused. Left open for a person."
+          fi
