@@ -574,13 +574,17 @@ def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
                                set_=dict(computed_at=now, **computed))
         .returning(models.NutritionTarget)).one()
 
+    # Built before the commit, which expires `target` (SessionLocal keeps
+    # expire_on_commit on): read afterwards, each attribute would reload the
+    # row, and a save committing in between would put its figures in this
+    # response.
+    out = TargetsOut(energy_kcal=int(target.energy_kcal),
+                     protein_g=int(target.protein_g),
+                     carbs_g=int(target.carbs_g),
+                     fat_g=int(target.fat_g),
+                     computed_at=target.computed_at)
     db.commit()          # both rows written together
-
-    return TargetsOut(energy_kcal=int(target.energy_kcal),
-                      protein_g=int(target.protein_g),
-                      carbs_g=int(target.carbs_g),
-                      fat_g=int(target.fat_g),
-                      computed_at=target.computed_at)
+    return out
 
 
 @app.get("/profile/metrics", response_model=MetricsOut, tags=["profile"],
