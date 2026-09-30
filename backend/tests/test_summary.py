@@ -125,6 +125,7 @@ def test_no_targets_is_a_404_like_get_targets(Session):
     assert err.value.status_code == 404
     with Session() as db, pytest.raises(HTTPException) as same:
         main.get_targets(user_id=uid, db=db)
+    assert same.value.status_code == 404
     assert same.value.detail == err.value.detail
 
 
