@@ -27,6 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import or_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -543,41 +544,47 @@ def save_metrics(body: MetricsIn, user_id: int = Depends(current_user_id),
     """
     if not db.get(models.User, user_id):
         raise HTTPException(status_code=404, detail="User not found")
+    now = datetime.now(timezone.utc)
 
-    # --- 1. the raw metrics (create the row first time, update it after) ---
-    profile = db.query(models.Profile).filter_by(user_id=user_id).first()
-    if profile is None:
-        profile = models.Profile(user_id=user_id)
-        db.add(profile)
-    profile.weight_kg = body.weight_kg
-    profile.height_cm = body.height_cm
-    profile.age = body.age
-    profile.sex = body.sex
-    profile.activity_level = body.activity_level
+    # Both writes are upserts on UNIQUE (user_id), not a read then an insert.
+    # Two overlapping first saves (two tabs, a retry) would both read no row,
+    # both insert, and the second would fail on the constraint as a 500. With
+    # ON CONFLICT the second waits for the first, then updates the row it
+    # wrote: the later save wins, which is what saving means. Not
+    # _commit_or_409 — answering someone's own Save with "that already exists"
+    # would be wrong. B18 (#262).
+
+    # --- 1. the raw metrics ---
+    metrics = body.model_dump()
+    db.execute(pg_insert(models.Profile)
+               .values(user_id=user_id, updated_at=now, **metrics)
+               .on_conflict_do_update(index_elements=[models.Profile.user_id],
+                                      set_=dict(updated_at=now, **metrics)))
 
     # --- 2. the engine ---
-    computed = compute_targets(body.weight_kg, body.height_cm, body.age,
-                               body.sex, body.activity_level)
+    computed = compute_targets(**metrics)
 
     # --- 3. the derived targets ---
-    target = db.query(models.NutritionTarget).filter_by(user_id=user_id).first()
-    if target is None:
-        target = models.NutritionTarget(user_id=user_id)
-        db.add(target)
-    target.energy_kcal = computed["energy_kcal"]
-    target.protein_g = computed["protein_g"]
-    target.carbs_g = computed["carbs_g"]
-    target.fat_g = computed["fat_g"]
-    target.computed_at = datetime.now(timezone.utc)
+    # RETURNING, so the answer is what was stored: the columns are Numeric, so
+    # int() of the stored value can differ from int() of the computed float.
+    target = db.scalars(
+        pg_insert(models.NutritionTarget)
+        .values(user_id=user_id, computed_at=now, **computed)
+        .on_conflict_do_update(index_elements=[models.NutritionTarget.user_id],
+                               set_=dict(computed_at=now, **computed))
+        .returning(models.NutritionTarget)).one()
 
+    # Built before the commit, which expires `target` (SessionLocal keeps
+    # expire_on_commit on): read afterwards, each attribute would reload the
+    # row, and a save committing in between would put its figures in this
+    # response.
+    out = TargetsOut(energy_kcal=int(target.energy_kcal),
+                     protein_g=int(target.protein_g),
+                     carbs_g=int(target.carbs_g),
+                     fat_g=int(target.fat_g),
+                     computed_at=target.computed_at)
     db.commit()          # both rows written together
-    db.refresh(target)
-
-    return TargetsOut(energy_kcal=int(target.energy_kcal),
-                      protein_g=int(target.protein_g),
-                      carbs_g=int(target.carbs_g),
-                      fat_g=int(target.fat_g),
-                      computed_at=target.computed_at)
+    return out
 
 
 @app.get("/profile/metrics", response_model=MetricsOut, tags=["profile"],
