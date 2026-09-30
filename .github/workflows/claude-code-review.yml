@@ -91,6 +91,11 @@ jobs:
       - name: Let the plugin installer clone over HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
 
+      # Record when the review starts, so the guard below can tell this run's
+      # verdict from one an earlier run left behind.
+      - name: Note the start time
+        run: echo "REVIEW_SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       - name: Review
         uses: anthropics/claude-code-action@v1
         env:
@@ -108,7 +113,8 @@ jobs:
             agent-skills@addy-agent-skills
             ponytail@ponytail
           claude_args: >-
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Task,Skill,SlashCommand,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
+            --model claude-opus-5-5 --effort high
+            --allowedTools "Read,Grep,Glob,Write,Task,Skill,SlashCommand,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}, the Kete application. The working directory is that repository. The documents repository, nomadwiz/kete-doc, is checked out at `kete-doc/` on its `master` branch with full history.
 
@@ -149,15 +155,47 @@ jobs:
 
             ## Post exactly one review
 
-            Put each located finding on its line with `mcp__github_inline_comment__create_inline_comment`. Then post one verdict, and only one:
+            One API call carries the verdict and every inline comment together. Write the JSON to a file, confirm it parses with `jq . <file>`, then post it:
 
-            - Anything found: `gh pr review ${{ github.event.pull_request.number }} --request-changes --body-file <file>`
-            - Nothing found: `gh pr review ${{ github.event.pull_request.number }} --comment --body-file <file>`
+            ```
+            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews --input <file>
+            ```
 
-            Never `--approve`. The token is forbidden from it and the call fails.
+            The file:
+
+            ```json
+            {
+              "event": "REQUEST_CHANGES",
+              "body": "<the summary>",
+              "comments": [
+                {"path": "<path>", "line": <line>, "side": "RIGHT", "body": "<the finding>"}
+              ]
+            }
+            ```
+
+            Use `"event": "COMMENT"` with an empty `comments` array when you found nothing. Never `"APPROVE"`: the token is forbidden from it and the call fails.
+
+            Every `line` must be one the diff touches, or GitHub rejects the whole review with a 422. `side` is `"RIGHT"` for an added or changed line and `"LEFT"` for a removed one. A finding about a file the diff does not touch goes in the body, not in `comments`.
+
+            **Post nothing separately — one review is the deliverable.** Comments without a verdict leave the pull request unblocked with findings scattered through it, and a verdict without its comments makes the author hunt for the lines. A run that posts comments and no verdict fails the job.
 
             Open the body with one sentence saying whether anything blocks. Then group the findings under `### Correctness`, `### Drift against the documents`, `### Project rules` and `### What can be deleted`, leaving out any group that is empty. Quote the rule or the document you measured against, so the author can check your reading. A finding with no file and line is not a finding.
 
             This review is not a substitute for the cross-lane review `kete-doc/doc/contributing.md` compels. Where that file requires a person, say so in the body.
 
             Report only what you can point at. Where something cannot be determined from this code and those documents, say so and stop. Never pick the most plausible reading and carry on.
+
+      # A run that posted inline comments and no verdict still reported success,
+      # and the pull request then sat unblocked with findings scattered over it.
+      # Three silent successes in this workflow's first day earned this guard.
+      - name: Fail if no verdict was posted
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          n=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq "[.[] | select(.submitted_at > \"$REVIEW_SINCE\") | select((.body|length) > 0)] | length")
+          [ "$n" -gt 0 ] || { echo "The review step posted no verdict for this run." >&2; exit 1; }
+          echo "Verdict posted."
