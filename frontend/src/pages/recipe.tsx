@@ -1,7 +1,9 @@
+import { useEffect, useRef } from "react";
 import {
   Form,
   Link,
   useActionData,
+  useFetcher,
   useLoaderData,
   useSearchParams,
 } from "react-router";
@@ -9,6 +11,7 @@ import {
 import RecipeForm from "../components/recipe-form";
 import { Button } from "../components/ui/button";
 import { buttonVariants } from "../components/ui/button-variants";
+import { Field } from "../components/ui/field";
 import { Figures } from "../components/ui/figures";
 import { Notice } from "../components/ui/notice";
 import { Screen } from "../components/ui/screen";
@@ -169,6 +172,8 @@ export default function RecipeDetail() {
               the edit case rather than the create one. */}
             <RecipeForm recipe={recipe} error={error} busy={saving} />
 
+            <Photograph src={recipe.photo_url} />
+
             {/* A button rather than a link back to the read address, because it
               has to be refusable: a navigation away during a save abandons a
               PUT that may already have reached the API, throwing away both the
@@ -324,5 +329,83 @@ export default function RecipeDetail() {
         )}
       </div>
     </Screen>
+  );
+}
+
+// C14 (nomadwiz/kete#184). A form of its own beside RecipeForm, never inside
+// it -- a form nested in a form is invalid HTML -- and posted through a fetcher
+// rather than as a navigation. useWrite and useSubmitting read the navigation,
+// so a fetcher leaves Save and Delete alone while a photograph uploads, and its
+// answer lands in fetcher.data rather than in the useActionData RecipeForm
+// prints. Mounted with the edit view, so its last answer goes when that closes.
+//
+// Progress is a <progress> with no value, which every browser draws and
+// announces as indeterminate. A percentage needs XMLHttpRequest's upload
+// events, which fetch does not have, and a second request path beside
+// request() would lose the traversal check and the 401 rule that path carries.
+function Photograph({ src }: { src?: string | null }) {
+  const photo = useFetcher<string | null>();
+  const uploading = photo.state !== "idle";
+
+  // ADR 005's first decision for a write useWrite cannot see: the button is
+  // disabled while the upload runs, which drops focus to <body>, so it is put
+  // back afterwards -- only after an upload, and only if nothing else took it.
+  const button = useRef<HTMLButtonElement>(null);
+  const sent = useRef(false);
+
+  useEffect(() => {
+    if (uploading) {
+      sent.current = true;
+    } else if (sent.current && document.activeElement === document.body) {
+      button.current?.focus();
+    }
+  }, [uploading]);
+
+  return (
+    <photo.Form
+      className="recipe__upload"
+      method="post"
+      encType="multipart/form-data"
+      aria-busy={uploading}
+    >
+      {/* Straight off the loader, as the read view takes it: a presigned link
+          that expires an hour after the API minted it, so nothing keeps it. */}
+      {src ? <img className="recipe__photo" src={src} alt="" /> : null}
+
+      <input type="hidden" name="intent" value="photo" />
+
+      <Field htmlFor="recipe-photo" label="Photograph">
+        <input
+          aria-describedby="recipe-photo-note"
+          id="recipe-photo"
+          name="file"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          required
+        />
+      </Field>
+
+      <p className="recipe__note" id="recipe-photo-note">
+        JPEG, PNG or WebP, up to 5 MB. It replaces the current photograph.
+      </p>
+
+      {typeof photo.data === "string" ? (
+        <Notice tone="refusal" role="alert">
+          {photo.data}
+        </Notice>
+      ) : null}
+
+      {!uploading && photo.data === null ? (
+        <Notice tone="progress" role="status">
+          Photograph saved.
+        </Notice>
+      ) : null}
+
+      {uploading ? <progress aria-label="Uploading photograph" /> : null}
+
+      <Button ref={button} type="submit" size="sm" disabled={uploading}>
+        {uploading ? "Uploading…" : "Upload photograph"}
+      </Button>
+    </photo.Form>
   );
 }

@@ -1,7 +1,9 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { RouteObject } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { PATHS, routes } from "../routes";
 import { jsonResponse, renderAt, stubFetch } from "../test/router";
 import type { RecipeDetail } from "../types/recipe";
 
@@ -776,5 +778,147 @@ describe("deleting a recipe", () => {
     // reader is otherwise told nothing about, on an element that has just lost
     // focus to the body.
     expect(button.closest("form")).toHaveAttribute("aria-busy", "true");
+  });
+});
+
+// C14 (nomadwiz/kete#184). No test here submits the photograph form, and none
+// can under jsdom 30 -- checked, not assumed. jsdom builds a form's entries from
+// its own internal file list, which user-event's upload() never reaches, so the
+// entry arrives as an empty File; and vitest 5.0.2's Request shim then reads a
+// symbol jsdom 30 no longer puts on a Blob and throws. So the control is tested
+// for what it draws, and the photo branch of the route's action is called
+// directly with a FormData holding a real File, which never builds a Request.
+// The submission itself -- progress, the alert, the new image -- is a browser
+// check, recorded on the issue.
+describe("the photograph control", () => {
+  it("is offered in the edit view, for the types the API accepts", async () => {
+    signedIn();
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7?edit");
+
+    const input = await screen.findByLabelText("Photograph");
+
+    expect(input).toHaveAttribute("type", "file");
+    expect(input).toHaveAttribute("accept", "image/jpeg,image/png,image/webp");
+    expect(
+      screen.getByRole("button", { name: "Upload photograph" }),
+    ).toBeEnabled();
+  });
+
+  it("is not offered in the read view", async () => {
+    signedIn();
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7");
+
+    await screen.findByRole("heading", { name: "Laksa" });
+
+    expect(screen.queryByLabelText("Photograph")).toBeNull();
+  });
+});
+
+// The action on /recipes/:id, found in the real route tree rather than
+// exported for the test -- the same reason test/router.tsx renders `routes`.
+function recipeRouteAction() {
+  const stack: RouteObject[] = [...routes];
+
+  while (stack.length > 0) {
+    const route = stack.pop()!;
+
+    if (route.path === PATHS.recipe && typeof route.action === "function") {
+      return route.action;
+    }
+
+    stack.push(...(route.children ?? []));
+  }
+
+  throw new Error("No action on the recipe route.");
+}
+
+function uploading(file: File) {
+  const form = new FormData();
+  form.set("intent", "photo");
+  form.set("file", file);
+
+  return recipeRouteAction()({
+    params: { id: "7" },
+    request: { formData: async () => form } as Request,
+    context: {},
+  } as never);
+}
+
+describe("the photo branch of the recipe action", () => {
+  const PHOTO = new File(["jpeg bytes"], "laksa.jpg", { type: "image/jpeg" });
+
+  it("posts the file alone to the photo endpoint and reports success as null", async () => {
+    signedIn();
+    const { fetchStub } = stubFetch({
+      "/recipes/7/photo": async () =>
+        jsonResponse(200, { photo_url: "https://storage.test/x" }),
+    });
+
+    expect(await uploading(PHOTO)).toBeNull();
+
+    const [, init] = fetchStub.mock.calls[0];
+    const body = init?.body as FormData;
+
+    expect(init?.method).toBe("POST");
+    expect((body.get("file") as File).name).toBe("laksa.jpg");
+    // The key that routed the submission is not the API's business.
+    expect(body.has("intent")).toBe(false);
+  });
+
+  // What backend/storage.py would refuse is refused before the upload, so
+  // nobody waits out five megabytes to be told the type was wrong. A string is
+  // a refusal, which is the invariant every action in routes.tsx keeps.
+  it.each([
+    [
+      "a type the API refuses",
+      new File(["gif"], "a.gif", { type: "image/gif" }),
+    ],
+    [
+      "a file over 5 MB",
+      new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.jpg", {
+        type: "image/jpeg",
+      }),
+    ],
+    ["an empty file", new File([], "empty.jpg", { type: "image/jpeg" })],
+  ])("refuses %s without sending it", async (_, file) => {
+    signedIn();
+    const { calls } = stubFetch({});
+
+    expect(typeof (await uploading(file))).toBe("string");
+    expect(calls).toEqual([]);
+  });
+
+  // 502 and 503 are the bucket failing, not the file being wrong, and the
+  // sentence has to say so -- 503's own detail names an environment variable.
+  it.each([502, 503])(
+    "says a %i is a storage failure rather than a bad file",
+    async (status) => {
+      signedIn();
+      stubFetch({
+        "/recipes/7/photo": async () =>
+          jsonResponse(status, { detail: "S3_BUCKET is not set" }),
+      });
+
+      const said = await uploading(PHOTO);
+
+      expect(said).toMatch(/could not be stored/);
+      expect(said).not.toMatch("S3_BUCKET");
+    },
+  );
+
+  // Only reachable if photoProblem and backend/storage.py drift apart, and
+  // then the server's sentence is the one that names the rule.
+  it("passes a refusal of the file itself through in the API's words", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/7/photo": async () =>
+        jsonResponse(415, { detail: "Unsupported image type." }),
+    });
+
+    expect(await uploading(PHOTO)).toBe("Unsupported image type.");
   });
 });
