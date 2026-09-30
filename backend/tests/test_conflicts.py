@@ -1,5 +1,10 @@
 """
-B15 (nomadwiz/kete#157): a clash is a 409 even when two requests race.
+Races that a check cannot win: B15 (nomadwiz/kete#157) and B20 (#264).
+
+B15 is the clash: a 409 even when two requests race. B20 is the recipe that
+disappears between the check and the insert: a 404 rather than a 500. Both have
+the same shape, which is why they share a file -- an endpoint checks, then
+writes, and the database is what refuses the write.
 
 Each endpoint here checks for a clash, then writes. Two requests can both pass
 the check before either commits, and then the database's unique constraint is
@@ -13,8 +18,11 @@ rather than hoping for it:
 3. Once B is seen waiting in pg_stat_activity, A commits and B's write fails
    on the constraint.
 
-Before the fix, B raised the bare IntegrityError that reaches the client as a
-500. The endpoint must answer 409, in the same words as its own check.
+Before either fix, B raised the bare IntegrityError that reaches the client as
+a 500. For B15 the endpoint must answer 409, in the same words as its own
+check. For B20 it must answer the 404 the check would have given, and
+POST /mealplan/generate says what happened rather than naming a recipe the
+caller never chose.
 """
 
 import threading
@@ -345,7 +353,7 @@ def test_generate_week_recipe_deleted_mid_request_keeps_the_planned_week(
     assert {s.recipe_id for s in survived} == {keeper_id}
 
 # --------------------------------------------------------------------------
-# _commit_or_409 itself — the two promises no endpoint test observes
+# _commit_or_409 and _commit_slots — the promises no endpoint test observes
 # --------------------------------------------------------------------------
 def test_a_clash_leaves_the_session_usable(Session):
     """After a 409 the session has been rolled back, not left aborted.
