@@ -293,7 +293,9 @@ def test_generate_week_recipe_deleted_mid_request_is_404(engine, Session):
         act=lambda b: main.generate_week(
             main.GenerateIn(week=WEEK), user_id=user_id, db=b))
 
-    _assert_404(outcome, "Recipe not found")
+    _assert_404(outcome,
+                "A recipe was deleted while the week was being generated — "
+                "try again")
 
 
 # --------------------------------------------------------------------------

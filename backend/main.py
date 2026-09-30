@@ -355,7 +355,8 @@ FOREIGN_KEY_VIOLATION = "23503"   # PostgreSQL's SQLSTATE for a missing referenc
 SLOT_RECIPE_FK = "plan_slots_recipe_id_fkey"
 
 
-def _commit_slots(db: Session, clash_detail: str) -> None:
+def _commit_slots(db: Session, clash_detail: str,
+                  missing_detail: str = "Recipe not found") -> None:
     """Commit new plan slots: a clash is a 409, a recipe gone is a 404.
 
     Both slot endpoints check the recipe exists, then insert slots pointing at
@@ -363,14 +364,21 @@ def _commit_slots(db: Session, clash_detail: str) -> None:
     fails on the foreign key. That is the recipe-not-found the check already
     answers, arriving late, so it gets the same 404 rather than a 500. Any
     other foreign-key or check failure is still a bug, and still raised.
+
+    missing_detail belongs to the call site, because the two endpoints were
+    asked different questions. POST /mealplan was handed a recipe_id, so
+    "Recipe not found" answers it in the same words as _owned_recipe.
+    POST /mealplan/generate was handed a week and dealt from the whole
+    library, so naming a recipe the caller never chose explains nothing to
+    them; it says what happened instead.
     """
     try:
         _commit_or_409(db, clash_detail)     # rolls back before re-raising
     except IntegrityError as exc:
         if (getattr(exc.orig, "pgcode", None) == FOREIGN_KEY_VIOLATION
-                and exc.orig.diag.constraint_name == SLOT_RECIPE_FK):
+                and (exc.orig.diag.constraint_name or "") == SLOT_RECIPE_FK):
             raise HTTPException(status_code=404,
-                                detail="Recipe not found") from exc
+                                detail=missing_detail) from exc
         raise
 
 
@@ -841,7 +849,10 @@ def generate_week(body: GenerateIn, user_id: int = Depends(current_user_id),
 
     # Pressing Generate week twice runs two of these at once: both clear the
     # week, both deal 21 slots, and uq_plan_slot refuses the second.
-    _commit_slots(db, "That week changed while it was being generated — try again")
+    _commit_slots(
+        db,
+        "That week changed while it was being generated — try again",
+        "A recipe was deleted while the week was being generated — try again")
     return GenerateOut(created=created)
 
 
