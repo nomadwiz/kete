@@ -313,18 +313,6 @@ function recipeLoader({
   });
 }
 
-// One action for the whole screen, branching on a submitted intent rather than
-// giving each verb a route of its own -- ADR 002, and the shape plannerAction
-// uses. A submission carrying no intent is the save, which is the convention
-// C13 (nomadwiz/kete#178) set when it left RecipeForm with no intent field.
-//
-// Each branch owns its own catch and its own destination, and neither is
-// shared below the branch. That is what makes this extensible rather than
-// merely arranged: C15 (nomadwiz/kete#179)'s delete lands as a sibling block
-// and has to end at PATHS.recipes, because a redirect to the record just
-// deleted would put a person on the not-found panel instead of their library
-// -- and a shared tail would hand it that destination silently, compiling and
-// passing every test here.
 // What backend/storage.py would refuse, refused before the upload starts:
 // ALLOWED_TYPES is image/jpeg, image/png and image/webp, and MAX_BYTES is
 // 5 MB. Answers the sentence to show, or null for a file worth sending.
@@ -337,10 +325,6 @@ function photoProblem(file: File): string | null {
     return "Choose a JPEG, PNG or WebP photograph.";
   }
 
-  if (file.size === 0) {
-    return "That file is empty. Choose the photograph again.";
-  }
-
   if (file.size > 5 * 1024 * 1024) {
     return "That photograph is larger than 5 MB. Choose a smaller one.";
   }
@@ -348,6 +332,18 @@ function photoProblem(file: File): string | null {
   return null;
 }
 
+// One action for the whole screen, branching on a submitted intent rather than
+// giving each verb a route of its own -- ADR 002, and the shape plannerAction
+// uses. A submission carrying no intent is the save, which is the convention
+// C13 (nomadwiz/kete#178) set when it left RecipeForm with no intent field.
+//
+// Each branch owns its own catch and its own destination, and neither is
+// shared below the branch. That is what makes this extensible rather than
+// merely arranged: C15 (nomadwiz/kete#179)'s delete lands as a sibling block
+// and has to end at PATHS.recipes, because a redirect to the record just
+// deleted would put a person on the not-found panel instead of their library
+// -- and a shared tail would hand it that destination silently, compiling and
+// passing every test here.
 async function recipeAction({ params, request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const intent = String(form.get("intent") ?? "");
@@ -540,7 +536,12 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
           }
 
           // The recipe went while the edit view was open, answered the way
-          // the save answers it and for the same reason.
+          // the save answers it and for the same reason. Where it went because
+          // of a delete from this screen, that navigation started after this
+          // fetcher's action did, and react-router drops a fetcher's redirect
+          // in that case (`pendingNavigationLoadId > originatingLoadId` in its
+          // router) -- so the delete's PATHS.recipes still wins, as the header
+          // above requires.
           if (error.status === 404) {
             throw replace(here);
           }

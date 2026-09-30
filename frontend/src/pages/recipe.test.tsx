@@ -883,7 +883,6 @@ describe("the photo branch of the recipe action", () => {
         type: "image/jpeg",
       }),
     ],
-    ["an empty file", new File([], "empty.jpg", { type: "image/jpeg" })],
   ])("refuses %s without sending it", async (_, file) => {
     signedIn();
     const { calls } = stubFetch({});
