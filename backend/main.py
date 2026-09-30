@@ -798,8 +798,16 @@ def _percent(total: int, target: int) -> int:
     """total as a whole-number percentage of target, rounded half up.
 
     Integer arithmetic, so 0.5 always rounds up (Python's round() would take
-    it to the even neighbour) and no float error creeps in. target is never
-    zero: ck_target_* in models.py refuse a stored target that is not > 0.
+    it to the even neighbour) and no float error creeps in.
+
+    target is never zero, and it takes two facts rather than one. ck_target_*
+    in models.py refuse a stored target that is not > 0, but the columns are
+    Numeric(7, 2) and Numeric(6, 2), so 0.50 would satisfy that and
+    _stored_targets would then int() it to 0. What closes the gap is that
+    compute_targets is the only writer of nutrition_targets anywhere in this
+    file, and it only ever writes whole numbers. A seed script or a hand-edit
+    in psql could still store 0.50; tightening the constraints to >= 1 is what
+    would close it at the database, where ADR 001 chose to close it.
     """
     return (total * 200 + target) // (target * 2)
 
