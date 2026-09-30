@@ -298,6 +298,52 @@ def test_generate_week_recipe_deleted_mid_request_is_404(engine, Session):
                 "try again")
 
 
+def test_generate_week_recipe_deleted_mid_request_keeps_the_planned_week(
+        engine, Session):
+    """The 404 undoes the clear as well as the inserts, so the week survives.
+
+    generate_week empties the week before it refills it, and both happen in one
+    transaction. If the clear were ever to commit separately from the inserts,
+    this race would cost the user the week they were looking at -- the worst
+    outcome in nomadwiz/kete#264, and the only clause in it that no other test
+    observes.
+
+    The slots already in the week point at a recipe that is not the one being
+    deleted, and that is the whole difficulty of writing this. recipe_id is ON
+    DELETE CASCADE, so slots pointing at the doomed recipe would be swept away
+    by the cascade when session A commits, and the test would then be watching
+    the cascade rather than the rollback and would pass for the wrong reason.
+    """
+    user_id, doomed = _seed_user_with_recipe(Session)
+    with Session() as db:
+        keeper = models.Recipe(user_id=user_id, name="Curry")
+        db.add(keeper)
+        db.commit()
+        keeper_id = keeper.recipe_id
+        for meal in main.MEALS:
+            db.add(models.PlanSlot(user_id=user_id, recipe_id=keeper_id,
+                                   week=WEEK, day_of_week="Mon",
+                                   meal_position=meal))
+        db.commit()
+
+    # recipes are dealt in recipe_id order, so the first slot generate builds
+    # points at the doomed recipe and it is the first insert to fail.
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _delete_recipe(a, doomed),
+        act=lambda b: main.generate_week(
+            main.GenerateIn(week=WEEK), user_id=user_id, db=b))
+
+    _assert_404(outcome,
+                "A recipe was deleted while the week was being generated — "
+                "try again")
+
+    with Session() as db:
+        survived = db.query(models.PlanSlot).filter_by(
+            user_id=user_id, week=WEEK).all()
+    assert sorted(s.meal_position for s in survived) == sorted(main.MEALS)
+    assert {s.recipe_id for s in survived} == {keeper_id}
+
 # --------------------------------------------------------------------------
 # _commit_or_409 itself — the two promises no endpoint test observes
 # --------------------------------------------------------------------------
