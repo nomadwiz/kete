@@ -42,13 +42,19 @@ from sqlalchemy.exc import IntegrityError
 
 import main
 import models
+from security import hash_password
 
 WEEK = "2026-W40"
+
+# A real hash, made once: PUT /profile now checks the password when a username
+# or email changes (S14), and PBKDF2 is deliberately too slow to run per user.
+PASSWORD = "correct-horse"
+PASSWORD_HASH = hash_password(PASSWORD)
 
 
 def _user(db, username, email):
     user = models.User(first_name="Test", last_name="User", username=username,
-                       email=email, password_hash="not-a-real-hash")
+                       email=email, password_hash=PASSWORD_HASH)
     db.add(user)
     db.flush()
     return user
@@ -178,7 +184,8 @@ def test_update_profile_race_on_username_is_409(engine, Session):
         hold=lambda a: _user(a, "wanted", "someone@example.com"),
         act=lambda b: main.update_profile(main.ProfileIn(
             first_name="M", last_name="E", username="wanted",
-            email="me@example.com"), user_id=me, db=b))
+            email="me@example.com", current_password=PASSWORD),
+            user_id=me, db=b))
 
     _assert_409(outcome, "That username is already taken")
 
@@ -196,7 +203,8 @@ def test_update_profile_race_on_email_is_409(engine, Session):
         hold=lambda a: _user(a, "someone", "wanted@example.com"),
         act=lambda b: main.update_profile(main.ProfileIn(
             first_name="M", last_name="E", username="me",
-            email="wanted@example.com"), user_id=me, db=b))
+            email="wanted@example.com", current_password=PASSWORD),
+            user_id=me, db=b))
 
     _assert_409(outcome, "That email is already taken")
 
@@ -210,7 +218,8 @@ def test_update_profile_ordinary_duplicate_is_still_409(Session):
     with Session() as db, pytest.raises(HTTPException) as caught:
         main.update_profile(main.ProfileIn(
             first_name="M", last_name="E", username="me",
-            email="other@example.com"), user_id=me, db=db)
+            email="other@example.com", current_password=PASSWORD),
+            user_id=me, db=db)
 
     assert caught.value.status_code == 409
     assert caught.value.detail == "That email is already taken"

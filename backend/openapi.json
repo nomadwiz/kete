@@ -161,7 +161,7 @@
           "profile"
         ],
         "summary": "Update Profile",
-        "description": "Update the signed-in user's account details.",
+        "description": "Update the signed-in user's account details.\n\nChanging the username or email needs current_password, because either one\nis what the account signs in with (S14). Changing only the name does not.",
         "operationId": "update_profile_profile_put",
         "requestBody": {
           "content": {
@@ -204,8 +204,156 @@
               }
             }
           },
+          "403": {
+            "description": "The current password is incorrect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "409": {
             "description": "That username or email is already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Delete Account",
+        "description": "Delete the account and everything in it, given the password.\n\nOne row goes and the database takes the rest: profiles, nutrition_targets,\nrecipes and plan_slots all reference users ON DELETE CASCADE. That is the\ncascading deletion section 7.2 describes, and this is its only caller.\n\nPhotographs are the exception. They live in S3, which no foreign key\nreaches, so their keys are read first and each object is removed once the\nrows are gone, best effort, as delete_recipe does for one. Deleting them\nfirst would lose them if the commit then failed.",
+        "operationId": "delete_account_profile_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The current password is incorrect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/profile/password": {
+      "put": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Change Password",
+        "description": "Replace the password, given the current one.\n\nTokens already issued stay valid until they expire (twelve hours at most):\na token carries no record of the password it was issued under, and ending\nthem early would need a per-user counter in the schema. A known limitation,\nrecorded in the report, not an oversight.",
+        "operationId": "change_password_profile_password_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The current password is incorrect",
             "content": {
               "application/json": {
                 "schema": {
@@ -487,6 +635,16 @@
           },
           "401": {
             "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account behind the token no longer exists",
             "content": {
               "application/json": {
                 "schema": {
@@ -1316,6 +1474,19 @@
         ],
         "title": "DaySummary"
       },
+      "DeleteAccountIn": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "DeleteAccountIn"
+      },
       "ErrorDetail": {
         "properties": {
           "detail": {
@@ -1548,6 +1719,25 @@
         "title": "NutrientComparison",
         "description": "One nutrient on one day, against the stored daily target.\n\nThese four descriptions travel into openapi.json, for the reason the\ndeclared error responses below give: a fact a client has to know is part\nof the contract, and a comment here is not. The sign of `difference` and\nthe length of `days` were both comments until a cross-lane review pointed\nout that C18's grid was being built on them."
       },
+      "PasswordIn": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "title": "Current Password"
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordIn"
+      },
       "PhotoOut": {
         "properties": {
           "photo_url": {
@@ -1715,6 +1905,18 @@
             "type": "string",
             "format": "email",
             "title": "Email"
+          },
+          "current_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password",
+            "description": "Required when username or email changes, since either is what the account signs in with. Not needed to change only the name."
           }
         },
         "type": "object",
