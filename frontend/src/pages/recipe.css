@@ -1,175 +1,94 @@
-/* The same page column and gutter every other screen is laid out in, so the
-   title lands where /recipes puts its own. */
+/* One recipe, read. The four figures are drawn by components/ui/figures.tsx and
+   the controls by components/ui/button.tsx, so what is left here is the page's
+   own rhythm: bands of content separated by one weight of hairline, and a
+   photograph that is a plate on the page rather than a card with a picture in
+   it. doc/design/visual-language.md section 4 in nomadwiz/kete-doc. */
 .recipe {
-  max-width: var(--column);
-  margin-inline: auto;
-  padding-inline: var(--gutter);
-  padding-block: clamp(var(--space-12), 8vw, var(--space-16));
+  display: grid;
+  gap: var(--space-8);
+}
 
-  .recipe__back {
-    font-size: var(--text-sm);
-  }
+.recipe__back-link {
+  font-size: var(--text-sm);
+  color: var(--color-muted-foreground);
+  text-underline-offset: 4px;
+  text-decoration-color: var(--color-rule);
+  text-decoration-thickness: 2px;
+  transition: text-decoration-color 200ms ease;
+}
 
-  .recipe__back-link {
-    font-weight: 600;
-    color: var(--ink-soft);
-    text-underline-offset: 0.18em;
-  }
+.recipe__back-link:hover {
+  text-decoration-color: var(--color-accent);
+}
 
-  .recipe__title {
-    margin-top: var(--space-2);
-    font-size: var(--title);
-    font-stretch: 82%;
-    letter-spacing: -0.02em;
-    line-height: 0.95;
-  }
+/* Bounded by a hairline rather than by a border of its own, so the photograph
+   sits in the weave with everything else. No radius: a square is what the grid
+   is made of, and --radius-control is for things that take input. */
+.recipe__photo {
+  width: 100%;
+  max-width: 22rem;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--color-rule);
+}
 
-  .recipe__missing {
-    max-width: var(--measure);
-    margin-top: var(--space-8);
-    padding: var(--space-6);
-    background: var(--muka);
-    border: 1px solid var(--straw);
-  }
+/* No photograph is a gap in the weave, not a grey panel standing in for one --
+   and a small gap rather than a large one. A 22rem empty plate is a lot of
+   nothing on a screen whose content is often sparse, and section 4 asks that a
+   screen look finished when it is empty. It stays drawn rather than removed
+   because its absence is a state this page reports, which recipe.test.tsx
+   pins. */
+.recipe__photo--none {
+  display: block;
+  width: 7rem;
+  aspect-ratio: 1;
+  background: transparent;
+}
 
-  .recipe__missing-link {
-    font-weight: 600;
-    text-decoration-thickness: 2px;
-  }
+.recipe__servings {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+}
 
-  /* account.css's confirmation panel, and the same reasoning about the left
-     rule being the only thing that distinguishes it from a refusal. */
-  .recipe__saved {
-    max-width: var(--measure);
-    margin-top: var(--space-6);
-    padding: var(--space-3) var(--space-4);
-    background: var(--muka);
-    border: 1px solid var(--straw);
-    border-left: 3px solid var(--kowhai);
-    font-size: var(--text-sm);
-  }
+.recipe__nutrition,
+.recipe__prose {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-rule);
+}
 
-  .recipe__cuisine {
-    margin-top: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--ink-soft);
-  }
+.recipe__heading {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+}
 
-  /* One box whatever fills it, and capped rather than free to grow: a
-     photograph the length of a desktop viewport pushes every figure below the
-     fold on the page whose job is to show them. object-fit stops a portrait
-     photograph being stretched into the landscape box. */
-  .recipe__photo {
-    width: 100%;
-    max-width: 32rem;
-    aspect-ratio: 3 / 2;
-    object-fit: cover;
-    margin-top: var(--space-8);
-  }
+.recipe__note {
+  max-width: var(--measure);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-muted-foreground);
+}
 
-  /* The absent state, drawn rather than left empty: a flat straw panel, which
-     is structure and not an image that failed to load. --straw is never text
-     here, so its contrast ratio is not in question. */
-  .recipe__photo--none {
-    background: var(--straw);
-  }
+/* Free text the person typed, stored as one string, so the line breaks they
+   typed are kept here rather than invented as list items in the markup. */
+.recipe__text {
+  max-width: var(--measure);
+  margin-top: var(--space-3);
+  white-space: pre-line;
+}
 
-  .recipe__servings {
-    margin-top: var(--space-6);
-    font-weight: 600;
-  }
+.recipe__cancel {
+  justify-self: start;
+}
 
-  .recipe__nutrition,
-  .recipe__prose {
-    max-width: var(--measure);
-    margin-top: var(--space-12);
-  }
+.recipe__missing {
+  max-width: var(--measure);
+  color: var(--color-muted-foreground);
+}
 
-  .recipe__heading {
-    font-size: var(--text-lg);
-  }
-
-  .recipe__note {
-    margin-top: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--ink-soft);
-  }
-
-  /* auto-fit rather than auto-fill on this one: there are always exactly four
-     figures, so there is no lone-item case to protect against and the four
-     should spread across whatever width there is. */
-  .recipe__figures {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
-    gap: var(--space-4);
-    margin-top: var(--space-4);
-  }
-
-  .recipe__figure {
-    padding: var(--space-4);
-    background: var(--muka);
-    border: 1px solid var(--straw);
-  }
-
-  .recipe__figure-name {
-    font-size: var(--text-sm);
-    color: var(--ink-soft);
-  }
-
-  .recipe__figure-value {
-    margin: var(--space-1) 0 0;
-    font-size: var(--text-lg);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Both fields are free text the person typed, stored as one string each, so
-     the line breaks they typed are the only structure there is -- pre-wrap is
-     what keeps them, and it is the reason the markup does not invent list
-     items. */
-  .recipe__text {
-    margin-top: var(--space-4);
-    white-space: pre-wrap;
-  }
-
-  /* The kowhai fill the other screens put on their one primary action. That
-     treatment is written out five times across the client now and lifting it
-     out is C27 (nomadwiz/kete#280)'s, not this screen's. */
-  .recipe__edit {
-    display: inline-block;
-    margin-top: var(--space-12);
-    background: var(--kowhai);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius-control);
-    padding: 0.55em 1.1em;
-    font-weight: 600;
-    text-decoration: none;
-  }
-
-  /* The restraint planner.css puts on its own two destructive controls, and
-     for the reason recorded there: index.css reserves --kowhai for the one
-     recommended way through a screen, which .recipe__edit above is. An accent
-     on the control that destroys the record and empties every position
-     holding it would read as the way on. Four properties and not five --
-     index.css already gives every button the control radius. */
-  .recipe__delete {
-    margin-top: var(--space-6);
-    padding: var(--space-2) var(--space-4);
-    background: var(--paper);
-    border: 1px solid var(--ink-soft);
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
-  .recipe__cancel {
-    margin-top: var(--space-4);
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--ink-soft);
-    text-decoration: underline;
-    text-underline-offset: 0.18em;
-  }
+.recipe__missing-link {
+  text-underline-offset: 4px;
+  text-decoration-color: var(--color-accent);
+  text-decoration-thickness: 2px;
 }

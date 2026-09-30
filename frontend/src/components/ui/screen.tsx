@@ -24,6 +24,7 @@ import { cn } from "../../cn";
 export function Screen({
   title,
   lede,
+  above,
   wide,
   center,
   actions,
@@ -31,6 +32,10 @@ export function Screen({
 }: {
   title: string;
   lede?: string;
+  /** A breadcrumb or a way back, drawn above the title rather than beside it.
+   *  Only /recipes/:id has one: it is the single screen reached from another
+   *  screen rather than from the bar. */
+  above?: React.ReactNode;
   /** Content spans all twelve columns, under the title rather than beside it.
    *  For the planner's grid and the recipe library, which want the full width. */
   wide?: boolean;
@@ -50,6 +55,8 @@ export function Screen({
         center && "min-h-[72svh] content-center",
       )}
     >
+      {above ? <div className="col-span-12 -mb-4">{above}</div> : null}
+
       <header className={cn("col-span-12", !wide && "lg:col-span-4")}>
         <h1 className="text-title leading-[0.95] font-semibold tracking-tight [font-stretch:var(--stretch-display)]">
           {title}
