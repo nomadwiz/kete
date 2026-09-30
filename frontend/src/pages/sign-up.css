@@ -29,9 +29,9 @@
     font-size: var(--text-sm);
   }
 
-  /* The rest of the form is in ../form-skeleton.css. This screen is the one of
-     the four whose block is not a grid with a minmax(0, --form-width) track, so
-     the width it does not inherit from a track it sets here. */
+  /* The rest of the form is ../components/ui/field.tsx. This screen is the one
+     of the four whose block is not a grid with a minmax(0, --form-width) track,
+     so the width it does not inherit from a track it sets here. */
   .sign-up__form {
     max-width: var(--form-width);
   }

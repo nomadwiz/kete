@@ -7,8 +7,8 @@
    twice sign-in's height, and a centred block taller than its box overflows
    upward, off the top of the page, where nothing can scroll to it.
 
-   The form itself is in ../form-skeleton.css, which this screen shares with
-   sign-in, sign-up and account. */
+   The form itself is ../components/ui/field.tsx and ../components/ui/button.tsx,
+   which this screen shares with sign-in, sign-up and account. */
 .measurement {
   display: grid;
   grid-template-columns: minmax(0, var(--form-width));
@@ -37,13 +37,5 @@
     border: 1px solid var(--straw);
     border-left: 3px solid var(--ink);
     font-size: var(--text-sm);
-  }
-
-  /* A select is sized by its widest option unless it is told otherwise, so the
-     two of them would set their own widths and break the pairing. This is the
-     only screen of the four with a select, so the rule stays here rather than
-     joining its input counterpart in ../form-skeleton.css. */
-  .measurement__field select {
-    width: 100%;
   }
 }

@@ -6,8 +6,8 @@
    an auto track cannot shrink below its content's minimum and an input's
    minimum is about twenty characters -- which overflows a phone.
 
-   The form itself is in ../form-skeleton.css, which this screen shares with
-   sign-up, measurement and account. */
+   The form itself is ../components/ui/field.tsx and ../components/ui/button.tsx,
+   which this screen shares with sign-up, measurement and account. */
 .sign-in {
   display: grid;
   grid-template-columns: minmax(0, var(--form-width));

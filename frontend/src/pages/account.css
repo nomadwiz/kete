@@ -4,8 +4,8 @@
    centring, because a block taller than the viewport centres itself off the
    top of the page where nothing can scroll to it.
 
-   The form itself is in ../form-skeleton.css, which this screen shares with
-   sign-in, sign-up and measurement. */
+   The form itself is ../components/ui/field.tsx and ../components/ui/button.tsx,
+   which this screen shares with sign-in, sign-up and measurement. */
 .account {
   display: grid;
   grid-template-columns: minmax(0, var(--form-width));

@@ -1,8 +1,9 @@
 import { Form, Link, useActionData, useSearchParams } from "react-router";
 
+import { Button } from "../components/ui/button";
+import { Field } from "../components/ui/field";
 import { PATHS, QUERY } from "../routes";
 import { useWrite } from "../use-write";
-import "../form-skeleton.css";
 import "./sign-in.css";
 
 export default function SignIn() {
@@ -32,23 +33,17 @@ export default function SignIn() {
         </p>
       ) : null}
 
-      <Form className="sign-in__form" method="post" aria-busy={signingIn}>
-        <div className="sign-in__field">
-          <label className="sign-in__label" htmlFor="username-or-email">
-            Username or email
-          </label>
+      <Form className="mt-8 grid gap-6" method="post" aria-busy={signingIn}>
+        <Field htmlFor="username-or-email" label="Username or email">
           <input
             id="username-or-email"
             name="username_or_email"
             autoComplete="username"
             required
           />
-        </div>
+        </Field>
 
-        <div className="sign-in__field">
-          <label className="sign-in__label" htmlFor="password">
-            Password
-          </label>
+        <Field htmlFor="password" label="Password">
           <input
             id="password"
             name="password"
@@ -56,11 +51,18 @@ export default function SignIn() {
             autoComplete="current-password"
             required
           />
-        </div>
+        </Field>
 
-        <button className="sign-in__submit" type="submit" disabled={signingIn}>
+        {/* justify-self-start, because a submit that spans the column reads as
+            a banner and loses the relation between its size and what it does. */}
+        <Button
+          className="justify-self-start"
+          variant="accent"
+          type="submit"
+          disabled={signingIn}
+        >
           {signingIn ? "Signing in…" : "Sign in"}
-        </button>
+        </Button>
       </Form>
 
       <p className="sign-in__alt">

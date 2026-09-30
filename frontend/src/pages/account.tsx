@@ -1,9 +1,10 @@
 import { Form, Link, useActionData, useLoaderData } from "react-router";
 
+import { Button } from "../components/ui/button";
+import { Field, FieldPair } from "../components/ui/field";
 import { PATHS } from "../routes";
 import type { Profile } from "../types/profile";
 import { useWrite } from "../use-write";
-import "../form-skeleton.css";
 import "./account.css";
 
 export default function Account() {
@@ -62,12 +63,9 @@ export default function Account() {
       {/* All four fields are posted whether or not they changed. PUT /profile
           replaces the account rather than patching it, so a form that sent
           only what changed would blank the rest. */}
-      <Form className="account__form" method="post" aria-busy={saving}>
-        <div className="account__pair">
-          <div className="account__field">
-            <label className="account__label" htmlFor="first-name">
-              First name
-            </label>
+      <Form className="mt-8 grid gap-6" method="post" aria-busy={saving}>
+        <FieldPair>
+          <Field htmlFor="first-name" label="First name">
             <input
               id="first-name"
               name="first_name"
@@ -75,12 +73,9 @@ export default function Account() {
               defaultValue={saved.first_name}
               required
             />
-          </div>
+          </Field>
 
-          <div className="account__field">
-            <label className="account__label" htmlFor="last-name">
-              Last name
-            </label>
+          <Field htmlFor="last-name" label="Last name">
             <input
               id="last-name"
               name="last_name"
@@ -88,13 +83,10 @@ export default function Account() {
               defaultValue={saved.last_name}
               required
             />
-          </div>
-        </div>
+          </Field>
+        </FieldPair>
 
-        <div className="account__field">
-          <label className="account__label" htmlFor="username">
-            Username
-          </label>
+        <Field htmlFor="username" label="Username">
           <input
             id="username"
             name="username"
@@ -102,12 +94,9 @@ export default function Account() {
             defaultValue={saved.username}
             required
           />
-        </div>
+        </Field>
 
-        <div className="account__field">
-          <label className="account__label" htmlFor="email">
-            Email
-          </label>
+        <Field htmlFor="email" label="Email">
           {/* type="email" against the format the schema puts on this field,
               so the browser refuses an address the server would answer 422
               for. Change one side of that pair and the other is now wrong. */}
@@ -119,11 +108,16 @@ export default function Account() {
             defaultValue={saved.email}
             required
           />
-        </div>
+        </Field>
 
-        <button className="account__submit" type="submit" disabled={saving}>
+        <Button
+          className="justify-self-start"
+          variant="accent"
+          type="submit"
+          disabled={saving}
+        >
           {saving ? "Saving…" : "Save changes"}
-        </button>
+        </Button>
       </Form>
 
       {/* The issue's second clause. The measurements are a separate form

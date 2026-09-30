@@ -1,8 +1,9 @@
 import { Form, useActionData, useLoaderData } from "react-router";
 
+import { Button } from "../components/ui/button";
+import { Field, FieldPair } from "../components/ui/field";
 import type { Metrics } from "../types/measurement";
 import { useWrite } from "../use-write";
-import "../form-skeleton.css";
 import "./measurement.css";
 
 export default function Measurement() {
@@ -38,12 +39,12 @@ export default function Measurement() {
         </p>
       ) : null}
 
-      <Form className="measurement__form" method="post" aria-busy={saving}>
-        <div className="measurement__pair">
-          <div className="measurement__field">
-            <label className="measurement__label" htmlFor="weight-kg">
-              Weight (kg)
-            </label>
+      <Form className="mt-8 grid gap-6" method="post" aria-busy={saving}>
+        {/* Weight with height, then age with sex: the equation reads the first
+            pair as body size and the second as its two remaining terms, so the
+            shape of the form says which figure does what. */}
+        <FieldPair>
+          <Field htmlFor="weight-kg" label="Weight (kg)">
             <input
               id="weight-kg"
               name="weight_kg"
@@ -54,12 +55,9 @@ export default function Measurement() {
               step="0.01"
               required
             />
-          </div>
+          </Field>
 
-          <div className="measurement__field">
-            <label className="measurement__label" htmlFor="height-cm">
-              Height (cm)
-            </label>
+          <Field htmlFor="height-cm" label="Height (cm)">
             <input
               id="height-cm"
               name="height_cm"
@@ -70,14 +68,11 @@ export default function Measurement() {
               step="0.01"
               required
             />
-          </div>
-        </div>
+          </Field>
+        </FieldPair>
 
-        <div className="measurement__pair">
-          <div className="measurement__field">
-            <label className="measurement__label" htmlFor="age">
-              Age
-            </label>
+        <FieldPair>
+          <Field htmlFor="age" label="Age">
             <input
               id="age"
               name="age"
@@ -88,12 +83,9 @@ export default function Measurement() {
               step="1"
               required
             />
-          </div>
+          </Field>
 
-          <div className="measurement__field">
-            <label className="measurement__label" htmlFor="sex">
-              Sex
-            </label>
+          <Field htmlFor="sex" label="Sex">
             <select
               id="sex"
               name="sex"
@@ -104,13 +96,10 @@ export default function Measurement() {
               <option value="female">Female</option>
               <option value="male">Male</option>
             </select>
-          </div>
-        </div>
+          </Field>
+        </FieldPair>
 
-        <div className="measurement__field">
-          <label className="measurement__label" htmlFor="activity-level">
-            Activity level
-          </label>
+        <Field htmlFor="activity-level" label="Activity level">
           <select
             id="activity-level"
             name="activity_level"
@@ -124,11 +113,16 @@ export default function Measurement() {
             <option value="active">Active</option>
             <option value="very_active">Very active</option>
           </select>
-        </div>
+        </Field>
 
-        <button className="measurement__submit" type="submit" disabled={saving}>
+        <Button
+          className="justify-self-start"
+          variant="accent"
+          type="submit"
+          disabled={saving}
+        >
           {saving ? "Saving…" : "Save and compute targets"}
-        </button>
+        </Button>
       </Form>
     </div>
   );

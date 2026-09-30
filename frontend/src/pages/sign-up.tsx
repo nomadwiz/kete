@@ -1,7 +1,8 @@
 import { Form, Link, useActionData } from "react-router";
 
+import { Button } from "../components/ui/button";
+import { Field, FieldPair } from "../components/ui/field";
 import { PATHS } from "../routes";
-import "../form-skeleton.css";
 import "./sign-up.css";
 
 export default function SignUp() {
@@ -21,49 +22,37 @@ export default function SignUp() {
         </p>
       ) : null}
 
-      <Form className="sign-up__form" method="post">
-        <div className="sign-up__pair">
-          <div className="sign-up__field">
-            <label className="sign-up__label" htmlFor="first-name">
-              First name
-            </label>
+      <Form className="sign-up__form mt-8 grid gap-6" method="post">
+        <FieldPair>
+          <Field htmlFor="first-name" label="First name">
             <input
               id="first-name"
               name="first_name"
               autoComplete="given-name"
               required
             />
-          </div>
+          </Field>
 
-          <div className="sign-up__field">
-            <label className="sign-up__label" htmlFor="last-name">
-              Last name
-            </label>
+          <Field htmlFor="last-name" label="Last name">
             <input
               id="last-name"
               name="last_name"
               autoComplete="family-name"
               required
             />
-          </div>
-        </div>
+          </Field>
+        </FieldPair>
 
-        <div className="sign-up__field">
-          <label className="sign-up__label" htmlFor="username">
-            Username
-          </label>
+        <Field htmlFor="username" label="Username">
           <input
             id="username"
             name="username"
             autoComplete="username"
             required
           />
-        </div>
+        </Field>
 
-        <div className="sign-up__field">
-          <label className="sign-up__label" htmlFor="email">
-            Email
-          </label>
+        <Field htmlFor="email" label="Email">
           <input
             id="email"
             name="email"
@@ -71,12 +60,9 @@ export default function SignUp() {
             autoComplete="email"
             required
           />
-        </div>
+        </Field>
 
-        <div className="sign-up__field">
-          <label className="sign-up__label" htmlFor="password">
-            Password
-          </label>
+        <Field htmlFor="password" label="Password">
           <input
             id="password"
             name="password"
@@ -89,11 +75,14 @@ export default function SignUp() {
           <p className="sign-up__hint" id="password-hint">
             At least 8 characters.
           </p>
-        </div>
+        </Field>
 
-        <button className="sign-up__submit" type="submit">
+        {/* No `disabled` here, and that is deliberate rather than an omission:
+            this screen does not call useWrite, so there is no busy state to
+            reflect. ADR 005's list omits it for the same reason. */}
+        <Button className="justify-self-start" variant="accent" type="submit">
           Create an account
-        </button>
+        </Button>
       </Form>
 
       <p className="sign-up__alt">

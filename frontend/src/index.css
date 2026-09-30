@@ -64,6 +64,12 @@
   --spacing: 0.25rem;
 
   --radius-control: 3px;
+
+  /* The width at which two fields reading as one line stop fitting side by
+     side. It was a max-width media query in form-skeleton.css and is a named
+     breakpoint here so it is not written as an arbitrary value at each call
+     site. Tailwind's own scale starts at sm: 40rem, which is too late. */
+  --breakpoint-xs: 34rem;
 }
 
 :root {
