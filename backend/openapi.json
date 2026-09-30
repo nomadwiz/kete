@@ -843,7 +843,7 @@
           "mealplan"
         ],
         "summary": "Get Mealplan",
-        "description": "The week's plan, each slot with its recipe and its per-serving nutrition.\n\njoinedload fetches the recipes in the same statement, so a full week costs\none query rather than one more per distinct recipe.",
+        "description": "The week's plan, each slot with its recipe and its per-serving nutrition.",
         "operationId": "get_mealplan_mealplan_get",
         "security": [
           {
@@ -977,6 +977,77 @@
         }
       }
     },
+    "/mealplan/summary": {
+      "get": {
+        "tags": [
+          "mealplan"
+        ],
+        "summary": "Get Mealplan Summary",
+        "description": "Each day's planned totals against the daily targets (FR-16).\n\nSeven entries, Mon to Sun. A day with nothing planned is still returned,\nwith zero totals: an empty day is a result, not a missing one. Each day's\ntotal is the sum of its slots' per-serving figures exactly as GET /mealplan\nshows them, so the grid and these totals always add up. The design is ADR\n001 in nomadwiz/kete-doc.",
+        "operationId": "get_mealplan_summary_mealplan_summary_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "week",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-W(0[1-9]|[1-4]\\d|5[0-3])$",
+              "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December.",
+              "title": "Week"
+            },
+            "description": "ISO 8601 week, for example 2026-W39. The year is the ISO week-numbering year and not the calendar year: format it with %G-W%V, never %Y-W%V. JavaScript has no built-in for this. A week computed the wrong way is well-formed, passes this pattern and points at the wrong seven days, which shows up only in late December."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeekSummaryOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing, malformed or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No targets yet, so there is nothing to compare against. Save body metrics first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/mealplan/{slot_id}": {
       "delete": {
         "tags": [
@@ -1087,7 +1158,7 @@
             }
           },
           "409": {
-            "description": "The week changed while it was being generated",
+            "description": "The week or the recipe library changed while it was being generated",
             "content": {
               "application/json": {
                 "schema": {
@@ -1206,6 +1277,44 @@
           "file"
         ],
         "title": "Body_upload_photo_recipes__recipe_id__photo_post"
+      },
+      "DaySummary": {
+        "properties": {
+          "day_of_week": {
+            "type": "string",
+            "enum": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri",
+              "Sat",
+              "Sun"
+            ],
+            "title": "Day Of Week"
+          },
+          "energy_kcal": {
+            "$ref": "#/components/schemas/NutrientComparison"
+          },
+          "protein_g": {
+            "$ref": "#/components/schemas/NutrientComparison"
+          },
+          "carbs_g": {
+            "$ref": "#/components/schemas/NutrientComparison"
+          },
+          "fat_g": {
+            "$ref": "#/components/schemas/NutrientComparison"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day_of_week",
+          "energy_kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g"
+        ],
+        "title": "DaySummary"
       },
       "ErrorDetail": {
         "properties": {
@@ -1405,6 +1514,39 @@
           "activity_level"
         ],
         "title": "MetricsOut"
+      },
+      "NutrientComparison": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "The day's planned total for this nutrient: the sum of its slots' per-serving figures, exactly as GET /mealplan reports them."
+          },
+          "target": {
+            "type": "integer",
+            "title": "Target",
+            "description": "The stored daily target for this nutrient."
+          },
+          "difference": {
+            "type": "integer",
+            "title": "Difference",
+            "description": "total minus target. Negative is under target, positive is over."
+          },
+          "percent": {
+            "type": "integer",
+            "title": "Percent",
+            "description": "total as a whole-number percentage of target, rounded half up, so 46.5 becomes 47. A stored target is never zero, so this is always a whole number."
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "target",
+          "difference",
+          "percent"
+        ],
+        "title": "NutrientComparison",
+        "description": "One nutrient on one day, against the stored daily target.\n\nThese four descriptions travel into openapi.json, for the reason the\ndeclared error responses below give: a fact a client has to know is part\nof the contract, and a comment here is not. The sign of `difference` and\nthe length of `days` were both comments until a cross-lane review pointed\nout that C18's grid was being built on them."
       },
       "PhotoOut": {
         "properties": {
@@ -1926,6 +2068,30 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WeekSummaryOut": {
+        "properties": {
+          "week": {
+            "type": "string",
+            "title": "Week"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DaySummary"
+            },
+            "type": "array",
+            "maxItems": 7,
+            "minItems": 7,
+            "title": "Days",
+            "description": "Always seven entries, Mon to Sun, in that order. A day with nothing planned is present with zero totals, the full negative difference and 0 percent: an empty day is a result, not a missing one."
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "days"
+        ],
+        "title": "WeekSummaryOut"
       }
     },
     "securitySchemes": {

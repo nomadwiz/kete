@@ -1,5 +1,11 @@
 """
-B15 (nomadwiz/kete#157): a clash is a 409 even when two requests race.
+Races that a check cannot win: B15 (nomadwiz/kete#157) and B20 (#264).
+
+B15 is the clash: a 409 even when two requests race. B20 is the recipe that
+disappears between the check and the insert: a deliberate code rather than a
+500. Both have
+the same shape, which is why they share a file -- an endpoint checks, then
+writes, and the database is what refuses the write.
 
 Each endpoint here checks for a clash, then writes. Two requests can both pass
 the check before either commits, and then the database's unique constraint is
@@ -13,8 +19,12 @@ rather than hoping for it:
 3. Once B is seen waiting in pg_stat_activity, A commits and B's write fails
    on the constraint.
 
-Before the fix, B raised the bare IntegrityError that reaches the client as a
-500. The endpoint must answer 409, in the same words as its own check.
+Before either fix, B raised the bare IntegrityError that reaches the client as
+a 500. For B15 the endpoint must answer 409, in the same words as its own
+check. For B20, POST /mealplan must answer the 404 its check would have given.
+POST /mealplan/generate answers 409 instead, because it re-reads the library
+on every request and a retry succeeds, and it says what happened rather than
+naming a recipe the caller never chose.
 """
 
 import threading
@@ -97,6 +107,18 @@ def _assert_409(outcome, detail):
     assert isinstance(error, HTTPException), f"expected a 409, got {error!r}"
     assert error.status_code == 409
     assert error.detail == detail
+
+
+def _assert_404(outcome, detail):
+    error = outcome.get("error")
+    assert isinstance(error, HTTPException), f"expected a 404, got {error!r}"
+    assert error.status_code == 404
+    assert error.detail == detail
+
+
+def _delete_recipe(db, recipe_id):
+    """Session A's half of B20's race: the recipe goes while B is inserting."""
+    db.delete(db.get(models.Recipe, recipe_id))
 
 
 # --------------------------------------------------------------------------
@@ -222,6 +244,23 @@ def test_add_plan_slot_ordinary_duplicate_is_still_409(Session):
     assert caught.value.detail == "Mon breakfast is already filled"
 
 
+# B20 (nomadwiz/kete#264). The endpoint's own check sees the recipe, because
+# A's delete is not committed. Its insert then waits on A's lock on the recipe
+# row, and fails on plan_slots_recipe_id_fkey once A commits. Before the fix
+# that failure was a bare IntegrityError: a 500.
+def test_add_plan_slot_recipe_deleted_mid_request_is_404(engine, Session):
+    user_id, recipe_id = _seed_user_with_recipe(Session)
+
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _delete_recipe(a, recipe_id),
+        act=lambda b: main.add_plan_slot(main.PlanSlotIn(
+            recipe_id=recipe_id, week=WEEK, day_of_week="Mon",
+            meal_position="breakfast"), user_id=user_id, db=b))
+
+    _assert_404(outcome, "Recipe not found")
+
+
 # --------------------------------------------------------------------------
 # POST /mealplan/generate — pressing Generate week twice
 # --------------------------------------------------------------------------
@@ -255,8 +294,68 @@ def test_generate_week_twice_in_turn_refills_the_week(Session):
     assert stored == 21
 
 
+def test_generate_week_recipe_deleted_mid_request_is_409(engine, Session):
+    user_id, recipe_id = _seed_user_with_recipe(Session)
+
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _delete_recipe(a, recipe_id),
+        act=lambda b: main.generate_week(
+            main.GenerateIn(week=WEEK), user_id=user_id, db=b))
+
+    _assert_409(outcome,
+                "A recipe was deleted while the week was being generated — "
+                "try again")
+
+
+def test_generate_week_recipe_deleted_mid_request_keeps_the_planned_week(
+        engine, Session):
+    """The 409 undoes the clear as well as the inserts, so the week survives.
+
+    generate_week empties the week before it refills it, and both happen in one
+    transaction. If the clear were ever to commit separately from the inserts,
+    this race would cost the user the week they were looking at -- the worst
+    outcome in nomadwiz/kete#264, and the only clause in it that no other test
+    observes.
+
+    The slots already in the week point at a recipe that is not the one being
+    deleted, and that is the whole difficulty of writing this. recipe_id is ON
+    DELETE CASCADE, so slots pointing at the doomed recipe would be swept away
+    by the cascade when session A commits, and the test would then be watching
+    the cascade rather than the rollback and would pass for the wrong reason.
+    """
+    user_id, doomed = _seed_user_with_recipe(Session)
+    with Session() as db:
+        keeper = models.Recipe(user_id=user_id, name="Curry")
+        db.add(keeper)
+        db.commit()
+        keeper_id = keeper.recipe_id
+        for meal in main.MEALS:
+            db.add(models.PlanSlot(user_id=user_id, recipe_id=keeper_id,
+                                   week=WEEK, day_of_week="Mon",
+                                   meal_position=meal))
+        db.commit()
+
+    # recipes are dealt in recipe_id order, so the first slot generate builds
+    # points at the doomed recipe and it is the first insert to fail.
+    outcome = _race(
+        engine, Session,
+        hold=lambda a: _delete_recipe(a, doomed),
+        act=lambda b: main.generate_week(
+            main.GenerateIn(week=WEEK), user_id=user_id, db=b))
+
+    _assert_409(outcome,
+                "A recipe was deleted while the week was being generated — "
+                "try again")
+
+    with Session() as db:
+        survived = db.query(models.PlanSlot).filter_by(
+            user_id=user_id, week=WEEK).all()
+    assert sorted(s.meal_position for s in survived) == sorted(main.MEALS)
+    assert {s.recipe_id for s in survived} == {keeper_id}
+
 # --------------------------------------------------------------------------
-# _commit_or_409 itself — the two promises no endpoint test observes
+# _commit_or_409 and _commit_slots — the promises no endpoint test observes
 # --------------------------------------------------------------------------
 def test_a_clash_leaves_the_session_usable(Session):
     """After a 409 the session has been rolled back, not left aborted.
@@ -295,4 +394,20 @@ def test_a_failure_that_is_not_a_clash_is_not_a_409(Session):
             main._commit_or_409(db, "taken")
 
         assert "ck_slot_meal" in str(caught.value)
+        assert db.execute(text("SELECT 1")).scalar() == 1
+
+
+def test_a_foreign_key_failure_on_another_column_is_not_a_404(Session):
+    """Only a missing recipe is a 404. A slot pointing at a missing user is a
+    bug — the user id comes from the token, never from the client — and must
+    still surface as one."""
+    _, recipe_id = _seed_user_with_recipe(Session)
+
+    with Session() as db:
+        db.add(models.PlanSlot(user_id=999999, recipe_id=recipe_id, week=WEEK,
+                               day_of_week="Mon", meal_position="breakfast"))
+        with pytest.raises(IntegrityError) as caught:
+            main._commit_slots(db, "taken")
+
+        assert "plan_slots_user_id_fkey" in str(caught.value)
         assert db.execute(text("SELECT 1")).scalar() == 1
