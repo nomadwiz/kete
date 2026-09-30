@@ -276,21 +276,21 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
           method: "POST",
           body,
         });
-      } catch (error) {
-        // The recipe is saved and its photograph is not. Returning the
-        // sentence would keep the modal open over a recipe that already
-        // exists, one Save away from writing it twice, so the person is sent
-        // to its edit view, where the photograph control can take the file
-        // again and QUERY.photo_unsaved tells it to say why. photoProblem has
-        // already refused what the API would refuse for the file itself, so
-        // what reaches here is storage failing -- the 502 and 503.
-        if (error instanceof ApiError) {
-          throw replace(
-            `${PATHS.recipe.replace(":id", String(created.recipe_id))}?${QUERY.recipe_edit}&${QUERY.photo_unsaved}`,
-          );
-        }
-
-        throw error;
+      } catch {
+        // The recipe is saved and its photograph is not, whatever the reason:
+        // storage refusing it (the 502 and 503 -- photoProblem has already
+        // refused what the API would refuse for the file itself), or the
+        // connection dropping during the one request here that carries up to
+        // 5 MB. Every one of them gets the same answer. Returning a sentence,
+        // or throwing to the error boundary with `new` still in the address,
+        // would leave the modal one Save away from writing the recipe twice,
+        // so the person is sent to its edit view, where the photograph
+        // control can take the file again and QUERY.photo_unsaved tells it to
+        // say why. An expired session lands here too, and the edit view's
+        // loader sends it on to sign in.
+        throw replace(
+          `${PATHS.recipe.replace(":id", String(created.recipe_id))}?${QUERY.recipe_edit}&${QUERY.photo_unsaved}`,
+        );
       }
     }
 

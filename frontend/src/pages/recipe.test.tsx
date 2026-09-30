@@ -809,13 +809,29 @@ describe("the photograph control", () => {
   // photograph chosen for it.
   it("says the photograph was not stored when a creation left it behind", async () => {
     signedIn();
-    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+    stubFetch({
+      "/recipes/7": async () =>
+        jsonResponse(200, { ...LAKSA, photo_url: null }),
+    });
 
     renderAt("/recipes/7?edit&photo");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your recipe is saved, but its photograph could not be stored.",
     );
+  });
+
+  // The key outlives a retry that worked, so a reload after one arrives with
+  // it still in the address -- and the recipe now has its photograph.
+  it("says nothing of it once the recipe has a photograph", async () => {
+    signedIn();
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7?edit&photo");
+
+    await screen.findByLabelText("Photograph");
+
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("is not offered in the read view", async () => {

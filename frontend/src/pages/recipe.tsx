@@ -350,9 +350,13 @@ export default function RecipeDetail() {
 // request() would lose the traversal check and the 401 rule that path carries.
 //
 // `unsaved` is recipesAction's partial failure arriving: the recipe was
-// created and the photograph chosen with it was not stored. It is said until
-// the person tries again here, after which this control's own answer is the
-// one that is true.
+// created and the photograph chosen with it was not stored. The sentence is
+// drawn only while the recipe really has no photograph, because the key stays
+// in the address after a retry that worked -- removing it would replace the
+// location, and useWrite ties `succeeded` to the location, so "Photograph
+// saved." would vanish as it appeared. The loader answers `src` afresh after
+// every upload, so the sentence is true on every render, a reload included.
+// It also gives way to this control's own answer once a retry has one.
 function Photograph({
   src,
   unsaved,
@@ -391,7 +395,7 @@ function Photograph({
         JPEG, PNG or WebP, up to 5 MB. It replaces the current photograph.
       </p>
 
-      {unsaved && photo.data === undefined ? (
+      {unsaved && !src && photo.data === undefined ? (
         <Notice tone="refusal" role="alert">
           Your recipe is saved, but its photograph could not be stored. Choose
           it again here.

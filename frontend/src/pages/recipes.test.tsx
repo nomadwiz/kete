@@ -489,12 +489,22 @@ describe("creating a recipe with a photograph", () => {
   // The one partial failure. The recipe exists, so the modal must not stay
   // open to be saved twice: the person goes to the new recipe's edit view,
   // told why its photograph is missing.
-  it("sends a recipe whose photograph was not stored to its edit view", async () => {
+  it.each([
+    [
+      "storage refuses it",
+      async () => jsonResponse(502, { detail: "Could not store the image." }),
+    ],
+    [
+      "the connection drops",
+      async (): Promise<Response> => {
+        throw new TypeError("Failed to fetch");
+      },
+    ],
+  ])("sends a recipe to its edit view when %s", async (_, answerUpload) => {
     signedIn();
     stubFetch({
       "/recipes": async () => created(),
-      "/recipes/12/photo": async () =>
-        jsonResponse(502, { detail: "Could not store the image." }),
+      "/recipes/12/photo": answerUpload,
     });
 
     const thrown = await creating(PHOTO).catch((error: unknown) => error);
