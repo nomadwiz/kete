@@ -75,6 +75,7 @@ export default function RecipeDetail() {
     setSearchParams(
       (previous) => {
         previous.delete(QUERY.recipe_edit);
+        previous.delete(QUERY.photo_unsaved);
 
         return previous;
       },
@@ -171,7 +172,10 @@ export default function RecipeDetail() {
               the edit case rather than the create one. */}
             <RecipeForm recipe={recipe} error={error} busy={saving} />
 
-            <Photograph src={recipe.photo_url} />
+            <Photograph
+              src={recipe.photo_url}
+              unsaved={searchParams.has(QUERY.photo_unsaved)}
+            />
 
             {/* A button rather than a link back to the read address, because it
               has to be refusable: a navigation away during a save abandons a
@@ -344,7 +348,18 @@ export default function RecipeDetail() {
 // announces as indeterminate. A percentage needs XMLHttpRequest's upload
 // events, which fetch does not have, and a second request path beside
 // request() would lose the traversal check and the 401 rule that path carries.
-function Photograph({ src }: { src?: string | null }) {
+//
+// `unsaved` is recipesAction's partial failure arriving: the recipe was
+// created and the photograph chosen with it was not stored. It is said until
+// the person tries again here, after which this control's own answer is the
+// one that is true.
+function Photograph({
+  src,
+  unsaved,
+}: {
+  src?: string | null;
+  unsaved: boolean;
+}) {
   const photo = useFetcher<string | null>();
   const { busy: uploading, succeeded } = useWrite("POST", photo);
 
@@ -375,6 +390,13 @@ function Photograph({ src }: { src?: string | null }) {
       <p className="recipe__note" id="recipe-photo-note">
         JPEG, PNG or WebP, up to 5 MB. It replaces the current photograph.
       </p>
+
+      {unsaved && photo.data === undefined ? (
+        <Notice tone="refusal" role="alert">
+          Your recipe is saved, but its photograph could not be stored. Choose
+          it again here.
+        </Notice>
+      ) : null}
 
       {typeof photo.data === "string" ? (
         <Notice tone="refusal" role="alert">

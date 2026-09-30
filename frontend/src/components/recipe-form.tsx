@@ -42,7 +42,16 @@ export default function RecipeForm({
   // refused re-renders this component without remounting it, so what the user
   // typed survives above the message saying why it was refused.
   return (
-    <Form className="recipe-form" method="post" aria-busy={busy}>
+    // Multipart only when creating, because only the create form carries a
+    // file: C14 (nomadwiz/kete#184) uploads a photograph chosen here straight
+    // after the recipe is written. The edit form has none -- the photograph
+    // has its own control beside it on /recipes/:id -- and stays urlencoded.
+    <Form
+      className="recipe-form"
+      method="post"
+      encType={recipe ? undefined : "multipart/form-data"}
+      aria-busy={busy}
+    >
       {error ? (
         <p className="recipe-form__error" role="alert">
           {error}
@@ -216,6 +225,25 @@ export default function RecipeForm({
           </div>
         </div>
       </fieldset>
+
+      {/* Optional, so no `required`, and create-only for the reason the
+          encType above gives. Nothing chosen submits an empty entry, which
+          recipesAction reads as no photograph. The accept list is
+          backend/storage.py's ALLOWED_TYPES; photoProblem in routes.tsx is
+          what enforces it, since a chooser can be switched to all files. */}
+      {recipe ? null : (
+        <div className="recipe-form__field">
+          <label className="recipe-form__label" htmlFor="recipe-photo-new">
+            Photograph (optional)
+          </label>
+          <input
+            id="recipe-photo-new"
+            name="file"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+          />
+        </div>
+      )}
 
       {/* No intent field. ADR 002 has /recipes/:id answer a save and C15
           (nomadwiz/kete#179)'s delete from one action, and a submission with
