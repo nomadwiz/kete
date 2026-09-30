@@ -94,8 +94,18 @@ ACTIVITY_FACTORS = {
     "active": 1.725,
     "very_active": 1.9,
 }
-# TODO: team to confirm the split. 30 / 40 / 30 protein / carbs / fat.
-MACRO_SPLIT = {"protein": 0.30, "carbs": 0.40, "fat": 0.30}
+# Share of energy from each macronutrient: 20 / 50 / 30 protein / carbs / fat.
+# Chosen to sit inside the Acceptable Macronutrient Distribution Ranges of the
+# Nutrient Reference Values for Australia and New Zealand, not on their edges:
+# carbohydrate 45-65 % and fat 20-35 % of energy, and protein of at least 15 %,
+# the level the NRVs found most people need to meet their micronutrient
+# requirements (the US/Canadian range starts lower, at about 10-11 %). The
+# earlier 30 / 40 / 30 had carbohydrate below its range. B4 (#154).
+#
+# National Health and Medical Research Council. (2021, April 19). Macronutrient
+# balance. Eat For Health. https://www.eatforhealth.gov.au/nutrient-reference-
+# values/chronic-disease/macronutrient-balance
+MACRO_SPLIT = {"protein": 0.20, "carbs": 0.50, "fat": 0.30}
 
 
 def compute_targets(weight_kg: float, height_cm: float, age: int,

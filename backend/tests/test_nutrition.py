@@ -15,10 +15,12 @@ code under test, and the worked cases double as evidence for the report.
     TDEE = REE x activity factor
         sedentary 1.2 · light 1.375 · moderate 1.55 · active 1.725 · very_active 1.9
     grams = TDEE x share / kcal per gram
-        protein 30 % / 4 · carbohydrate 40 % / 4 · fat 30 % / 9
+        protein 20 % / 4 · carbohydrate 50 % / 4 · fat 30 % / 9
 
-The split is the project's own default, still unsourced (B4, #154). If B4
-changes it, the gram figures here change with it; the energy figures do not.
+The split sits inside the Acceptable Macronutrient Distribution Ranges of the
+Nutrient Reference Values for Australia and New Zealand (B4, #154; the
+reference is beside MACRO_SPLIT in main.py). A change to it changes the gram
+figures here; the energy figures do not depend on it.
 
 No database: these run in CI, unlike the race tests (#305).
 """
@@ -32,52 +34,52 @@ import main
     # 1. Male, 70 kg, 175 cm, 30, moderate.
     #    REE  = 700 + 1093.75 - 150 + 5 = 1648.75
     #    TDEE = 1648.75 x 1.55           = 2555.5625       -> 2556
-    #    protein 2555.5625 x 0.30 / 4    = 191.667         -> 192
-    #    carbs   2555.5625 x 0.40 / 4    = 255.556         -> 256
+    #    protein 2555.5625 x 0.20 / 4    = 127.778         -> 128
+    #    carbs   2555.5625 x 0.50 / 4    = 319.445         -> 319
     #    fat     2555.5625 x 0.30 / 9    =  85.185         ->  85
     (dict(weight_kg=70, height_cm=175, age=30, sex="male",
           activity_level="moderate"),
-     dict(energy_kcal=2556, protein_g=192, carbs_g=256, fat_g=85)),
+     dict(energy_kcal=2556, protein_g=128, carbs_g=319, fat_g=85)),
 
     # 2. Female, 60 kg, 165 cm, 25, sedentary.
     #    REE  = 600 + 1031.25 - 125 - 161 = 1345.25
     #    TDEE = 1345.25 x 1.2             = 1614.3          -> 1614
-    #    protein 1614.3 x 0.30 / 4        = 121.0725        -> 121
-    #    carbs   1614.3 x 0.40 / 4        = 161.43          -> 161
+    #    protein 1614.3 x 0.20 / 4        =  80.715         ->  81
+    #    carbs   1614.3 x 0.50 / 4        = 201.7875        -> 202
     #    fat     1614.3 x 0.30 / 9        =  53.81          ->  54
     (dict(weight_kg=60, height_cm=165, age=25, sex="female",
           activity_level="sedentary"),
-     dict(energy_kcal=1614, protein_g=121, carbs_g=161, fat_g=54)),
+     dict(energy_kcal=1614, protein_g=81, carbs_g=202, fat_g=54)),
 
     # 3. Female, 80 kg, 170 cm, 40, light.
     #    REE  = 800 + 1062.5 - 200 - 161  = 1501.5
     #    TDEE = 1501.5 x 1.375            = 2064.5625       -> 2065
-    #    protein 2064.5625 x 0.30 / 4     = 154.842         -> 155
-    #    carbs   2064.5625 x 0.40 / 4     = 206.456         -> 206
+    #    protein 2064.5625 x 0.20 / 4     = 103.228         -> 103
+    #    carbs   2064.5625 x 0.50 / 4     = 258.070         -> 258
     #    fat     2064.5625 x 0.30 / 9     =  68.819         ->  69
     (dict(weight_kg=80, height_cm=170, age=40, sex="female",
           activity_level="light"),
-     dict(energy_kcal=2065, protein_g=155, carbs_g=206, fat_g=69)),
+     dict(energy_kcal=2065, protein_g=103, carbs_g=258, fat_g=69)),
 
     # 4. Female, 55 kg, 160 cm, 70, active.
     #    REE  = 550 + 1000 - 350 - 161    = 1039
     #    TDEE = 1039 x 1.725              = 1792.275        -> 1792
-    #    protein 1792.275 x 0.30 / 4      = 134.421         -> 134
-    #    carbs   1792.275 x 0.40 / 4      = 179.2275        -> 179
+    #    protein 1792.275 x 0.20 / 4      =  89.614         ->  90
+    #    carbs   1792.275 x 0.50 / 4      = 224.034         -> 224
     #    fat     1792.275 x 0.30 / 9      =  59.7425        ->  60
     (dict(weight_kg=55, height_cm=160, age=70, sex="female",
           activity_level="active"),
-     dict(energy_kcal=1792, protein_g=134, carbs_g=179, fat_g=60)),
+     dict(energy_kcal=1792, protein_g=90, carbs_g=224, fat_g=60)),
 
     # 5. Male, 90 kg, 180 cm, 45, very active.
     #    REE  = 900 + 1125 - 225 + 5      = 1805
     #    TDEE = 1805 x 1.9                = 3429.5          -> 3430
-    #    protein 3429.5 x 0.30 / 4        = 257.2125        -> 257
-    #    carbs   3429.5 x 0.40 / 4        = 342.95          -> 343
+    #    protein 3429.5 x 0.20 / 4        = 171.475         -> 171
+    #    carbs   3429.5 x 0.50 / 4        = 428.6875        -> 429
     #    fat     3429.5 x 0.30 / 9        = 114.317         -> 114
     (dict(weight_kg=90, height_cm=180, age=45, sex="male",
           activity_level="very_active"),
-     dict(energy_kcal=3430, protein_g=257, carbs_g=343, fat_g=114)),
+     dict(energy_kcal=3430, protein_g=171, carbs_g=429, fat_g=114)),
 ], ids=["male-moderate", "female-sedentary", "female-light", "female-active",
         "male-very-active"])
 def test_targets_match_the_hand_worked_figures(body, expected):
@@ -120,14 +122,14 @@ def test_an_exact_half_rounds_to_even_not_up():
 def test_the_macronutrient_grams_do_not_re_sum_to_the_energy_target():
     """Each figure is rounded on its own, so converting the grams back to kcal
     does not reproduce the energy target. Case 1 above:
-        192 x 4 + 256 x 4 + 85 x 9 = 768 + 1024 + 765 = 2557, not 2556.
+        128 x 4 + 319 x 4 + 85 x 9 = 512 + 1276 + 765 = 2553, not 2556.
     Expected, not a bug, and worth one sentence in the report so a marker who
     adds them up is not left to find it.
     """
     t = main.compute_targets(weight_kg=70, height_cm=175, age=30, sex="male",
                              activity_level="moderate")
 
-    assert t["protein_g"] * 4 + t["carbs_g"] * 4 + t["fat_g"] * 9 == 2557
+    assert t["protein_g"] * 4 + t["carbs_g"] * 4 + t["fat_g"] * 9 == 2553
     assert t["energy_kcal"] == 2556
 
 
@@ -145,3 +147,13 @@ def test_the_activity_factors_are_the_five_the_api_accepts():
 
 def test_the_macronutrient_split_covers_all_of_the_energy():
     assert sum(main.MACRO_SPLIT.values()) == pytest.approx(1.0)
+
+
+def test_the_split_sits_inside_the_australia_nz_ranges():
+    """The claim beside MACRO_SPLIT, as a test, so it cannot quietly stop being
+    true. Carbohydrate 45-65 % and fat 20-35 % of energy; protein at least 15 %.
+    Only the bounds read in the source are asserted, so protein has no ceiling
+    here."""
+    assert main.MACRO_SPLIT["protein"] >= 0.15
+    assert 0.45 <= main.MACRO_SPLIT["carbs"] <= 0.65
+    assert 0.20 <= main.MACRO_SPLIT["fat"] <= 0.35
