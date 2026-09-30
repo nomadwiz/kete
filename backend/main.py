@@ -191,6 +191,20 @@ class ProfileIn(BaseModel):
     last_name: str
     username: str
     email: EmailStr
+    current_password: Optional[str] = Field(
+        default=None,
+        description="Required when username or email changes, since either is "
+                    "what the account signs in with. Not needed to change "
+                    "only the name.")
+
+
+class PasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)     # the rule register applies
+
+
+class DeleteAccountIn(BaseModel):
+    password: str
 
 
 class MetricsIn(BaseModel):
@@ -369,6 +383,25 @@ AUTH = _err(401, "Bearer token missing, malformed or expired")
 NO_RECIPE = _err(404, "No such recipe, or it belongs to another account")
 NO_ACCOUNT = _err(404, "The account behind the token no longer exists")
 NAME_TAKEN = _err(409, "That username or email is already taken")
+WRONG_PASSWORD = _err(403, "The current password is incorrect")
+
+
+def _confirm_password(user: models.User, password: Optional[str]) -> None:
+    """Refuse a sensitive change unless the current password is supplied.
+
+    A token alone is not enough for these. It lives twelve hours, cannot be
+    revoked, and sits in localStorage where any script on the page can read it,
+    so whoever holds one could otherwise lock the owner out: change the
+    password, or the username or email they sign in with, or delete the
+    account outright. Asking for the password turns a stolen token back into
+    what it should be, access to the data and not to the account.
+
+    403, not 401. The caller is signed in, and a client treats 401 as "the
+    session is over" and signs them out, which is the wrong answer to a typo.
+    """
+    if not password or not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=403,
+                            detail="Current password is incorrect")
 
 
 # ==========================================================================
@@ -510,13 +543,22 @@ def get_profile(user_id: int = Depends(current_user_id),
 
 
 @app.put("/profile", response_model=ProfileOut, tags=["profile"],
-         responses={**AUTH, **NO_ACCOUNT, **NAME_TAKEN})
+         responses={**AUTH, **NO_ACCOUNT, **WRONG_PASSWORD, **NAME_TAKEN})
 def update_profile(body: ProfileIn, user_id: int = Depends(current_user_id),
                    db: Session = Depends(get_db)):
-    """Update the signed-in user's account details."""
+    """Update the signed-in user's account details.
+
+    Changing the username or email needs current_password, because either one
+    is what the account signs in with (S14). Changing only the name does not.
+    """
     user = db.get(models.User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Before the clash check, so a wrong password cannot be used to learn
+    # which usernames and emails are already taken.
+    if body.username != user.username or body.email != user.email:
+        _confirm_password(user, body.current_password)
 
     # someone ELSE must not already hold this username or email
     clash = db.query(models.User).filter(
@@ -536,6 +578,56 @@ def update_profile(body: ProfileIn, user_id: int = Depends(current_user_id),
     db.refresh(user)
     return ProfileOut(first_name=user.first_name, last_name=user.last_name,
                       username=user.username, email=user.email)
+
+
+@app.put("/profile/password", status_code=204, tags=["profile"],
+         responses={**AUTH, **NO_ACCOUNT, **WRONG_PASSWORD})
+def change_password(body: PasswordIn, user_id: int = Depends(current_user_id),
+                    db: Session = Depends(get_db)):
+    """Replace the password, given the current one.
+
+    Tokens already issued stay valid until they expire (twelve hours at most):
+    a token carries no record of the password it was issued under, and ending
+    them early would need a per-user counter in the schema. A known limitation,
+    recorded in the report, not an oversight.
+    """
+    user = db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    _confirm_password(user, body.current_password)
+
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return Response(status_code=204)
+
+
+@app.delete("/profile", status_code=204, tags=["profile"],
+            responses={**AUTH, **NO_ACCOUNT, **WRONG_PASSWORD})
+def delete_account(body: DeleteAccountIn,
+                   user_id: int = Depends(current_user_id),
+                   db: Session = Depends(get_db)):
+    """Delete the account and everything in it, given the password.
+
+    One row goes and the database takes the rest: profiles, nutrition_targets,
+    recipes and plan_slots all reference users ON DELETE CASCADE. That is the
+    cascading deletion section 7.2 describes, and this is its only caller.
+
+    Photographs are the exception. They live in S3, which no foreign key
+    reaches, so their keys are read first and each object is removed once the
+    rows are gone, best effort, as delete_recipe does for one. Deleting them
+    first would lose them if the commit then failed.
+    """
+    user = db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    _confirm_password(user, body.password)
+
+    keys = [r.photo_url for r in user.recipes if r.photo_url]
+    db.delete(user)
+    db.commit()
+    for key in keys:
+        storage.delete(key)
+    return Response(status_code=204)
 
 
 @app.post("/profile/metrics", response_model=TargetsOut, tags=["profile"],
@@ -707,9 +799,14 @@ def get_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
 
 
 @app.post("/recipes", response_model=RecipeCreatedOut, status_code=201,
-          tags=["recipes"], responses=AUTH)
+          tags=["recipes"], responses={**AUTH, **NO_ACCOUNT})
 def create_recipe(body: RecipeIn, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
+    # The one write whose only reference is the user. A token outlives the
+    # account it names (DELETE /profile cannot revoke it), and without this
+    # the insert fails on the users foreign key: a 500.
+    if not db.get(models.User, user_id):
+        raise HTTPException(status_code=404, detail="User not found")
     recipe = models.Recipe(user_id=user_id, **body.model_dump())
     db.add(recipe)
     db.commit()
