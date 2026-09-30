@@ -100,38 +100,34 @@
     text-decoration-thickness: 2px;
   }
 
-  /* auto-fill rather than auto-fit, so a single recipe is one card and not one
-     card stretched the width of the page. The minimum is the narrowest a card
-     reads at; below that the track collapses to one column on its own, which
-     is the whole of this screen's small-screen handling. */
   .recipes__list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-    gap: var(--space-6);
-    margin-top: var(--space-8);
+    border-bottom: 1px solid var(--color-rule);
   }
 
+  /* A row, not a card. visual-language.md section 4 rejects a border around a
+     card and a tint drawn to group, so what separates one recipe from the next
+     is a hairline -- and a recipe with no photograph is simply shorter than one
+     with, rather than a box with a hole in it. */
   .recipes__card {
-    display: flex;
-    flex-direction: column;
-    background: var(--muka);
-    border: 1px solid var(--straw);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-4);
+    padding-block: var(--space-4);
+    border-top: 1px solid var(--color-rule);
   }
 
-  /* One box whatever fills it, so a row of cards keeps its rhythm when some
-     recipes carry a photograph and some do not. object-fit stops a portrait
-     photograph being stretched into the landscape box. */
   .recipes__photo {
-    width: 100%;
-    aspect-ratio: 3 / 2;
+    width: 4.5rem;
+    height: 4.5rem;
     object-fit: cover;
+    border-radius: var(--radius-control);
   }
 
-  /* The absent state, drawn rather than left empty: a flat straw panel, which
-     is structure and not an image that failed to load. --straw is never text
-     here, so its contrast ratio is not in question. */
+  /* No photograph is a gap in the weave, not a grey rectangle pretending to be
+     an image: one hairline square, empty. */
   .recipes__photo--none {
-    background: var(--straw);
+    border: 1px solid var(--color-rule);
   }
 
   .recipes__card-text {
@@ -140,6 +136,7 @@
 
   .recipes__name {
     font-size: var(--text-lg);
+    font-weight: 600;
   }
 
   /* Underlined only on hover and focus: a grid of cards each carrying a
@@ -157,10 +154,10 @@
   }
 
   .recipes__meta {
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
     font-size: var(--text-sm);
-    color: var(--ink-soft);
     font-variant-numeric: tabular-nums;
+    color: var(--color-muted-foreground);
   }
 
   /* The dialog is in the browser's top layer, so it is not laid out inside

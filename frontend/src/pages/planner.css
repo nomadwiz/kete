@@ -1,197 +1,139 @@
-/* The week planner. Same column, gutter and vertical rhythm as the other
-   signed-in screens, so the page frame does not move as you navigate.
+/* The weave. Seven days of warp against three meals of weft, and the rules
+   between them are the design rather than a container for it -- which is the
+   one place in this client where the product's name earns something.
+   doc/design/visual-language.md section 3.6 in nomadwiz/kete-doc draws it.
 
-   What happens at narrow widths is that nothing happens: the grid is four
-   columns wide at every size, and it is the seven-fold axis that runs down the
-   page. Seven columns of recipe names do not fit in 375px -- inside the gutter
-   that leaves about 44px a column, which is narrower than the word "Breakfast"
-   -- so the two axes are assigned the other way round and the phone scrolls
-   the long one, which is what a phone is good at. There is no breakpoint, no
-   horizontal scroller and no second layout to keep in step with the first.
-
-   Three meal columns at 375px come to about 90px each after the day column,
-   which holds a wrapped recipe name at --text-xs. The recipe name is the only
-   thing here that can be arbitrarily long, so it is the only thing given
-   overflow-wrap. */
+   Everything here is a hairline in --color-rule at one weight. No cell has a
+   fill, no cell has a shadow, and a planned position is told from an empty one
+   by what is written in it rather than by a tint behind it. */
 .planner {
-  --rule: 1px solid var(--straw);
+  display: grid;
+  gap: var(--space-6);
 
-  max-width: var(--column);
-  margin-inline: auto;
-  padding-inline: var(--gutter);
-  padding-block: clamp(var(--space-12), 8vw, var(--space-16));
-
-  .planner__title {
-    font-size: var(--title);
-    font-stretch: 82%;
-    letter-spacing: -0.02em;
-    line-height: 0.95;
+  .planner__weeks {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-6);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-rule);
   }
 
-  /* Previous, the week itself, next. The middle cell takes the free space so
-     the two steps sit at the edges of the column and stay where they are as
-     the week's name changes length. */
-  .planner__weeks {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
+  .planner__week {
+    display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--space-3);
-    margin-top: var(--space-8);
+    gap: var(--space-2) var(--space-4);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .planner__range,
+  .planner__today {
+    font-size: var(--text-sm);
+    font-weight: 400;
+    color: var(--color-muted-foreground);
+  }
+
+  .planner__step,
+  .planner__today {
+    text-underline-offset: 4px;
+    text-decoration-color: var(--color-rule);
+    text-decoration-thickness: 2px;
+    transition: text-decoration-color 200ms ease;
   }
 
   .planner__step {
     font-size: var(--text-sm);
     font-weight: 600;
-    text-decoration-thickness: 2px;
-    white-space: nowrap;
   }
 
-  .planner__week {
-    text-align: center;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* The dates the week covers, under the week's own name. A week number on its
-     own says nothing to anyone, and the two are not interchangeable across the
-     new year -- 2026-W53 runs into January. */
-  .planner__range {
-    display: block;
-    font-size: var(--text-xs);
-    font-weight: 400;
-    color: var(--ink-soft);
-  }
-
-  .planner__today {
-    display: inline-block;
-    margin-top: var(--space-1);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    text-decoration-thickness: 2px;
-  }
-
-  /* The error box the form screens share: --muka with a 3px --ink edge. This
-     one carries the server's own sentence, most often that the position was
-     filled by something else first. */
-  .planner__error,
-  .planner__saved {
-    margin-top: var(--space-6);
-    padding: var(--space-3) var(--space-4);
-    background: var(--muka);
-    border-left: 3px solid var(--ink);
-    font-size: var(--text-sm);
-  }
-
-  /* account.css's pairing, for the same reason it gives: the refusal and the
-     confirmation are one panel in one place and only the left rule tells them
-     apart, so what is read is the sentence rather than the colour -- which is
-     the half a screen reader gets and the half that survives the monochrome
-     printout in the report. */
-  .planner__saved {
-    border-left-color: var(--kowhai);
+  .planner__step:hover,
+  .planner__today:hover {
+    text-decoration-color: var(--color-accent);
   }
 
   .planner__empty {
-    margin-top: var(--space-6);
+    max-width: var(--measure);
     font-size: var(--text-sm);
-    color: var(--ink-soft);
+    color: var(--color-muted-foreground);
   }
 
-  /* The two whole-week actions, in a row that wraps: the longer of the two
-     labels and "Clear the week" do not sit side by side inside the gutter at
-     375px, and a label truncated to fit would hide the word that says which
-     button destroys what. */
   .planner__actions {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-3);
-    margin-top: var(--space-6);
   }
 
-  /* The same restraint the two cell buttons are given a few rules down, and
-     for the reason recorded there: index.css reserves --kowhai for what it
-     reaches 1.94:1 against, and an accent on the one control that discards a
-     week would read as the recommended way through the screen. */
-  .planner__fill,
-  .planner__clear {
-    padding: var(--space-2) var(--space-4);
-    background: var(--paper);
-    border: 1px solid var(--ink-soft);
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
-  /* table-layout: fixed so a long recipe name widens nothing: the four columns
-     are settled by the first row and the name wraps inside its own cell. Left
-     to itself a table widens to fit its longest word and pushes the page into
-     a horizontal scroll. */
+  /* One weight of rule everywhere, collapsed so two adjacent cells share an
+     edge rather than drawing two. table-layout: fixed keeps a long recipe name
+     from widening its column and pulling the weave out of true. */
   .planner__grid {
     width: 100%;
-    margin-top: var(--space-8);
-    table-layout: fixed;
     border-collapse: collapse;
+    table-layout: fixed;
   }
 
-  /* The caption says what the table is, which is what a caption is for, and it
-     is also the description the grid points at. Left-aligned, because a
-     centred caption over a left-aligned table reads as a heading for the page
-     rather than for the table. */
   .planner__caption {
-    margin-bottom: var(--space-3);
-    text-align: left;
+    padding-bottom: var(--space-3);
     font-size: var(--text-sm);
-    color: var(--ink-soft);
+    color: var(--color-muted-foreground);
+    text-align: left;
   }
 
   .planner__corner {
-    width: 5.5rem;
+    width: 9rem;
     border: 0;
   }
 
-  .planner__meal,
-  .planner__day {
-    padding: var(--space-2);
+  .planner__meal {
+    padding: 0 var(--space-3) var(--space-2);
+    border-bottom: 1px solid var(--color-rule);
     font-size: var(--text-sm);
+    font-weight: 600;
     text-align: left;
   }
 
-  .planner__meal {
-    border-bottom: var(--rule);
-  }
-
+  /* The day is the warp: it names the row and carries its date beneath, and the
+     date is tabular so seven of them form a column rather than a ragged edge. */
   .planner__day {
-    border-right: var(--rule);
+    padding: var(--space-3) var(--space-4) var(--space-3) 0;
+    border-top: 1px solid var(--color-rule);
+    font-weight: 600;
+    text-align: left;
     vertical-align: top;
   }
 
   .planner__date {
     display: block;
+    margin-top: var(--space-1);
     font-size: var(--text-xs);
     font-weight: 400;
-    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-muted-foreground);
   }
 
   .planner__cell {
-    padding: var(--space-2);
-    border: var(--rule);
-    background: var(--muka);
+    padding: var(--space-3);
+    border-top: 1px solid var(--color-rule);
+    border-left: 1px solid var(--color-rule);
     vertical-align: top;
   }
 
   .planner__recipe {
     display: block;
-    font-size: var(--text-sm);
     font-weight: 600;
-    overflow-wrap: anywhere;
+    text-wrap: balance;
   }
 
-  .planner__energy,
-  .planner__vacant {
+  .planner__energy {
     display: block;
     margin-top: var(--space-1);
+    margin-bottom: var(--space-2);
     font-size: var(--text-xs);
-    color: var(--ink-soft);
     font-variant-numeric: tabular-nums;
+    color: var(--color-muted-foreground);
   }
 
   .planner__place {
@@ -199,30 +141,39 @@
     gap: var(--space-2);
   }
 
-  /* index.css gives every select a --muka background, which would vanish
-     against the cell. Full width so the control is the size of the space it is
-     choosing for, and min-width: 0 so a long recipe name in the closed select
-     cannot widen the column the fixed layout has already settled. */
   .planner__choice {
     width: 100%;
-    min-width: 0;
-    padding: var(--space-1) var(--space-2);
-    background: var(--paper);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
-  /* Deliberately not the kowhai fill the three form screens put on their
-     submit. Twenty-one of those on one page would make the accent mean
-     nothing, and index.css reserves --ink-soft for the boundary of anything
-     that takes input, because --kowhai reaches 1.94:1 against the page where
-     WCAG asks 3:1 of a control's edge. */
-  .planner__add,
-  .planner__remove {
-    margin-top: var(--space-1);
-    padding: var(--space-1) var(--space-3);
-    background: var(--paper);
-    border: 1px solid var(--ink-soft);
-    font-size: var(--text-xs);
-    font-weight: 600;
+  .planner__vacant {
+    font-size: var(--text-sm);
+    color: var(--color-muted-foreground);
+  }
+}
+
+/* Below the column the seven-by-three weave cannot hold its shape: three cells
+   of a usable width need more than a phone has. The table scrolls sideways
+   inside its own box, which is what the responsive rule asks for -- the table
+   may scroll, the page may not. */
+@media (max-width: 52rem) {
+  .planner {
+    .planner__grid {
+      display: block;
+      overflow-x: auto;
+      /* An element that scrolls is a focus target, so it is reachable by
+         keyboard rather than only by a pointer. tabindex is set in the markup;
+         this is the ring it gets. */
+      min-width: 0;
+    }
+
+    .planner__corner {
+      width: 6rem;
+    }
+
+    .planner__cell,
+    .planner__day {
+      min-width: 9rem;
+    }
   }
 }

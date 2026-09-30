@@ -1,182 +1,249 @@
+/* The signed-out page. It is the only screen with a display setting and the
+   only one that may spend it: doc/design/visual-language.md section 4 says to
+   put the boldness in one place, and this is the place.
+
+   Everything else here obeys the same two devices as the rest of the client --
+   the twelve-column grid and one weight of hairline -- so a visitor who signs
+   up does not arrive somewhere that looks like a different application. */
 .home {
+  --home-column: minmax(0, 1fr);
+}
+
+.home-inner {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-6);
+  max-width: var(--column);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.home-hero {
+  padding-block: clamp(var(--space-12), 9vw, var(--space-24));
+  border-bottom: 1px solid var(--color-rule);
+
   .home-inner {
-    max-width: var(--column);
-    margin-inline: auto;
-    padding-inline: var(--gutter);
+    align-items: end;
   }
 
-  .home-hero {
-    padding-block: clamp(var(--space-12), 9vw, var(--space-24));
+  > .home-inner > div:first-child {
+    grid-column: 1 / -1;
   }
+}
 
-  .home-hero .home-inner {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: clamp(var(--space-8), 6vw, var(--space-16));
-    align-items: center;
-  }
+/* The one display setting in the client, and the width axis is what makes it a
+   choice rather than a size. Bricolage Grotesque runs 75% to 100% wide, so the
+   headline is narrow and tightly set against a body face left at its normal
+   width -- a contrast of proportion that a single-width family cannot make. */
+.home-title {
+  max-width: 18ch;
+  font-size: var(--text-display);
+  font-stretch: var(--stretch-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+  text-wrap: balance;
+}
 
-  .home-title {
-    font-size: var(--text-display);
-    font-weight: 700;
-    font-stretch: 82%;
-    letter-spacing: -0.02em;
-    line-height: 0.95;
-    max-width: 15ch;
-  }
+.home-lede {
+  max-width: var(--measure);
+  margin-top: var(--space-6);
+  font-size: var(--text-lg);
+  color: var(--color-ink);
+}
 
-  .home-lede {
-    margin-top: var(--space-6);
-    max-width: var(--measure);
-    font-size: var(--text-lg);
-    line-height: 1.5;
-    color: var(--ink-soft);
-  }
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}
 
-  .home-actions {
-    margin-top: var(--space-8);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-6);
-  }
+/* The two entry points, drawn from the same rules as every other control in the
+   client: one accent fill with a boundary at 5.69:1, one outline. */
+.home-action {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.7em 1.4em;
+  border-radius: var(--radius-control);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
 
-  .home-action {
-    display: inline-block;
-    text-decoration: none;
-    font-weight: 600;
-    transition:
-      background-color 120ms ease,
-      color 120ms ease;
-  }
+.home-action--primary {
+  background: var(--color-accent);
+  color: var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
 
-  .home-action--primary {
-    background: var(--kowhai);
-    color: var(--ink);
-    padding: 0.7em 1.4em;
-    border-radius: var(--radius-control);
-  }
+.home-action--secondary {
+  border: 1px solid var(--color-border);
+}
 
-  .home-action--primary:hover {
-    background: var(--ink);
-    color: var(--paper);
-  }
+.home-action--primary:hover,
+.home-action--secondary:hover {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
 
-  .home-action--secondary {
-    text-decoration: underline;
-  }
+/* The weave, and it is the page's one picture. Seven days across, three meals
+   down, with the planned positions filled -- the same figure the planner draws
+   for real, shown here at a size a visitor can take in at once. */
+.home-weave {
+  grid-column: 1 / -1;
+  margin: 0;
+  margin-top: var(--space-12);
 
-  .home-weave__grid {
-    display: grid;
-    grid-template-columns: auto repeat(7, minmax(0, 3rem));
-    gap: var(--space-2);
-    align-items: center;
-  }
-
-  .home-weave__day,
-  .home-weave__meal {
-    font-size: var(--text-xs);
-    color: var(--ink-soft);
-    letter-spacing: 0.06em;
-    text-align: center;
-  }
-
-  .home-weave__meal {
-    text-align: right;
-    padding-right: var(--space-2);
-  }
-
-  .home-weave__cell {
-    aspect-ratio: 1;
-    min-width: 0;
-    border: 1px solid var(--straw);
-  }
-
-  .home-weave__cell--filled {
-    background: var(--ink);
-    border-color: var(--ink);
-  }
-
-  .home-weave figcaption {
-    margin-top: var(--space-6);
+  figcaption {
+    margin-top: var(--space-3);
     font-size: var(--text-sm);
-    color: var(--ink-soft);
-    max-width: 24ch;
+    color: var(--color-muted-foreground);
+  }
+}
+
+.home-weave__grid {
+  display: grid;
+  grid-template-columns: auto repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--color-rule);
+  border: 1px solid var(--color-rule);
+}
+
+/* The corner sits above the days and beside the meals and names neither, so it
+   carries no label -- but it still has to be the page ground rather than the
+   rule colour showing through the 1px gap that draws the weave. */
+.home-weave__grid > span:first-child {
+  background: var(--color-background);
+}
+
+.home-weave__day,
+.home-weave__meal {
+  padding: var(--space-2);
+  background: var(--color-background);
+  font-size: var(--text-xs);
+  color: var(--color-muted-foreground);
+}
+
+.home-weave__meal {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.home-weave__day {
+  text-align: center;
+}
+
+/* An empty position is the ground showing through; a planned one is the accent.
+   Nothing is written in either, so the figure reads as a pattern rather than as
+   a table a visitor is meant to study. */
+.home-weave__cell {
+  min-height: var(--space-8);
+  background: var(--color-background);
+}
+
+.home-weave__cell--filled {
+  background: var(--color-accent);
+}
+
+.home-steps {
+  padding-block: clamp(var(--space-12), 7vw, var(--space-16));
+  border-bottom: 1px solid var(--color-rule);
+
+  h2 {
+    grid-column: 1 / -1;
+    font-size: var(--text-lg);
+  }
+}
+
+.home-steps__list {
+  grid-column: 1 / -1;
+  margin-top: var(--space-6);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+/* Numbered, and the numbers are honest: these four are a sequence a person goes
+   through in order, which is the one case where a numbered marker is carrying
+   information rather than decorating a list. */
+.home-steps__item {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: var(--space-4);
+  padding-block: var(--space-5);
+  border-top: 1px solid var(--color-rule);
+}
+
+.home-steps__n {
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+}
+
+.home-steps__title {
+  font-weight: 600;
+}
+
+.home-steps__detail {
+  max-width: var(--measure);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-muted-foreground);
+}
+
+.home-close {
+  padding-block: clamp(var(--space-12), 7vw, var(--space-16));
+
+  .home-inner {
+    align-items: baseline;
+    row-gap: var(--space-6);
+  }
+}
+
+.home-close__line {
+  grid-column: 1 / -1;
+  max-width: 24ch;
+  font-size: var(--text-xl);
+  font-stretch: var(--stretch-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.home-close .home-action {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* From the column up there is room for the headline and the figure side by
+   side, which is the point of the weave: it sits beside the sentence it
+   illustrates rather than under it. */
+@media (min-width: 64rem) {
+  .home-hero > .home-inner > div:first-child {
+    grid-column: 1 / span 6;
   }
 
-  .home-steps {
-    background: var(--muka);
-    padding-block: clamp(var(--space-12), 8vw, var(--space-24));
+  .home-weave {
+    grid-column: 8 / -1;
+    margin-top: 0;
   }
 
   .home-steps h2 {
-    font-size: var(--text-xl);
-    font-stretch: 90%;
+    grid-column: 1 / span 3;
   }
 
   .home-steps__list {
-    margin-top: var(--space-8);
-  }
-
-  .home-steps__item {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-6);
-    padding-block: var(--space-6);
-    border-top: 1px solid var(--straw);
-  }
-
-  .home-steps__n {
-    font-size: var(--text-sm);
-    color: var(--ink-soft);
-    font-variant-numeric: tabular-nums;
-    padding-top: 0.4em;
-  }
-
-  .home-steps__title {
-    font-size: var(--text-lg);
-    font-weight: 600;
-  }
-
-  .home-steps__detail {
-    margin-top: var(--space-2);
-    max-width: var(--measure);
-    color: var(--ink-soft);
-  }
-
-  .home-close {
-    background: var(--ink);
-    color: var(--paper);
-    --focus: var(--paper);
-    padding-block: clamp(var(--space-12), 8vw, var(--space-16));
-  }
-
-  .home-close .home-inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-8);
+    grid-column: 5 / -1;
+    margin-top: 0;
   }
 
   .home-close__line {
-    font-size: var(--text-xl);
-    font-weight: 600;
-    max-width: 24ch;
+    grid-column: 1 / span 6;
   }
 
-  .home-close .home-action--primary:hover {
-    background: var(--paper);
-    color: var(--ink);
-  }
-
-  @media (max-width: 62rem) {
-    .home-hero .home-inner {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .home-weave__grid {
-      grid-template-columns: auto repeat(7, minmax(0, 1fr));
-    }
+  .home-close .home-action {
+    grid-column: 8 / -1;
+    justify-self: start;
   }
 }

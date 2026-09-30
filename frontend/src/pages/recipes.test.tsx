@@ -59,10 +59,18 @@ describe("the recipe list", () => {
     renderAt("/recipes");
 
     expect(await screen.findByRole("heading", { name: "Laksa" })).toBeVisible();
-    expect(cardFor("Laksa")).toHaveTextContent(
-      "Malaysian · 1,240 kcal a serving",
-    );
-    expect(cardFor("Dal")).toHaveTextContent("Indian · 430 kcal a serving");
+
+    // Each fact on its own, rather than the single string the two used to be
+    // joined into. C30 (nomadwiz/kete#303) split them onto separate lines:
+    // "A \u00b7 B" is template chrome that appears whatever the subject, and it
+    // truncates badly when a cuisine name is long. What this test is for --
+    // its own name says so -- is that the name, the cuisine and the energy all
+    // reach the card, and that is what it now asserts. The punctuation between
+    // them was never the subject.
+    expect(cardFor("Laksa")).toHaveTextContent("Malaysian");
+    expect(cardFor("Laksa")).toHaveTextContent("1,240 kcal a serving");
+    expect(cardFor("Dal")).toHaveTextContent("Indian");
+    expect(cardFor("Dal")).toHaveTextContent("430 kcal a serving");
     expect(cards()).toHaveLength(2);
   });
 

@@ -1,8 +1,9 @@
 import { Link, useLoaderData } from "react-router";
 
+import { Figures } from "../components/ui/figures";
+import { Band, Screen } from "../components/ui/screen";
 import { PATHS } from "../routes";
 import type { Targets as TargetFigures } from "../types/targets";
-import "./targets.css";
 
 // One locale, fixed, rather than the reader's own. The project writes every
 // date dd-mm-yyyy, and a screenshot of this screen goes in the report, so a
@@ -45,18 +46,25 @@ export default function Targets() {
   // as one -- the one thing the person needs is the way to the form.
   if (!targets) {
     return (
-      <div className="targets">
-        <h1 className="targets__title">Your targets</h1>
-
-        <p className="targets__lede">
-          Kete works these out from your body measurements, and there are none
-          saved yet.
-        </p>
-
-        <Link className="targets__link" to={PATHS.measurements}>
-          Add your measurements
-        </Link>
-      </div>
+      <Screen
+        title="Your targets"
+        lede="Kete works these out from your body measurements, and there are none saved yet."
+      >
+        <Band heading="Your daily target">
+          <div className="border-t border-rule pt-4">
+            <p className="max-w-(--measure) text-sm text-muted-foreground">
+              Five figures — weight, height, age, sex and activity level — and
+              Kete works out the rest.
+            </p>
+            <Link
+              className="mt-4 inline-block font-semibold underline decoration-accent decoration-2 underline-offset-4"
+              to={PATHS.measurements}
+            >
+              Add your measurements
+            </Link>
+          </div>
+        </Band>
+      </Screen>
     );
   }
 
@@ -79,48 +87,43 @@ export default function Targets() {
   ];
 
   return (
-    <div className="targets">
-      <h1 className="targets__title">Your targets</h1>
+    <Screen
+      title="Your targets"
+      lede="What your body needs each day, worked out from the measurements you saved."
+    >
+      <div className="grid gap-10">
+        <Band heading="Your daily target">
+          <Figures className="mt-2" rows={rows} />
+          {computed ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Worked out {computed}
+            </p>
+          ) : null}
+        </Band>
 
-      {/* A description list, because four label-and-value pairs is what one
-          is for: the pairing reaches a screen reader from the markup rather
-          than from an ARIA attribute describing markup that does not say it. */}
-      <dl className="targets__figures">
-        {rows.map((row) => (
-          <div className="targets__row" key={row.label}>
-            <dt className="targets__label">{row.label}</dt>
-            <dd className="targets__value">{row.value}</dd>
-          </div>
-        ))}
-      </dl>
+        {/* Where the figures come from, in the four steps of section 3 of
+            doc/design/product.md in the documents repository nomadwiz/kete-doc,
+            and in the words of someone who holds no nutritional expertise -- so
+            the equation is "published" rather than named, and the day's total is
+            scaled rather than a TDEE.
 
-      {computed ? (
-        <p className="targets__computed">Worked out {computed}</p>
-      ) : null}
-
-      {/* Where the figures come from, in the four steps of section 3 of
-          doc/design/product.md in the documents repository nomadwiz/kete-doc,
-          and in the words of someone who holds no nutritional expertise -- so
-          the equation is "published" rather than named, and the day's total is
-          scaled rather than a TDEE.
-
-          It stops at "divided into" and says nothing about the proportions,
-          which is deliberate. MACRO_SPLIT in backend/main.py carries "TODO:
-          team to confirm the split" and product.md section 6 marks those
-          proportions [CITE], so a figure here would read -- on screen and in
-          a report screenshot -- exactly like a sourced one. The activity
-          factors and the four-and-nine gram conversions are uncited on the
-          same terms. Saying instead that the split is under review would put
-          the project's own process in front of a user who did not ask about
-          it. The gap is recorded where it can be closed, not here. */}
-      <p className="targets__note">
-        Kete worked these out from the measurements you saved. A published
-        equation turns your weight, height, age and sex into the energy your
-        body uses at rest, your activity level scales that up to a whole day,
-        and the day's energy is divided into protein, carbohydrate and fat. Save
-        your measurements again whenever they change and all four figures are
-        worked out afresh.
-      </p>
-    </div>
+            It stops at "divided into" and says nothing about the proportions,
+            which is deliberate. MACRO_SPLIT in backend/main.py carries "TODO:
+            team to confirm the split" and product.md section 6 marks those
+            proportions [CITE], so a figure here would read -- on screen and in
+            a report screenshot -- exactly like a sourced one. The gap is
+            recorded where it can be closed, not here. */}
+        <Band heading="How these are worked out">
+          <p className="mt-2 max-w-(--measure) text-sm">
+            Kete worked these out from the measurements you saved. A published
+            equation turns your weight, height, age and sex into the energy your
+            body uses at rest, your activity level scales that up to a whole
+            day, and the day's energy is divided into protein, carbohydrate and
+            fat. Save your measurements again whenever they change and all four
+            figures are worked out afresh.
+          </p>
+        </Band>
+      </div>
+    </Screen>
   );
 }

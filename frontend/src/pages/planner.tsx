@@ -1,6 +1,9 @@
 import { Form, Link, useActionData, useLoaderData } from "react-router";
 
 import { datesOf, isoWeek, shiftWeek } from "../api/week";
+import { Button } from "../components/ui/button";
+import { Notice } from "../components/ui/notice";
+import { Screen } from "../components/ui/screen";
 import { PATHS, QUERY } from "../routes";
 import type { DayOfWeek, MealPosition, PlanWeek } from "../types/plan";
 import { useWrite } from "../use-write";
@@ -120,54 +123,57 @@ export default function Planner() {
   const emptiesTheWeek = `Clear everything planned for ${week}?\n\nThe whole week is emptied and there is no undo. Your recipes are not touched.`;
 
   return (
-    <div className="planner">
-      <h1 className="planner__title">Planner</h1>
+    <Screen
+      wide
+      title="Planner"
+      lede="Seven days against breakfast, lunch and dinner. Place a recipe in any position, or fill the week from your library."
+    >
+      <div className="planner">
+        <nav className="planner__weeks" aria-label="Week">
+          <Link
+            className="planner__step"
+            to={{ search: `?${QUERY.week}=${shiftWeek(week, -1)}` }}
+          >
+            Previous week
+          </Link>
 
-      <nav className="planner__weeks" aria-label="Week">
-        <Link
-          className="planner__step"
-          to={{ search: `?${QUERY.week}=${shiftWeek(week, -1)}` }}
-        >
-          Previous week
-        </Link>
-
-        <p className="planner__week">
-          {week}
-          <span className="planner__range">
-            {/* formatRange rather than two formats and a hand-written "to":
+          <p className="planner__week">
+            {week}
+            <span className="planner__range">
+              {/* formatRange rather than two formats and a hand-written "to":
                 the same formatter elides the parts the two dates share, and
                 keeps the month and the year when the week crosses one. */}
-            {WEEK_RANGE.formatRange(dates[0], dates[6])}
-          </span>
+              {WEEK_RANGE.formatRange(dates[0], dates[6])}
+            </span>
 
-          {/* Always, rather than only when you have wandered off. A link back
+            {/* Always, rather than only when you have wandered off. A link back
               to the week you are already on costs nothing and does nothing,
               and the branch that hides it would have to ask what day it is
               during a render -- which is a second place computing the current
               week, and the one thing this screen has to get right. */}
+            <Link
+              className="planner__today"
+              to={{ search: `?${QUERY.week}=${isoWeek(new Date())}` }}
+            >
+              This week
+            </Link>
+          </p>
+
           <Link
-            className="planner__today"
-            to={{ search: `?${QUERY.week}=${isoWeek(new Date())}` }}
+            className="planner__step"
+            to={{ search: `?${QUERY.week}=${shiftWeek(week, 1)}` }}
           >
-            This week
+            Next week
           </Link>
-        </p>
+        </nav>
 
-        <Link
-          className="planner__step"
-          to={{ search: `?${QUERY.week}=${shiftWeek(week, 1)}` }}
-        >
-          Next week
-        </Link>
-      </nav>
+        {error ? (
+          <Notice tone="refusal" role="alert">
+            {error}
+          </Notice>
+        ) : null}
 
-      {error ? (
-        <p className="planner__error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {/* Twenty-one cells can change at once here and the table's aria-busy
+        {/* Twenty-one cells can change at once here and the table's aria-busy
           says nothing about it: aria-busy is a state, not a live region, so a
           filled or cleared week was silent. C28 (nomadwiz/kete#285).
 
@@ -177,31 +183,31 @@ export default function Planner() {
           rather than what the action was asked to do, and the total is
           computed from the two lists above rather than typed as 21 -- a meal
           added to MEALS would otherwise make this sentence quietly wrong. */}
-      {succeeded ? (
-        <p className="planner__saved" role="status">
-          Your week is updated: {slots.length} of {DAYS.length * MEALS.length}{" "}
-          positions planned.
-        </p>
-      ) : null}
+        {succeeded ? (
+          <Notice tone="progress" role="status">
+            Your week is updated: {slots.length} of {DAYS.length * MEALS.length}{" "}
+            positions planned.
+          </Notice>
+        ) : null}
 
-      {/* Two different empty states, because they want two different answers.
+        {/* Two different empty states, because they want two different answers.
           A week with nothing in it is ordinary and is simply said; a library
           with nothing in it is why every position below is offering no choice,
           and the only thing to do about it is elsewhere. */}
-      {!library ? (
-        <p className="planner__empty">
-          There is nothing to plan with yet.{" "}
-          <Link to={PATHS.recipes}>Write your first recipe</Link>, then come
-          back and put it in a day.
-        </p>
-      ) : slots.length === 0 ? (
-        <p className="planner__empty">
-          Nothing is planned for this week yet. Choose a recipe in any position
-          below.
-        </p>
-      ) : null}
+        {!library ? (
+          <p className="planner__empty">
+            There is nothing to plan with yet.{" "}
+            <Link to={PATHS.recipes}>Write your first recipe</Link>, then come
+            back and put it in a day.
+          </p>
+        ) : slots.length === 0 ? (
+          <p className="planner__empty">
+            Nothing is planned for this week yet. Choose a recipe in any
+            position below.
+          </p>
+        ) : null}
 
-      {/* Both of these act on the whole week rather than on a position, so
+        {/* Both of these act on the whole week rather than on a position, so
           they sit above the grid rather than in it.
 
           Only when there is a library. With none there is nothing to fill the
@@ -215,27 +221,27 @@ export default function Planner() {
           where the recipes come from, which is the library and not a
           calculation, and it is read by everyone who never opens the
           confirmation. */}
-      {library ? (
-        <div className="planner__actions">
-          <Form
-            method="post"
-            onSubmit={(event) => {
-              // react-router's Form runs this handler first and stops on a
-              // prevented default, so a declined confirmation sends no
-              // request at all rather than one that is thrown away.
-              if (!window.confirm(replacesTheWeek)) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <input type="hidden" name="intent" value="generate" />
-            <input type="hidden" name="week" value={week} />
-            <button className="planner__fill" type="submit" disabled={busy}>
-              Fill the week from your library
-            </button>
-          </Form>
+        {library ? (
+          <div className="planner__actions">
+            <Form
+              method="post"
+              onSubmit={(event) => {
+                // react-router's Form runs this handler first and stops on a
+                // prevented default, so a declined confirmation sends no
+                // request at all rather than one that is thrown away.
+                if (!window.confirm(replacesTheWeek)) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              <input type="hidden" name="intent" value="generate" />
+              <input type="hidden" name="week" value={week} />
+              <Button type="submit" size="sm" disabled={busy}>
+                Fill the week from your library
+              </Button>
+            </Form>
 
-          {/* Gated on the week having something in it, which the button to
+            {/* Gated on the week having something in it, which the button to
               its left is deliberately not gated on, and the asymmetry is the
               contract's. Clearing an empty week is a declared success, so a
               loader copy that says empty and is not costs a reload and
@@ -243,152 +249,154 @@ export default function Planner() {
               subject. Offering "Clear everything planned for this week, and
               there is no undo" directly under a line saying nothing is
               planned is the worse of the two readings. */}
-          {slots.length > 0 ? (
-            <Form
-              method="post"
-              onSubmit={(event) => {
-                if (!window.confirm(emptiesTheWeek)) {
-                  event.preventDefault();
-                }
-              }}
-            >
-              <input type="hidden" name="intent" value="clear" />
-              <input type="hidden" name="week" value={week} />
-              <button className="planner__clear" type="submit" disabled={busy}>
-                Clear the week
-              </button>
-            </Form>
-          ) : null}
-        </div>
-      ) : null}
+            {slots.length > 0 ? (
+              <Form
+                method="post"
+                onSubmit={(event) => {
+                  if (!window.confirm(emptiesTheWeek)) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                <input type="hidden" name="intent" value="clear" />
+                <input type="hidden" name="week" value={week} />
+                <Button type="submit" size="sm" disabled={busy}>
+                  Clear the week
+                </Button>
+              </Form>
+            ) : null}
+          </div>
+        ) : null}
 
-      <table className="planner__grid" aria-busy={busy}>
-        {/* The caption is the table's accessible name, given by the element
+        <table className="planner__grid" aria-busy={busy}>
+          {/* The caption is the table's accessible name, given by the element
             rather than by an attribute pointing at it. */}
-        <caption className="planner__caption">
-          Seven days against breakfast, lunch and dinner, for {week}.
-        </caption>
+          <caption className="planner__caption">
+            Seven days against breakfast, lunch and dinner, for {week}.
+          </caption>
 
-        <thead>
-          <tr>
-            {/* Empty, and a td rather than a th: it heads neither the row of
+          <thead>
+            <tr>
+              {/* Empty, and a td rather than a th: it heads neither the row of
                 meal names nor the column of days, and a th with nothing in it
                 is announced as a header that has no name. */}
-            <td className="planner__corner" />
-            {MEALS.map((meal) => (
-              <th className="planner__meal" scope="col" key={meal.code}>
-                {meal.name}
-              </th>
-            ))}
-          </tr>
-        </thead>
+              <td className="planner__corner" />
+              {MEALS.map((meal) => (
+                <th className="planner__meal" scope="col" key={meal.code}>
+                  {meal.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
 
-        <tbody>
-          {DAYS.map((day, index) => (
-            <tr key={day.code}>
-              <th className="planner__day" scope="row">
-                {day.name}
-                <span className="planner__date">
-                  {DAY_DATE.format(dates[index])}
-                </span>
-              </th>
+          <tbody>
+            {DAYS.map((day, index) => (
+              <tr key={day.code}>
+                <th className="planner__day" scope="row">
+                  {day.name}
+                  <span className="planner__date">
+                    {DAY_DATE.format(dates[index])}
+                  </span>
+                </th>
 
-              {MEALS.map((meal) => {
-                const slot = placed.get(`${day.code}|${meal.code}`);
-                const position = `${day.name} ${meal.name.toLowerCase()}`;
+                {MEALS.map((meal) => {
+                  const slot = placed.get(`${day.code}|${meal.code}`);
+                  const position = `${day.name} ${meal.name.toLowerCase()}`;
 
-                return (
-                  <td className="planner__cell" key={meal.code}>
-                    {slot ? (
-                      <>
-                        <span className="planner__recipe">
-                          {slot.recipe.name}
-                        </span>
+                  return (
+                    <td className="planner__cell" key={meal.code}>
+                      {slot ? (
+                        <>
+                          <span className="planner__recipe">
+                            {slot.recipe.name}
+                          </span>
 
-                        {/* The figure the server computed for one serving of
+                          {/* The figure the server computed for one serving of
                             this recipe, printed as sent. Nothing on this
                             screen adds any of them up: the day's and the
                             week's totals against the target are C18
                             (nomadwiz/kete#182), from an endpoint that does the
                             arithmetic. */}
-                        <span className="planner__energy">
-                          {slot.recipe.energy_kcal.toLocaleString("en-NZ")} kcal
-                        </span>
+                          <span className="planner__energy">
+                            {slot.recipe.energy_kcal.toLocaleString("en-NZ")}{" "}
+                            kcal
+                          </span>
 
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="remove" />
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="remove" />
+                            <input
+                              type="hidden"
+                              name="slot_id"
+                              value={slot.slot_id}
+                            />
+                            <Button
+                              type="submit"
+                              size="xs"
+                              disabled={busy}
+                              aria-label={`Remove ${slot.recipe.name} from ${position}`}
+                            >
+                              Remove
+                            </Button>
+                          </Form>
+                        </>
+                      ) : library ? (
+                        <Form className="planner__place" method="post">
+                          <input type="hidden" name="intent" value="place" />
+                          <input type="hidden" name="week" value={week} />
                           <input
                             type="hidden"
-                            name="slot_id"
-                            value={slot.slot_id}
+                            name="day_of_week"
+                            value={day.code}
                           />
-                          <button
-                            className="planner__remove"
-                            type="submit"
-                            disabled={busy}
-                            aria-label={`Remove ${slot.recipe.name} from ${position}`}
-                          >
-                            Remove
-                          </button>
-                        </Form>
-                      </>
-                    ) : library ? (
-                      <Form className="planner__place" method="post">
-                        <input type="hidden" name="intent" value="place" />
-                        <input type="hidden" name="week" value={week} />
-                        <input
-                          type="hidden"
-                          name="day_of_week"
-                          value={day.code}
-                        />
-                        <input
-                          type="hidden"
-                          name="meal_position"
-                          value={meal.code}
-                        />
+                          <input
+                            type="hidden"
+                            name="meal_position"
+                            value={meal.code}
+                          />
 
-                        {/* Uncontrolled, with no onChange and no submit on
+                          {/* Uncontrolled, with no onChange and no submit on
                             selection: a select that navigates the moment it
                             changes cannot be corrected by anyone reaching it
                             from the keyboard, who passes through every option
                             on the way to the one they want. */}
-                        <select
-                          className="planner__choice"
-                          name="recipe_id"
-                          defaultValue=""
-                          aria-label={`Recipe for ${position}`}
-                          required
-                        >
-                          <option value="">Choose a recipe</option>
-                          {recipes.map((recipe) => (
-                            <option
-                              key={recipe.recipe_id}
-                              value={recipe.recipe_id}
-                            >
-                              {recipe.name}
-                            </option>
-                          ))}
-                        </select>
+                          <select
+                            className="planner__choice"
+                            name="recipe_id"
+                            defaultValue=""
+                            aria-label={`Recipe for ${position}`}
+                            required
+                          >
+                            <option value="">Choose a recipe</option>
+                            {recipes.map((recipe) => (
+                              <option
+                                key={recipe.recipe_id}
+                                value={recipe.recipe_id}
+                              >
+                                {recipe.name}
+                              </option>
+                            ))}
+                          </select>
 
-                        <button
-                          className="planner__add"
-                          type="submit"
-                          disabled={busy}
-                          aria-label={`Add a recipe to ${position}`}
-                        >
-                          Add
-                        </button>
-                      </Form>
-                    ) : (
-                      <span className="planner__vacant">Empty</span>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                          <Button
+                            type="submit"
+                            size="xs"
+                            disabled={busy}
+                            aria-label={`Add a recipe to ${position}`}
+                          >
+                            Add
+                          </Button>
+                        </Form>
+                      ) : (
+                        <span className="planner__vacant">Empty</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Screen>
   );
 }

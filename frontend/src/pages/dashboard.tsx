@@ -1,8 +1,9 @@
 import { Link, useLoaderData } from "react-router";
 
+import { Figures } from "../components/ui/figures";
+import { Band, Screen } from "../components/ui/screen";
 import { PATHS } from "../routes";
 import type { Targets as TargetFigures } from "../types/targets";
-import "./dashboard.css";
 
 function Areas() {
   // Built inside the component, not as a module constant. routes.tsx imports
@@ -17,12 +18,6 @@ function Areas() {
   // Each carries a line saying what the area is for, which is why this screen
   // earns its place beside the navigation in the shell: the shell offers six
   // destinations and explains none of them.
-  //
-  // The labels match the shell's, deliberately. The wireframe in
-  // doc/asset/diagrams.drawio calls the middle one "Weekly planner" while the
-  // shell calls it "Planner", and two names for one destination on the same
-  // page costs more than the fuller name gains -- so the sense the wireframe
-  // wanted is in the description instead.
   const areas = [
     {
       to: PATHS.recipes,
@@ -44,13 +39,17 @@ function Areas() {
   ];
 
   return (
-    <nav className="dashboard__areas" aria-label="Areas">
-      <ul className="dashboard__area-list">
+    <nav aria-label="Areas">
+      <ul className="border-b border-rule">
         {areas.map((area) => (
-          <li key={area.to}>
-            <Link className="dashboard__area" to={area.to}>
-              <span className="dashboard__area-label">{area.label}</span>
-              <span className="dashboard__area-blurb">{area.blurb}</span>
+          <li className="border-t border-rule" key={area.to}>
+            <Link className="group grid gap-1 py-4 no-underline" to={area.to}>
+              <span className="font-semibold underline decoration-rule decoration-2 underline-offset-4 transition-colors duration-200 group-hover:decoration-accent">
+                {area.label}
+              </span>
+              <span className="max-w-(--measure) text-sm text-muted-foreground">
+                {area.blurb}
+              </span>
             </Link>
           </li>
         ))}
@@ -64,29 +63,40 @@ export default function Dashboard() {
 
   // Null is the 404 the loader caught: no measurements saved, so there is
   // nothing to compute a target from. It is not an error and is not announced
-  // as one. This is the screen a returning user lands on and the screen a
-  // fresh sign-in is now sent to unconditionally, so it is the one place that
-  // has to say what is missing -- ADR 004 in nomadwiz/kete-doc.
-  //
-  // The areas render either way. A user who has not supplied measurements can
-  // still write recipes, and a hub that withholds the hub until a form is
-  // filled in is a redirect wearing different clothes.
+  // as one -- ADR 004 in nomadwiz/kete-doc. The areas render either way: a user
+  // who has not supplied measurements can still write recipes, and a hub that
+  // withholds the hub until a form is filled in is a redirect wearing different
+  // clothes.
   if (!targets) {
     return (
-      <div className="dashboard">
-        <h1 className="dashboard__title">Dashboard</h1>
+      <Screen
+        title="Dashboard"
+        lede="Kete works your daily target out from your body measurements, and there are none saved yet."
+      >
+        <div className="grid gap-10">
+          {/* The empty state occupies the space the figures would have, between
+              the same two rules, so the structure is intact and only the content
+              is absent. No icon and no illustration. */}
+          <Band heading="Your daily target">
+            <div className="border-t border-rule pt-4">
+              <p className="max-w-(--measure) text-sm text-muted-foreground">
+                Five figures — weight, height, age, sex and activity level — and
+                Kete works out the rest.
+              </p>
+              <Link
+                className="mt-4 inline-block font-semibold underline decoration-accent decoration-2 underline-offset-4"
+                to={PATHS.measurements}
+              >
+                Add your measurements
+              </Link>
+            </div>
+          </Band>
 
-        <p className="dashboard__lede">
-          Kete works your daily target out from your body measurements, and
-          there are none saved yet.
-        </p>
-
-        <Link className="dashboard__link" to={PATHS.measurements}>
-          Add your measurements
-        </Link>
-
-        <Areas />
-      </div>
+          <Band heading="Where to go next">
+            <Areas />
+          </Band>
+        </div>
+      </Screen>
     );
   }
 
@@ -105,37 +115,28 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="dashboard">
-      <h1 className="dashboard__title">Dashboard</h1>
+    <Screen
+      title="Dashboard"
+      lede="What your body needs each day, and where to go next."
+    >
+      <div className="grid gap-10">
+        <Band heading="Your daily target">
+          <Figures className="mt-2" rows={rows} />
+          {/* Where the figures come from is answered on /targets, at length and
+              in plain words. Repeating that note here would put two copies of
+              the same explanation in the application. */}
+          <Link
+            className="mt-4 inline-block text-sm underline decoration-rule decoration-2 underline-offset-4 transition-colors duration-200 hover:decoration-accent"
+            to={PATHS.targets}
+          >
+            How these are worked out
+          </Link>
+        </Band>
 
-      <section className="dashboard__summary" aria-labelledby="daily-target">
-        <h2 className="dashboard__heading" id="daily-target">
-          Your daily target
-        </h2>
-
-        {/* A description list, for the reason targets.tsx gives: four
-            label-and-value pairs is what one is for, and the pairing reaches a
-            screen reader from the markup rather than from an ARIA attribute. */}
-        <dl className="dashboard__figures">
-          {rows.map((row) => (
-            <div className="dashboard__row" key={row.label}>
-              <dt className="dashboard__label">{row.label}</dt>
-              <dd className="dashboard__value">{row.value}</dd>
-            </div>
-          ))}
-        </dl>
-
-        {/* Where the figures come from is answered on /targets, at length and
-            in plain words. Repeating that note here would put two copies of
-            the same explanation in the application, and the copy carries a
-            known gap -- the macronutrient proportions, nomadwiz/kete#251 --
-            which is worth fixing in one place rather than two. */}
-        <Link className="dashboard__link" to={PATHS.targets}>
-          How these are worked out
-        </Link>
-      </section>
-
-      <Areas />
-    </div>
+        <Band heading="Where to go next">
+          <Areas />
+        </Band>
+      </div>
+    </Screen>
   );
 }

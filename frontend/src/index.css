@@ -56,6 +56,9 @@
   --text-lg: 1.3125rem;
   --text-xl: 1.75rem;
   --text-display: clamp(2.75rem, 7vw, 5rem);
+  /* The screen title. It was --title in :root, copied from eight stylesheets;
+     as a --text-* entry it also reaches the utility layer as text-title. */
+  --text-title: clamp(var(--text-xl), 6vw, 2.75rem);
 
   /* One base, and Tailwind multiplies it: p-4 is calc(--spacing * 4) = 1rem,
      which is what --space-4 already meant. The whole existing scale is n x
@@ -64,6 +67,14 @@
   --spacing: 0.25rem;
 
   --radius-control: 3px;
+
+  /* Bricolage Grotesque is variable over width, 75% to 100%, as well as weight.
+     Display type is set narrow and tight and body type is left alone, so the
+     contrast between a heading and a paragraph is a change of proportion rather
+     than only of size -- which is the one typographic move available here
+     without loading a second family. index.html requests the wdth axis. */
+  --stretch-display: 80%;
+  --stretch-brand: 85%;
 
   /* The width at which two fields reading as one line stop fitting side by
      side. It was a max-width media query in form-skeleton.css and is a named
@@ -93,6 +104,7 @@
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
   --space-12: 3rem;
@@ -183,6 +195,18 @@
      caller. */
   h3 {
     font-size: var(--text-base);
+  }
+
+  /* Every figure in this client sits in a column of other figures -- a day's
+     four macronutrients against four targets, twenty-one slots of energy, a
+     recipe's nutrition per serving. Proportional digits make those columns
+     ragged and make two numbers of the same width look different lengths.
+     Bricolage Grotesque carries a tabular set, so this costs nothing. */
+  td,
+  th,
+  dd,
+  output {
+    font-variant-numeric: tabular-nums;
   }
 
   a {
