@@ -990,3 +990,9 @@ def health():
     by restarting. If a database probe is wanted, it belongs at its own path.
     """
     return {"status": "ok"}
+
+
+@app.get("/probe", tags=["meta"])
+def probe():
+    """Echoes a fixed string. Added to check the review workflow."""
+    return {"probe": "ok"}
