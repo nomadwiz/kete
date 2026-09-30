@@ -1519,19 +1519,23 @@
         "properties": {
           "total": {
             "type": "integer",
-            "title": "Total"
+            "title": "Total",
+            "description": "The day's planned total for this nutrient: the sum of its slots' per-serving figures, exactly as GET /mealplan reports them."
           },
           "target": {
             "type": "integer",
-            "title": "Target"
+            "title": "Target",
+            "description": "The stored daily target for this nutrient."
           },
           "difference": {
             "type": "integer",
-            "title": "Difference"
+            "title": "Difference",
+            "description": "total minus target. Negative is under target, positive is over."
           },
           "percent": {
             "type": "integer",
-            "title": "Percent"
+            "title": "Percent",
+            "description": "total as a whole-number percentage of target, rounded half up, so 46.5 becomes 47. A stored target is never zero, so this is always a whole number."
           }
         },
         "type": "object",
@@ -1542,7 +1546,7 @@
           "percent"
         ],
         "title": "NutrientComparison",
-        "description": "One nutrient on one day, against the stored daily target."
+        "description": "One nutrient on one day, against the stored daily target.\n\nThese four descriptions travel into openapi.json, for the reason the\ndeclared error responses below give: a fact a client has to know is part\nof the contract, and a comment here is not. The sign of `difference` and\nthe length of `days` were both comments until a cross-lane review pointed\nout that C18's grid was being built on them."
       },
       "PhotoOut": {
         "properties": {
@@ -2076,7 +2080,10 @@
               "$ref": "#/components/schemas/DaySummary"
             },
             "type": "array",
-            "title": "Days"
+            "maxItems": 7,
+            "minItems": 7,
+            "title": "Days",
+            "description": "Always seven entries, Mon to Sun, in that order. A day with nothing planned is present with zero totals, the full negative difference and 0 percent: an empty day is a result, not a missing one."
           }
         },
         "type": "object",

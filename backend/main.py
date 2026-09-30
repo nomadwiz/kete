@@ -279,11 +279,27 @@ class GenerateOut(BaseModel):
 
 
 class NutrientComparison(BaseModel):
-    """One nutrient on one day, against the stored daily target."""
-    total: int
-    target: int
-    difference: int   # total minus target; negative is under target
-    percent: int      # of target, rounded half up; targets are never zero
+    """One nutrient on one day, against the stored daily target.
+
+    These four descriptions travel into openapi.json, for the reason the
+    declared error responses below give: a fact a client has to know is part
+    of the contract, and a comment here is not. The sign of `difference` and
+    the length of `days` were both comments until a cross-lane review pointed
+    out that C18's grid was being built on them.
+    """
+    total: int = Field(
+        description="The day's planned total for this nutrient: the sum of "
+                    "its slots' per-serving figures, exactly as "
+                    "GET /mealplan reports them.")
+    target: int = Field(
+        description="The stored daily target for this nutrient.")
+    difference: int = Field(
+        description="total minus target. Negative is under target, positive "
+                    "is over.")
+    percent: int = Field(
+        description="total as a whole-number percentage of target, rounded "
+                    "half up, so 46.5 becomes 47. A stored target is never "
+                    "zero, so this is always a whole number.")
 
 
 class DaySummary(BaseModel):
@@ -296,7 +312,12 @@ class DaySummary(BaseModel):
 
 class WeekSummaryOut(BaseModel):
     week: str
-    days: list[DaySummary]   # always seven, Mon to Sun, empty days included
+    days: list[DaySummary] = Field(
+        min_length=7, max_length=7,
+        description="Always seven entries, Mon to Sun, in that order. A day "
+                    "with nothing planned is present with zero totals, the "
+                    "full negative difference and 0 percent: an empty day is "
+                    "a result, not a missing one.")
 
 
 class ErrorDetail(BaseModel):
