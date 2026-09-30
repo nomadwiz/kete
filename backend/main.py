@@ -448,7 +448,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 
 
 # ==========================================================================
-# 3-6  Profile, metrics and targets  (protected)
+# 3-7  Profile, metrics and targets  (protected)
 # ==========================================================================
 @app.get("/profile", response_model=ProfileOut, tags=["profile"],
          responses={**AUTH, **NO_ACCOUNT})
@@ -601,7 +601,7 @@ def _stored_targets(db: Session, user_id: int) -> TargetsOut:
 
 
 # ==========================================================================
-# 7-12  Recipes  (protected)
+# 8-13  Recipes  (protected)
 # ==========================================================================
 def _owned_recipe(db: Session, recipe_id: int, user_id: int) -> models.Recipe:
     """Fetch a recipe, but only if it belongs to the signed-in user.
@@ -751,7 +751,7 @@ def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
 
 
 # ==========================================================================
-# 13-17  Weekly meal plan  (protected)
+# 14-19  Weekly meal plan  (protected)
 # ==========================================================================
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MEALS = ["breakfast", "lunch", "dinner"]
