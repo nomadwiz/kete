@@ -75,7 +75,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and .state == "CHANGES_REQUESTED") | .id' \
+            --jq '.[] | select((.user.login == "claude[bot]" or .user.login == "github-actions[bot]") and .state == "CHANGES_REQUESTED") | .id' \
           | while read -r id; do
               gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
                 -f message='Superseded by a newer review.' -f event=DISMISS
@@ -94,8 +94,10 @@ jobs:
       - name: Review
         uses: anthropics/claude-code-action@v1
         env:
-          # The review is posted by github-actions[bot], which is the login the
-          # dismissal step above looks for. The two must agree.
+          # Passed for the read-only gh calls. The verdict itself is posted by
+          # claude[bot]: the action supplies its own app token to Claude and this
+          # value does not win. The dismissal step matches both logins for that
+          # reason — get it wrong and a request-changes review never clears.
           GH_TOKEN: ${{ github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -106,7 +108,7 @@ jobs:
             agent-skills@addy-agent-skills
             ponytail@ponytail
           claude_args: >-
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Task,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Task,Skill,SlashCommand,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}, the Kete application. The working directory is that repository. The documents repository, nomadwiz/kete-doc, is checked out at `kete-doc/` on its `master` branch with full history.
 
