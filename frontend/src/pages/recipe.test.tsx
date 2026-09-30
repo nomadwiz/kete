@@ -1,10 +1,9 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { RouteObject } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PATHS, routes } from "../routes";
-import { jsonResponse, renderAt, stubFetch } from "../test/router";
+import { PATHS } from "../routes";
+import { jsonResponse, renderAt, stubFetch, submitTo } from "../test/router";
 import type { RecipeDetail } from "../types/recipe";
 
 function signedIn() {
@@ -806,6 +805,35 @@ describe("the photograph control", () => {
     ).toBeEnabled();
   });
 
+  // Where recipesAction sends a recipe that was created without the
+  // photograph chosen for it.
+  it("says the photograph was not stored when a creation left it behind", async () => {
+    signedIn();
+    stubFetch({
+      "/recipes/7": async () =>
+        jsonResponse(200, { ...LAKSA, photo_url: null }),
+    });
+
+    renderAt("/recipes/7?edit&photo");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your recipe is saved, but its photograph could not be stored.",
+    );
+  });
+
+  // The key outlives a retry that worked, so a reload after one arrives with
+  // it still in the address -- and the recipe now has its photograph.
+  it("says nothing of it once the recipe has a photograph", async () => {
+    signedIn();
+    stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
+
+    renderAt("/recipes/7?edit&photo");
+
+    await screen.findByLabelText("Photograph");
+
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("is not offered in the read view", async () => {
     signedIn();
     stubFetch({ "/recipes/7": async () => jsonResponse(200, LAKSA) });
@@ -818,34 +846,12 @@ describe("the photograph control", () => {
   });
 });
 
-// The action on /recipes/:id, found in the real route tree rather than
-// exported for the test -- the same reason test/router.tsx renders `routes`.
-function recipeRouteAction() {
-  const stack: RouteObject[] = [...routes];
-
-  while (stack.length > 0) {
-    const route = stack.pop()!;
-
-    if (route.path === PATHS.recipe && typeof route.action === "function") {
-      return route.action;
-    }
-
-    stack.push(...(route.children ?? []));
-  }
-
-  throw new Error("No action on the recipe route.");
-}
-
 function uploading(file: File) {
   const form = new FormData();
   form.set("intent", "photo");
   form.set("file", file);
 
-  return recipeRouteAction()({
-    params: { id: "7" },
-    request: { formData: async () => form } as Request,
-    context: {},
-  } as never);
+  return submitTo(PATHS.recipe, form, "7");
 }
 
 describe("the photo branch of the recipe action", () => {

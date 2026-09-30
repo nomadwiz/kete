@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { jsonResponse, renderAt, stubFetch } from "../test/router";
+import { PATHS } from "../routes";
+import { jsonResponse, renderAt, stubFetch, submitTo } from "../test/router";
 import type { RecipeSummary } from "../types/recipe";
 
 function signedIn() {
@@ -392,5 +393,125 @@ describe("a search running underneath the creation modal", () => {
     }
 
     await screen.findByRole("heading", { name: "Laksa" });
+  });
+});
+
+// C14 (nomadwiz/kete#184). A photograph chosen in the creation modal is
+// uploaded against the id POST /recipes answers. The action is called
+// directly, because no form can deliver a chosen file under jsdom -- see
+// src/test/setup.ts.
+describe("creating a recipe with a photograph", () => {
+  const PHOTO = new File(["jpeg bytes"], "dal.jpg", { type: "image/jpeg" });
+
+  function creating(file: File) {
+    const form = new FormData();
+
+    for (const [key, value] of Object.entries({
+      name: "Dal",
+      cuisine: "Indian",
+      ingredients: "Lentils",
+      steps: "Simmer",
+      servings: "4",
+      energy_kcal: "420",
+      protein_g: "22",
+      carbs_g: "60",
+      fat_g: "9",
+    })) {
+      form.set(key, value);
+    }
+
+    form.set("file", file);
+
+    return submitTo(PATHS.recipes, form);
+  }
+
+  function created() {
+    return jsonResponse(201, { recipe_id: 12 });
+  }
+
+  it("shows the optional photograph input in the modal", async () => {
+    signedIn();
+    stubFetch({ "/recipes": async () => jsonResponse(200, []) });
+
+    renderAt("/recipes?new");
+
+    const input = await screen.findByLabelText("Photograph (optional)");
+
+    expect(input).toHaveAttribute("type", "file");
+    expect(input).not.toBeRequired();
+    expect(input.closest("form")).toHaveAttribute(
+      "enctype",
+      "multipart/form-data",
+    );
+  });
+
+  it("creates the recipe, then uploads the photograph against its new id", async () => {
+    signedIn();
+    const { calls, fetchStub } = stubFetch({
+      "/recipes": async () => created(),
+      "/recipes/12/photo": async () =>
+        jsonResponse(200, { photo_url: "https://storage.test/x" }),
+    });
+
+    const answer = (await creating(PHOTO)) as Response;
+
+    expect(calls).toEqual(["/recipes", "/recipes/12/photo"]);
+    expect(
+      (fetchStub.mock.calls[1][1]?.body as FormData).get("file"),
+    ).toBeTruthy();
+    expect(answer.headers.get("Location")).toBe("/recipes");
+  });
+
+  // Nothing chosen still submits an entry: an empty File with no name.
+  it("creates the recipe alone when no photograph was chosen", async () => {
+    signedIn();
+    const { calls } = stubFetch({ "/recipes": async () => created() });
+
+    await creating(new File([], "", { type: "application/octet-stream" }));
+
+    expect(calls).toEqual(["/recipes"]);
+  });
+
+  // Refused before the recipe is written, so the modal stays open over
+  // nothing saved and can be corrected and saved again.
+  it("refuses a file the API would refuse before creating anything", async () => {
+    signedIn();
+    const { calls } = stubFetch({});
+
+    const answer = await creating(
+      new File(["gif"], "a.gif", { type: "image/gif" }),
+    );
+
+    expect(typeof answer).toBe("string");
+    expect(calls).toEqual([]);
+  });
+
+  // The one partial failure. The recipe exists, so the modal must not stay
+  // open to be saved twice: the person goes to the new recipe's edit view,
+  // told why its photograph is missing.
+  it.each([
+    [
+      "storage refuses it",
+      async () => jsonResponse(502, { detail: "Could not store the image." }),
+    ],
+    [
+      "the connection drops",
+      async (): Promise<Response> => {
+        throw new TypeError("Failed to fetch");
+      },
+    ],
+  ])("sends a recipe to its edit view when %s", async (_, answerUpload) => {
+    signedIn();
+    stubFetch({
+      "/recipes": async () => created(),
+      "/recipes/12/photo": answerUpload,
+    });
+
+    const thrown = await creating(PHOTO).catch((error: unknown) => error);
+
+    expect(thrown).toBeInstanceOf(Response);
+    expect((thrown as Response).headers.get("Location")).toBe(
+      "/recipes/12?edit&photo",
+    );
   });
 });

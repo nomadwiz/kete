@@ -42,7 +42,12 @@ import type {
   PlanWeek,
 } from "./types/plan";
 import type { Profile } from "./types/profile";
-import type { RecipeDetail, RecipeIn, RecipeSummary } from "./types/recipe";
+import type {
+  RecipeCreatedOut,
+  RecipeDetail,
+  RecipeIn,
+  RecipeSummary,
+} from "./types/recipe";
 import type { Targets } from "./types/targets";
 
 const PATHS = {
@@ -78,6 +83,14 @@ const QUERY = {
   // it. It is a bare key with no value, as `new` is -- its presence is the
   // whole message, and `?edit=1` would be a second spelling of the same thing.
   recipe_edit: "edit",
+
+  // Set beside `edit` when a recipe was created but its photograph was not
+  // stored -- recipesAction's one partial failure, C14 (nomadwiz/kete#184).
+  // The recipe exists by then, so the create modal cannot stay open to be
+  // saved again without writing it twice; the person is sent to the new
+  // recipe's edit view instead, where the photograph control reads this key
+  // and says what happened. A bare key, as `edit` is.
+  photo_unsaved: "photo",
 
   // Which week the planner is showing. ADR 002 puts view state a refresh
   // should survive in the address, and a person who steps to next week and
@@ -210,13 +223,30 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
     fat_g: Number(form.get("fat_g")),
   };
 
+  // The optional photograph, C14 (nomadwiz/kete#184). A file input with nothing
+  // chosen still submits an entry -- an empty File with no name -- so an empty
+  // one is "no photograph", not a photograph to refuse. A bad one is refused
+  // here, before the recipe is created, so that a refusal leaves nothing
+  // written and the modal can be corrected and saved again.
+  const file = form.get("file");
+  const photo =
+    file !== null && typeof file !== "string" && file.size > 0 ? file : null;
+  const problem = photo ? photoProblem(photo) : null;
+
+  if (problem) {
+    return problem;
+  }
+
   return withSession(async () => {
+    let created: RecipeCreatedOut;
+
     try {
       // The reply is RecipeCreatedOut -- a recipe id and nothing else -- so
       // there is no record here to render even if this screen wanted one. The
       // loader revalidates once this returns, and the new row arrives from the
-      // same place every other row on the page came from.
-      await authed<unknown>("/recipes", {
+      // same place every other row on the page came from. The id is what the
+      // photograph is uploaded against.
+      created = await authed<RecipeCreatedOut>("/recipes", {
         method: "POST",
         body: JSON.stringify(recipe),
       });
@@ -235,6 +265,33 @@ async function recipesAction({ request: req }: ActionFunctionArgs) {
       }
 
       throw error;
+    }
+
+    if (photo) {
+      const body = new FormData();
+      body.set("file", photo);
+
+      try {
+        await authed<unknown>(`/recipes/${created.recipe_id}/photo`, {
+          method: "POST",
+          body,
+        });
+      } catch {
+        // The recipe is saved and its photograph is not, whatever the reason:
+        // storage refusing it (the 502 and 503 -- photoProblem has already
+        // refused what the API would refuse for the file itself), or the
+        // connection dropping during the one request here that carries up to
+        // 5 MB. Every one of them gets the same answer. Returning a sentence,
+        // or throwing to the error boundary with `new` still in the address,
+        // would leave the modal one Save away from writing the recipe twice,
+        // so the person is sent to its edit view, where the photograph
+        // control can take the file again and QUERY.photo_unsaved tells it to
+        // say why. An expired session lands here too, and the edit view's
+        // loader sends it on to sign in.
+        throw replace(
+          `${PATHS.recipe.replace(":id", String(created.recipe_id))}?${QUERY.recipe_edit}&${QUERY.photo_unsaved}`,
+        );
+      }
     }
 
     // The whole list, not the search that was running. The modal is open

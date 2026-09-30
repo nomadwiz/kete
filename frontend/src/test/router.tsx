@@ -1,5 +1,9 @@
 import { render } from "@testing-library/react";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import {
+  createMemoryRouter,
+  RouterProvider,
+  type RouteObject,
+} from "react-router";
 import { vi } from "vitest";
 
 import { routes } from "../routes";
@@ -65,3 +69,33 @@ export const TARGETS_BODY = {
   fat_g: 83,
   computed_at: "2026-09-25T09:14:00Z",
 };
+
+// The action a route pattern carries, found in the same real route tree
+// renderAt draws, and called with a FormData the test built. This is how a
+// submission carrying a file is tested: no form can deliver one under jsdom
+// (src/test/setup.ts says why), but an action handed a FormData directly
+// never builds a Request at all. `id` fills the one path parameter the recipe
+// routes have.
+export async function submitTo(
+  path: string,
+  form: FormData,
+  id?: string,
+): Promise<unknown> {
+  const stack: RouteObject[] = [...routes];
+
+  while (stack.length > 0) {
+    const route = stack.pop()!;
+
+    if (route.path === path && typeof route.action === "function") {
+      return await route.action({
+        params: { id },
+        request: { formData: async () => form } as Request,
+        context: {},
+      } as never);
+    }
+
+    stack.push(...(route.children ?? []));
+  }
+
+  throw new Error(`No action on ${path}.`);
+}
