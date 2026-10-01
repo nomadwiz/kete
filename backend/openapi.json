@@ -873,7 +873,7 @@
           "recipes"
         ],
         "summary": "Upload Photo",
-        "description": "Store a recipe photograph in S3 and keep only its key in the database.\n\nThe bucket is private, so the response carries a time-limited link rather\nthan a permanent URL.",
+        "description": "Store a recipe photograph in S3 and keep only its key in the database.\n\nThe bucket is private, so the response carries a time-limited link rather\nthan a permanent URL, or null when the photograph was stored but a link to\nit could not be signed just now.",
         "operationId": "upload_photo_recipes__recipe_id__photo_post",
         "security": [
           {
@@ -1741,8 +1741,16 @@
       "PhotoOut": {
         "properties": {
           "photo_url": {
-            "type": "string",
-            "title": "Photo Url"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url",
+            "description": "A temporary link to the stored photograph. null when the photograph was stored but a link to it could not be signed just now; reading the recipe again gives a fresh one."
           }
         },
         "type": "object",
