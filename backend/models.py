@@ -8,13 +8,17 @@ you write
     db.add(User(first_name=..., ...))
 
 These definitions match schema.sql exactly. If you change one, change both.
+tests/test_schema.py builds a database from each and fails on any difference:
+the server's database is built from schema.sql, the tests' from this file. Like
+every database test it runs only where TEST_DATABASE_URL is set, so CI skips
+it until S15 (#305).
 """
 
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text,
-    UniqueConstraint,
+    CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text,
+    UniqueConstraint, func, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +27,11 @@ from database import Base
 
 def _now():
     return datetime.now(timezone.utc)
+
+
+# Each timestamp below carries both: default=_now is what the ORM writes, and
+# server_default=func.now() is schema.sql's DEFAULT now(), which a row written
+# any other way gets.
 
 
 class User(Base):
@@ -34,7 +43,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, server_default=func.now())
 
     # `cascade="all, delete-orphan"` means deleting a user deletes everything
     # of theirs, matching ON DELETE CASCADE in schema.sql.
@@ -61,7 +71,7 @@ class Profile(Base):
     sex: Mapped[str] = mapped_column(String(10), nullable=False)
     activity_level: Mapped[str] = mapped_column(String(20), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_now, onupdate=_now)
+        DateTime(timezone=True), default=_now, onupdate=_now, server_default=func.now())
 
     user = relationship("User", back_populates="profile")
 
@@ -89,7 +99,7 @@ class NutritionTarget(Base):
     carbs_g: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
     fat_g: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
     computed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_now, onupdate=_now)
+        DateTime(timezone=True), default=_now, onupdate=_now, server_default=func.now())
 
     user = relationship("User", back_populates="target")
 
@@ -108,12 +118,13 @@ class Recipe(Base):
 
     recipe_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     cuisine: Mapped[str | None] = mapped_column(String(60))
     ingredients: Mapped[str | None] = mapped_column(Text)
     steps: Mapped[str | None] = mapped_column(Text)
-    servings: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    servings: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1"))
     energy_kcal: Mapped[float | None] = mapped_column(Numeric(7, 2))   # per serving
     protein_g: Mapped[float | None] = mapped_column(Numeric(6, 2))     # per serving
     carbs_g: Mapped[float | None] = mapped_column(Numeric(6, 2))       # per serving
@@ -121,13 +132,16 @@ class Recipe(Base):
     # The S3 object key, not a URL; storage.link_for signs a link from it on
     # every read. The name is historical, as schema.sql explains.
     photo_url: Mapped[str | None] = mapped_column(String(500))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, server_default=func.now())
 
     owner = relationship("User", back_populates="recipes")
     plan_slots = relationship("PlanSlot", back_populates="recipe",
                               cascade="all, delete-orphan")
 
     __table_args__ = (
+        # Named as in schema.sql, so both build the same index.
+        Index("idx_recipes_user", "user_id"),
         CheckConstraint("servings > 0", name="ck_recipe_servings"),
         CheckConstraint("energy_kcal >= 0", name="ck_recipe_energy"),
         CheckConstraint("protein_g >= 0", name="ck_recipe_protein"),
@@ -151,7 +165,8 @@ class PlanSlot(Base):
     week: Mapped[str] = mapped_column(String(20), nullable=False)
     day_of_week: Mapped[str] = mapped_column(String(10), nullable=False)
     meal_position: Mapped[str] = mapped_column(String(20), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, server_default=func.now())
 
     user = relationship("User", back_populates="plan_slots")
     recipe = relationship("Recipe", back_populates="plan_slots")
@@ -171,4 +186,6 @@ class PlanSlot(Base):
         CheckConstraint(
             "meal_position IN ('breakfast','lunch','dinner')",
             name="ck_slot_meal"),
+        # GET /mealplan and its summary read one user's week.
+        Index("idx_plan_user_week", "user_id", "week"),
     )
