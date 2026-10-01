@@ -73,6 +73,12 @@ username, email or plan slot get a 409, not a 500. Each test holds the clashing
 row open in one session so the endpoint's own check misses it, then lets it
 commit — the race is forced, not left to timing.
 
+`tests/test_served.py` covers B24 (#307): `GET /mealplan` and `GET /targets`
+as a client receives them, through FastAPI's `TestClient` rather than by calling
+the route function. It checks the `week` pattern's 422, the missing or bad
+token's 401 and the serialised response shape. The 422 and 401 tests need no
+database, so they run even without `TEST_DATABASE_URL`.
+
 ## Endpoints (21 total, 7 POST)
 
 | # | Method | Path | Auth |

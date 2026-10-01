@@ -4,3 +4,7 @@
 -r requirements.txt
 
 pytest==9.1.1
+# fastapi.testclient sends its requests through httpx2, which FastAPI itself
+# does not install. Not httpx: starlette 1.6 still accepts it but warns that
+# it is deprecated. Used by tests/test_served.py.
+httpx2==2.13.1
