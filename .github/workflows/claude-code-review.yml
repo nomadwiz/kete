@@ -8,10 +8,13 @@
 # change that departs from one is a defect in the change.
 #
 # The documents are checked out at kete-doc/, not at the parent of this repository,
-# although CLAUDE.md links to them as ../doc/... . Checking them out over the
-# workspace root would replace this file on disk with that repository's copy of it,
-# and claude-code-action refuses to run when this file differs from the copy on the
-# default branch. The prompt translates the paths instead.
+# although CLAUDE.md links to them as ../doc/... . actions/checkout cannot place a
+# repository above the workspace, and checking them out over the workspace root
+# would replace the application. The prompt translates the paths instead.
+#
+# Two jobs, so the model never holds a token that can change main. claude-review
+# runs the model and cannot merge, push or dispatch; merge runs no model and holds
+# contents: write and actions: write (S18, #343).
 #
 # Repository secrets this needs (Settings -> Secrets and variables -> Actions):
 #   CLAUDE_CODE_OAUTH_TOKEN  the Claude Code subscription token
@@ -26,13 +29,6 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
 
-permissions:
-  contents: write # merge a clean pull request, and update one that is behind
-  pull-requests: write # submit a review, and dismiss the previous one
-  issues: read
-  actions: write # dispatch the backend deploy after a merge (S17, #339)
-  id-token: write
-
 # A second push while a review is running cancels the first, so two reviews never
 # race onto one pull request.
 concurrency:
@@ -45,6 +41,16 @@ jobs:
     # is lost: the review runs the moment the draft flag comes off.
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    # Merging needs contents: write, so nothing here can merge, push or dispatch.
+    # pull-requests: write still lets the model update, edit, close or review any
+    # open pull request — never main — and nothing it does with this token
+    # starts a workflow, so none of it chains into a merge.
+    permissions:
+      contents: read
+      pull-requests: write # submit a review, and dismiss the previous one
+      issues: read
+    outputs:
+      review_since: ${{ steps.since.outputs.review_since }}
 
     steps:
       - name: Check out the application
@@ -63,6 +69,9 @@ jobs:
           path: kete-doc
           token: ${{ secrets.KETE_CROSS_REPO_TOKEN }}
           fetch-depth: 0
+          # Not stored in .git/config, where the model's Read could open it.
+          # Nothing after this runs a git command that needs to authenticate.
+          persist-credentials: false
 
       # A CHANGES_REQUESTED review stays in force across every later push. A
       # COMMENT review does not clear it, and GITHUB_TOKEN is forbidden from
@@ -92,20 +101,31 @@ jobs:
       - name: Let the plugin installer clone over HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
 
-      # Record when the review starts, so the guard below can tell this run's
-      # verdict from one an earlier run left behind.
+      # Record when the review starts, so the guard below and the merge job can
+      # tell this run's verdict from one an earlier run left behind.
       - name: Note the start time
-        run: echo "REVIEW_SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+        id: since
+        run: |
+          since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "REVIEW_SINCE=$since" >> "$GITHUB_ENV"
+          echo "review_since=$since" >> "$GITHUB_OUTPUT"
 
       - name: Review
         uses: anthropics/claude-code-action@v1
-        env:
-          # Passed for the read-only gh calls. The verdict itself is posted by
-          # claude[bot]: the action supplies its own app token to Claude and this
-          # value does not win. The dismissal step matches both logins for that
-          # reason — get it wrong and a request-changes review never clears.
-          GH_TOKEN: ${{ github.token }}
         with:
+          # Claude acts with this job's token, so the permissions above bound it.
+          # Without this input the action exchanges for the Claude app's token,
+          # which carries contents: write whatever this job declares, and sets it
+          # as Claude's GH_TOKEN over any env: given here (S18, #343). Two costs:
+          # that exchange is also where a workflow file differing from main's was
+          # refused, so a pull request editing this file now runs its own copy,
+          # whose merge job leaves it for a person if that check survives the
+          # edit; and the verdict is posted by github-actions[bot], not claude[bot].
+          # The dismissal step and the prompt match both logins, because earlier
+          # reviews on open pull requests are claude[bot]'s. The guard and the
+          # merge job match github-actions[bot] only: every claude[bot] review
+          # predates REVIEW_SINCE.
+          github_token: ${{ github.token }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: |
             https://github.com/addyosmani/agent-skills.git
@@ -193,7 +213,7 @@ jobs:
 
             **Only a blocker blocks.** A blocker is a correctness or security defect, a breach of a rule the files above state, or drift between the repositories. Everything else — wording, a tighter phrasing, an optional cut, most of what `/ponytail:ponytail-review` finds — is a suggestion. A suggestion goes in the body under `### Suggestions`, never in `comments`, and never makes the verdict `REQUEST_CHANGES`. `comments` holds blockers only.
 
-            **A clean verdict merges the pull request.** A `COMMENT` carrying a summary and no inline comments is squash-merged by the step that runs after you, without anybody looking at it first. So post one only where you would merge the change yourself, and use `REQUEST_CHANGES` only when at least one finding blocks — and a pull request that meets one of the review tests above and asked for nobody always blocks.
+            **A clean verdict merges the pull request.** A `COMMENT` carrying a summary and no inline comments is squash-merged by the merge job that runs after you, without anybody looking at it first. So post one only where you would merge the change yourself, and use `REQUEST_CHANGES` only when at least one finding blocks — and a pull request that meets one of the review tests above and asked for nobody always blocks.
 
             Every `line` must be one the diff touches, or GitHub rejects the whole review with a 422. `side` is `"RIGHT"` for an added or changed line and `"LEFT"` for a removed one. A finding about a file the diff does not touch goes in the body, not in `comments`.
 
@@ -214,23 +234,41 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           n=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
-            --jq "[.[] | select(.submitted_at > \"$REVIEW_SINCE\") | select((.body|length) > 0)] | length")
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\")
+                       | select(.submitted_at > \"$REVIEW_SINCE\")
+                       | select((.body|length) > 0)] | length")
           [ "$n" -gt 0 ] || { echo "The review step posted no verdict for this run." >&2; exit 1; }
           echo "Verdict posted."
 
-      # Claude merges what it found clean, so a pull request nothing is blocking
-      # does not wait on somebody noticing that nothing is blocking it.
-      #
-      # Clean means all three: this run posted a verdict, the verdict is a plain
-      # COMMENT rather than CHANGES_REQUESTED, and it carries no inline findings.
-      # All three are needed, because COMMENTED alone does not mean clean — the
-      # runs of 01-10-2026 that posted comments and no verdict landed as COMMENTED
-      # too, with an empty body and one inline comment each (kete-doc#27).
-      #
-      # The decision is deliberately not Claude's. The diff under review is
-      # untrusted input, and a model holding the merge button is a model a diff can
-      # argue into merging. This step reads the verdict already posted and the
-      # API's own counts, so nothing inside a pull request can move it.
+  # A pull request nothing is blocking does not wait on somebody noticing that
+  # nothing is blocking it. needs: means this job is skipped when the review job
+  # is skipped (a draft) or fails (no verdict).
+  #
+  # Clean means all three: this run's last review by github-actions[bot] — the
+  # verdict — is a plain COMMENT with a body rather than CHANGES_REQUESTED, and
+  # it carries no inline findings. Only that login counts: a member's ordinary
+  # comment review posted mid-run would otherwise be read as a clean verdict and
+  # merge over the reviewer's blocker. The last bot review is taken before its
+  # state is tested, so an earlier clean one in the same run cannot win.
+  # All three are needed, because COMMENTED alone does not mean clean — the runs
+  # of 01-10-2026 that posted comments and no verdict landed as COMMENTED too,
+  # with an empty body and one inline comment each (kete-doc#27).
+  #
+  # The merge is deliberately not Claude's. The diff under review is untrusted
+  # input, and a model holding the merge button is a model a diff can argue into
+  # merging. A diff can still argue the model into a clean verdict, and this job
+  # merges on it; what the split removes is everything outside that verdict —
+  # merging another pull request, skipping the behind check, pushing to main,
+  # dispatching a deploy.
+  merge:
+    needs: claude-review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # merge a clean pull request
+      pull-requests: write # read the verdict, and update a branch that is behind
+      actions: write # dispatch the backend deploy after a merge (S17, #339)
+
+    steps:
       - name: Merge what the review found clean
         env:
           GH_TOKEN: ${{ github.token }}
@@ -238,13 +276,15 @@ jobs:
           REPO: ${{ github.repository }}
           BASE: ${{ github.event.pull_request.base.ref }}
           HEAD: ${{ github.event.pull_request.head.ref }}
+          REVIEW_SINCE: ${{ needs.claude-review.outputs.review_since }}
         run: |
           set -euo pipefail
 
           id=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
-            --jq "[.[] | select(.submitted_at > \"$REVIEW_SINCE\")
-                       | select(.state == \"COMMENTED\")
-                       | select((.body|length) > 0)] | last | .id // empty")
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\")
+                       | select(.submitted_at > \"$REVIEW_SINCE\")] | last
+                  | select(.state == \"COMMENTED\" and (.body|length) > 0)
+                  | .id // empty")
           if [ -z "$id" ]; then
             echo "This run requested changes, or posted no clean verdict. Not merging."
             exit 0
@@ -253,6 +293,19 @@ jobs:
           findings=$(gh api "repos/$REPO/pulls/$PR/reviews/$id/comments" --jq 'length')
           if [ "$findings" -ne 0 ]; then
             echo "The verdict carries $findings inline findings. Not merging."
+            exit 0
+          fi
+
+          # A change to any workflow is merged by a person, never here. Such a
+          # pull request runs its own copy of this file, so the check only holds
+          # while the edit leaves it in — it stops a rules change merging itself
+          # because somebody forgot the draft flag, not a hostile one, whose
+          # deletion of it would show in its own diff. The file list is read into
+          # a variable, because grep -q in a pipe ends early and pipefail would
+          # then fail the condition.
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          if grep -q '^\.github/workflows/' <<<"$files"; then
+            echo "This pull request changes a workflow. Left open for a person to merge."
             exit 0
           fi
 
@@ -288,10 +341,9 @@ jobs:
           # A push made with github.token starts no workflow, so deploy-backend.yml's
           # push trigger never sees this merge (S17, #339). workflow_dispatch is the
           # documented exception. The pattern below copies that file's push paths:
-          # change the two together. The file list is read into a variable first,
-          # because grep -q in a pipe ends early and pipefail would then fail the
-          # condition and skip the deploy.
-          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          # change the two together. Its deploy-backend.yml branch never fires
+          # here, because the workflow check above leaves that change to a
+          # person, and a person's merge fires the push trigger itself.
           if [ "$BASE" = main ] &&
              grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml$)' <<<"$files"; then
             gh workflow run deploy-backend.yml --repo "$REPO" --ref main
