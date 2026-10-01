@@ -21,9 +21,12 @@ CREATE TABLE IF NOT EXISTS profiles (
                    CONSTRAINT ck_profile_weight CHECK (weight_kg > 0 AND weight_kg <= 635),
     height_cm      NUMERIC(5,2) NOT NULL
                    CONSTRAINT ck_profile_height CHECK (height_cm > 0 AND height_cm <= 272),
-    age            INTEGER      NOT NULL CHECK (age > 0 AND age < 130),
-    sex            VARCHAR(10)  NOT NULL CHECK (sex IN ('male','female')),
-    activity_level VARCHAR(20)  NOT NULL CHECK (activity_level IN
+    age            INTEGER      NOT NULL
+                   CONSTRAINT ck_profile_age CHECK (age > 0 AND age < 130),
+    sex            VARCHAR(10)  NOT NULL
+                   CONSTRAINT ck_profile_sex CHECK (sex IN ('male','female')),
+    activity_level VARCHAR(20)  NOT NULL
+                   CONSTRAINT ck_profile_activity CHECK (activity_level IN
                        ('sedentary','light','moderate','active','very_active')),
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
@@ -53,7 +56,8 @@ CREATE TABLE IF NOT EXISTS recipes (
     cuisine        VARCHAR(60),
     ingredients    TEXT,
     steps          TEXT,
-    servings       INTEGER NOT NULL DEFAULT 1 CHECK (servings > 0),
+    servings       INTEGER NOT NULL DEFAULT 1
+                   CONSTRAINT ck_recipe_servings CHECK (servings > 0),
     energy_kcal    NUMERIC(7,2)    -- per serving
                    CONSTRAINT ck_recipe_energy  CHECK (energy_kcal >= 0),
     protein_g      NUMERIC(6,2)    -- per serving
@@ -78,9 +82,11 @@ CREATE TABLE IF NOT EXISTS plan_slots (
     week           VARCHAR(20) NOT NULL           -- ISO 8601 week, e.g. 2026-W39
                    CONSTRAINT ck_slot_week
                    CHECK (week ~ '^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$'),
-    day_of_week    VARCHAR(10) NOT NULL CHECK (day_of_week IN
+    day_of_week    VARCHAR(10) NOT NULL
+                   CONSTRAINT ck_slot_day CHECK (day_of_week IN
                        ('Mon','Tue','Wed','Thu','Fri','Sat','Sun')),
-    meal_position  VARCHAR(20) NOT NULL CHECK (meal_position IN
+    meal_position  VARCHAR(20) NOT NULL
+                   CONSTRAINT ck_slot_meal CHECK (meal_position IN
                        ('breakfast','lunch','dinner')),
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     -- a day/meal slot can only hold one recipe per user
