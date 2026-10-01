@@ -99,3 +99,40 @@ export async function submitTo(
 
   throw new Error(`No action on ${path}.`);
 }
+
+// GET /mealplan/summary's answer: seven days, Mon to Sun, each nutrient against
+// TARGETS_BODY. Days not named are the empty day the contract describes --
+// zero totals, the full negative difference, 0 percent. The two derived
+// figures are worked out here the way ADR 007 says anything outside the server
+// must, multiplying before dividing, so a fixture cannot disagree with the
+// server by a rounding step. This is the test's arithmetic, not the screen's:
+// the screen only prints what it is sent.
+export function summaryBody(
+  week: string,
+  totals: Record<string, [number, number, number, number]> = {},
+) {
+  const nutrients = ["energy_kcal", "protein_g", "carbs_g", "fat_g"] as const;
+
+  return {
+    week,
+    days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({
+      day_of_week: day,
+      ...Object.fromEntries(
+        nutrients.map((nutrient, index) => {
+          const total = totals[day]?.[index] ?? 0;
+          const target = TARGETS_BODY[nutrient];
+
+          return [
+            nutrient,
+            {
+              total,
+              target,
+              difference: total - target,
+              percent: Math.round((total * 100) / target),
+            },
+          ];
+        }),
+      ),
+    })),
+  };
+}

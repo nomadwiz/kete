@@ -3,7 +3,7 @@ import { Link, useLoaderData } from "react-router";
 import { Figures } from "../components/ui/figures";
 import { Band, Screen } from "../components/ui/screen";
 import { PATHS } from "../routes";
-import type { Targets as TargetFigures } from "../types/targets";
+import type { Dashboard as DashboardData } from "../types/plan";
 
 function Areas() {
   // Built inside the component, not as a module constant. routes.tsx imports
@@ -59,7 +59,7 @@ function Areas() {
 }
 
 export default function Dashboard() {
-  const targets = useLoaderData() as TargetFigures | null;
+  const { targets } = useLoaderData() as DashboardData;
 
   // Null is the 404 the loader caught: no measurements saved, so there is
   // nothing to compute a target from. It is not an error and is not announced

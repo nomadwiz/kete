@@ -1,9 +1,20 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { QUERY } from "./routes";
-import { jsonResponse, renderAt, stubFetch, TARGETS_BODY } from "./test/router";
+import {
+  jsonResponse,
+  renderAt,
+  stubFetch,
+  summaryBody,
+  TARGETS_BODY,
+} from "./test/router";
+
+// Every sign-in lands on /dashboard, which compares the current week, so the
+// clock is pinned: Thursday 24 September 2026 is in 2026-W39, which
+// ./api/week.test.ts pins.
+const SUMMARY = "/mealplan/summary?week=2026-W39";
 
 function signedIn() {
   window.localStorage.setItem("kete.token", "a-token");
@@ -20,8 +31,16 @@ async function signIn() {
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
+beforeEach(() => {
+  // Only Date. Testing Library waits on real timers, and faking those hangs
+  // the first query that has to wait for anything.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 8, 24));
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 // The first two of the three behaviours C22 (nomadwiz/kete#236) names. The
@@ -65,7 +84,10 @@ describe("the guard on the signed-in layout", () => {
 describe("signing out", () => {
   it("disposes the credential rather than ceasing to send it", async () => {
     signedIn();
-    stubFetch({ "/targets": async () => jsonResponse(200, TARGETS_BODY) });
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
 
     const { router } = renderAt("/dashboard");
 
@@ -88,6 +110,7 @@ describe("where a fresh sign-in lands", () => {
     const { calls } = stubFetch({
       "/login": async () => jsonResponse(200, { token: "a-token" }),
       "/targets": async () => jsonResponse(404, { detail: "No targets" }),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
     });
 
     const { router } = renderAt("/sign-in");
@@ -100,14 +123,16 @@ describe("where a fresh sign-in lands", () => {
     expect(router.state.location.pathname).toBe("/dashboard");
 
     // One probe, made by the screen that draws the answer. Sign-in asking as
-    // well is the round trip ADR 004 removed.
-    expect(calls).toEqual(["/login", "/targets"]);
+    // well is the round trip ADR 004 removed. The summary is the dashboard's
+    // own comparison of the week, C18 (nomadwiz/kete#182), not a second probe.
+    expect(calls).toEqual(["/login", "/targets", SUMMARY]);
   });
 
   it("goes to the dashboard with measurements saved", async () => {
     stubFetch({
       "/login": async () => jsonResponse(200, { token: "a-token" }),
       "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
     });
 
     const { router } = renderAt("/sign-in");
@@ -235,6 +260,7 @@ describe("a sign-in from the address a new account lands on", () => {
         return jsonResponse(200, { token: "a-token" });
       },
       "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
     });
 
     renderAt(`/sign-in?${QUERY.account_created}=1`);

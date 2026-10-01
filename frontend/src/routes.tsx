@@ -34,12 +34,14 @@ import type {
 } from "./types/auth";
 import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
 import type {
+  Dashboard,
   DayOfWeek,
   GenerateIn,
   MealPosition,
   PlanSlot,
   PlanSlotIn,
   PlanWeek,
+  WeekSummary,
 } from "./types/plan";
 import type { Profile } from "./types/profile";
 import type {
@@ -657,6 +659,19 @@ function targetsLoader(): Promise<Targets | null> {
   return nullUntilMeasured<Targets>("/targets");
 }
 
+// The daily target, and the current week against it -- C18
+// (nomadwiz/kete#182). The week is the one the person is in, read from the
+// viewer's own calendar by the same isoWeek the planner uses, so the
+// dashboard and an unaddressed /planner always compare the same seven days.
+async function dashboardLoader(): Promise<Dashboard> {
+  const [targets, summary] = await Promise.all([
+    targetsLoader(),
+    summaryOf(isoWeek(new Date())),
+  ]);
+
+  return { targets, summary };
+}
+
 // The saved figures, so the form can offer them back rather than asking a
 // returning user to remember what they last typed. GET /profile/metrics exists
 // for that and for nothing else. Null is a first visit, which renders the empty
@@ -665,11 +680,21 @@ function metricsLoader(): Promise<Metrics | null> {
   return nullUntilMeasured<Metrics>("/profile/metrics");
 }
 
-// The week the address names, its filled positions, and the library a recipe
-// is placed from. Two requests rather than one because the grid offers a
-// choice of recipe in every empty position, and GET /mealplan answers only
-// what is already placed. They go together rather than in turn: neither needs
-// the other's answer.
+// A week's totals against the targets, or null until measurements are saved.
+// Read by both screens that show the comparison, /planner and /dashboard.
+function summaryOf(week: string): Promise<WeekSummary | null> {
+  return nullUntilMeasured<WeekSummary>(
+    `/mealplan/summary?${QUERY.week}=${week}`,
+  );
+}
+
+// The week the address names, its filled positions, the library a recipe is
+// placed from, and the week's totals against the targets. Three requests
+// rather than one because the grid offers a choice of recipe in every empty
+// position, GET /mealplan answers only what is already placed, and the
+// comparison is the server's arithmetic rather than this screen's (ADR 001).
+// They go together rather than in turn: none needs another's answer. Each
+// placement revalidates this loader, so the totals redraw with the grid.
 //
 // The week is returned alongside the slots because a PlanSlotOut carries no
 // week field -- backend/openapi.json declares slot_id, day_of_week,
@@ -697,12 +722,13 @@ async function plannerLoader({
   const week = asked ?? thisWeek;
 
   return withSession(async () => {
-    const [slots, recipes] = await Promise.all([
+    const [slots, recipes, summary] = await Promise.all([
       authed<PlanSlot[]>(`/mealplan?${QUERY.week}=${week}`),
       authed<RecipeSummary[]>("/recipes"),
+      summaryOf(week),
     ]);
 
-    return { week, slots, recipes };
+    return { week, slots, recipes, summary };
   });
 }
 
@@ -1022,7 +1048,7 @@ const routes = [
               {
                 path: PATHS.dashboard,
                 Component: DASHBOARD,
-                loader: targetsLoader,
+                loader: dashboardLoader,
               },
               {
                 path: PATHS.measurements,

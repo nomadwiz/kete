@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider, useFetcher } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { jsonResponse, renderAt, stubFetch } from "./test/router";
+import { jsonResponse, renderAt, stubFetch, summaryBody } from "./test/router";
 import { useWrite } from "./use-write";
 
 // The behaviour src/use-write.ts gives every screen at once, tested in one
@@ -34,6 +34,7 @@ const PROFILE = {
 
 const WEEK = "2026-W39";
 const PLAN = `/mealplan?week=${WEEK}`;
+const SUMMARY = `/mealplan/summary?week=${WEEK}`;
 
 const SOUP = {
   recipe_id: 3,
@@ -152,6 +153,7 @@ describe("focus after a write", () => {
               ]
             : [],
         ),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () => {
         placed = true;
@@ -209,6 +211,7 @@ describe("what a screen says when a write worked", () => {
               ]
             : [],
         ),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () => {
         placed = true;
@@ -264,6 +267,9 @@ describe("what a screen says when a write worked", () => {
             : [],
         ),
       "/mealplan?week=2026-W40": async () => jsonResponse(200, []),
+      "/mealplan/summary?week=2026-W40": async () =>
+        jsonResponse(200, summaryBody("2026-W40")),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () => {
         placed = true;

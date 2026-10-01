@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { jsonResponse, renderAt, stubFetch } from "../test/router";
+import { jsonResponse, renderAt, stubFetch, summaryBody } from "../test/router";
 
 // Every test that draws the grid names its week in the address. A test that
 // let the screen choose would key its fetch stub on whichever week today falls
@@ -10,6 +10,7 @@ import { jsonResponse, renderAt, stubFetch } from "../test/router";
 // computed is tested on its own, in ../api/week.test.ts.
 const WEEK = "2026-W39";
 const PLAN = `/mealplan?week=${WEEK}`;
+const SUMMARY = `/mealplan/summary?week=${WEEK}`;
 
 function signedIn() {
   window.localStorage.setItem("kete.token", "a-token");
@@ -78,6 +79,7 @@ describe("a week with recipes in it", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -112,6 +114,7 @@ describe("a week with recipes in it", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -129,6 +132,7 @@ describe("a week with recipes in it", () => {
     signedIn();
     const { calls } = stubFetch({
       [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       // 204, and genuinely empty. Reading it as JSON throws, which is what
       // http.ts returning undefined for that status exists to prevent.
@@ -153,6 +157,7 @@ describe("placing a recipe", () => {
     signedIn();
     const { calls, fetchStub } = stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () => jsonResponse(201, { slot_id: 9 }),
     });
@@ -197,6 +202,7 @@ describe("placing a recipe", () => {
 
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () => {
         await held;
@@ -238,6 +244,7 @@ describe("placing a recipe", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () =>
         jsonResponse(409, { detail: "That day and meal is already filled" }),
@@ -270,6 +277,7 @@ describe("placing a recipe", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () =>
         jsonResponse(404, {
@@ -306,6 +314,7 @@ describe("placing a recipe", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan": async () => jsonResponse(500, { detail: "Server error" }),
     });
@@ -337,6 +346,7 @@ describe("a week with nothing in it", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -364,6 +374,7 @@ describe("a week with nothing in it", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, []),
     });
 
@@ -398,6 +409,8 @@ describe("moving between weeks", () => {
     signedIn();
     stubFetch({
       "/mealplan?week=2026-W52": async () => jsonResponse(200, []),
+      "/mealplan/summary?week=2026-W52": async () =>
+        jsonResponse(200, summaryBody("2026-W52")),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -433,6 +446,7 @@ describe("a week the address gets wrong", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -453,6 +467,7 @@ describe("a week the address gets wrong", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -502,6 +517,7 @@ describe("filling a whole week from the library", () => {
     let plan: unknown[] = [];
     const { fetchStub } = stubFetch({
       [PLAN]: async () => jsonResponse(200, plan),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/generate": async () => {
         plan = FULL_WEEK;
@@ -536,6 +552,7 @@ describe("filling a whole week from the library", () => {
 
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/generate": async () => jsonResponse(201, { created: 21 }),
     });
@@ -571,6 +588,7 @@ describe("filling a whole week from the library", () => {
     // unstubbed path, so a request made here fails the test by name.
     const { calls } = stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
     });
 
@@ -597,6 +615,7 @@ describe("filling a whole week from the library", () => {
 
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/generate": async () =>
         jsonResponse(400, {
@@ -627,6 +646,7 @@ describe("filling a whole week from the library", () => {
 
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/generate": async () =>
         jsonResponse(500, { detail: "Server error" }),
@@ -655,6 +675,7 @@ describe("clearing a week", () => {
     let plan: unknown[] = SLOTS;
     const { calls, fetchStub } = stubFetch({
       [PLAN]: async () => jsonResponse(200, plan),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       // 204 and genuinely empty, as DELETE /mealplan/{slot_id} is. The week
       // travels in the path, so the address is the assertion.
@@ -707,6 +728,7 @@ describe("removing a slot", () => {
     signedIn();
     stubFetch({
       [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/7": async () =>
         jsonResponse(409, { detail: "That day and meal is already filled" }),
@@ -737,6 +759,7 @@ describe("more of what filling a week answers for", () => {
 
     stubFetch({
       [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/generate": async () =>
         jsonResponse(409, {
@@ -768,6 +791,7 @@ describe("what clearing a week answers for", () => {
 
     stubFetch({
       [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       [`/mealplan/week/${WEEK}`]: async () =>
         jsonResponse(422, { detail: "week: string does not match pattern" }),
@@ -791,6 +815,7 @@ describe("what clearing a week answers for", () => {
 
     stubFetch({
       [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
       "/recipes": async () => jsonResponse(200, LIBRARY),
       [`/mealplan/week/${WEEK}`]: async () =>
         jsonResponse(500, { detail: "Server error" }),
@@ -806,5 +831,44 @@ describe("what clearing a week answers for", () => {
     expect(
       screen.getByRole("navigation", { name: "Main" }),
     ).toBeInTheDocument();
+  });
+});
+
+// C18 (nomadwiz/kete#182). The totals come from GET /mealplan/summary, which
+// does the arithmetic -- ADR 001 -- so the loader asks for them beside the
+// week, for the week the address names.
+describe("the week's totals against targets", () => {
+  it("asks for the summary of the week on screen", async () => {
+    signedIn();
+    const { calls } = stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await screen.findByRole("rowheader", { name: /^Tuesday/ });
+
+    expect(calls).toContain(SUMMARY);
+  });
+
+  // ADR 004: GET /mealplan/summary answers 404 until measurements are saved,
+  // which is a state. The week can still be planned without targets, so the
+  // grid draws and nothing announces a failure.
+  it("still draws the week when no measurements are saved", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    expect(
+      await screen.findByRole("rowheader", { name: /^Tuesday/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
   });
 });
