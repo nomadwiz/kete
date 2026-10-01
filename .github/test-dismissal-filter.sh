@@ -8,7 +8,8 @@
 # That is not hypothetical: the first version matched github-actions[bot] only,
 # and the verdict was then posted by claude[bot], because the action gave Claude
 # its own app token. Since S18 (nomadwiz/kete#343) it is github-actions[bot]
-# again, and the filter keeps both because older reviews are claude[bot]'s. The fixture below carries both logins, taken from real reviews
+# again, and the filter keeps both because older reviews are claude[bot]'s.
+# The fixture below carries both logins, taken from real reviews
 # on nomadwiz/kete-doc#27 and nomadwiz/kete#317 rather than from what the filter
 # was expected to see.
 #

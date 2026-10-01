@@ -12,9 +12,12 @@
 # repository above the workspace, and checking them out over the workspace root
 # would replace the application. The prompt translates the paths instead.
 #
-# Two jobs, so the model never holds a token that can change main. claude-review
-# runs the model and cannot merge, push or dispatch; merge runs no model and holds
-# contents: write and actions: write (S18, #343).
+# Three jobs, so the model can write nothing on GitHub. claude-review runs the
+# model with a read-only token, and the model writes its verdict to a file. post
+# runs no model: it checks that file and posts it as a review on this pull
+# request only, because the pull request number comes from the event, never from
+# the file. merge runs no model and acts on exactly the review post created
+# (S18, #343; S21, #351).
 #
 # Repository secrets this needs (Settings -> Secrets and variables -> Actions):
 #   CLAUDE_CODE_OAUTH_TOKEN  the Claude Code subscription token
@@ -41,16 +44,13 @@ jobs:
     # is lost: the review runs the moment the draft flag comes off.
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
-    # Merging needs contents: write, so nothing here can merge, push or dispatch.
-    # pull-requests: write still lets the model update, edit, close or review any
-    # open pull request — never main — and nothing it does with this token
-    # starts a workflow, so none of it chains into a merge.
+    # Read-only throughout. Everything in this job after the model starts is
+    # treated as untrusted, so nothing here checks the verdict or holds a token
+    # that can write: the only thing that leaves is verdict.json.
     permissions:
       contents: read
-      pull-requests: write # submit a review, and dismiss the previous one
+      pull-requests: read
       issues: read
-    outputs:
-      review_since: ${{ steps.since.outputs.review_since }}
 
     steps:
       - name: Check out the application
@@ -73,24 +73,6 @@ jobs:
           # Nothing after this runs a git command that needs to authenticate.
           persist-credentials: false
 
-      # A CHANGES_REQUESTED review stays in force across every later push. A
-      # COMMENT review does not clear it, and GITHUB_TOKEN is forbidden from
-      # APPROVE, which is the one event that would. Without this step the first
-      # run that finds a nit blocks the pull request until somebody dismisses it
-      # by hand, and the reviewer becomes something people work around.
-      - name: Dismiss the previous review
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-        run: |
-          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
-            --jq '.[] | select((.user.login == "claude[bot]" or .user.login == "github-actions[bot]") and .state == "CHANGES_REQUESTED") | .id' \
-          | while read -r id; do
-              gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
-                -f message='Superseded by a newer review.' -f event=DISMISS
-            done
-
       # The agent-skills plugin's manifest names a github source, and the plugin
       # installer clones that over SSH, which a runner has no key for. Ponytail is
       # unaffected: its manifest declares source "./", so it installs from the
@@ -101,30 +83,23 @@ jobs:
       - name: Let the plugin installer clone over HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
 
-      # Record when the review starts, so the guard below and the merge job can
-      # tell this run's verdict from one an earlier run left behind.
-      - name: Note the start time
-        id: since
-        run: |
-          since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          echo "REVIEW_SINCE=$since" >> "$GITHUB_ENV"
-          echo "review_since=$since" >> "$GITHUB_OUTPUT"
+      # The pull request is checked out here, so it could carry a verdict.json of
+      # its own. Removed before the model starts, so the file handed on is one
+      # the model wrote or nothing at all.
+      - name: Remove any verdict the pull request carries
+        run: rm -f verdict.json
 
       - name: Review
         uses: anthropics/claude-code-action@v1
         with:
-          # Claude acts with this job's token, so the permissions above bound it.
-          # Without this input the action exchanges for the Claude app's token,
-          # which carries contents: write whatever this job declares, and sets it
-          # as Claude's GH_TOKEN over any env: given here (S18, #343). Two costs:
-          # that exchange is also where a workflow file differing from main's was
-          # refused, so a pull request editing this file now runs its own copy,
-          # whose merge job leaves it for a person if that check survives the
-          # edit; and the verdict is posted by github-actions[bot], not claude[bot].
-          # The dismissal step and the prompt match both logins, because earlier
-          # reviews on open pull requests are claude[bot]'s. The guard and the
-          # merge job match github-actions[bot] only: every claude[bot] review
-          # predates REVIEW_SINCE.
+          # Claude acts with this job's read-only token. Without this input the
+          # action exchanges for the Claude app's token, which carries
+          # contents: write whatever this job declares, and sets it as Claude's
+          # GH_TOKEN over any env: given here (S18, #343). That exchange was also
+          # where a workflow file differing from main's was refused, so a pull
+          # request editing this file now runs its own copy; merge leaves such a
+          # pull request for a person. The prompt matches both logins because
+          # older reviews are claude[bot]'s; post writes as github-actions[bot].
           github_token: ${{ github.token }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: |
@@ -189,15 +164,9 @@ jobs:
             2. Where the diff adds, removes or renames a route, a table, a column or a file the documents name, say which document now needs changing.
             3. Any present-tense claim in `kete-doc/doc/` about what the system does, against what this diff makes it do.
 
-            ## Post exactly one review
+            ## Write exactly one verdict
 
-            One API call carries the verdict and every inline comment together. Write the JSON to a file, confirm it parses with `jq . <file>`, then post it:
-
-            ```
-            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews --input <file>
-            ```
-
-            The file:
+            Your token can read but not write, so you post nothing yourself. Write the verdict to `verdict.json` in the working directory and confirm it parses with `jq . verdict.json`. The job after you checks it and posts it to this pull request as one review:
 
             ```json
             {
@@ -209,63 +178,110 @@ jobs:
             }
             ```
 
-            Use `"event": "COMMENT"` with an empty `comments` array when you found nothing. Never `"APPROVE"`: the token is forbidden from it and the call fails.
+            Use `"event": "COMMENT"` with an empty `comments` array when you found nothing. Those two are the only events accepted, `body` must not be empty, and each comment keeps only `path`, `line`, `side` and `body` — anything else in the file is dropped or makes the run fail.
 
             **Only a blocker blocks.** A blocker is a correctness or security defect, a breach of a rule the files above state, or drift between the repositories. Everything else — wording, a tighter phrasing, an optional cut, most of what `/ponytail:ponytail-review` finds — is a suggestion. A suggestion goes in the body under `### Suggestions`, never in `comments`, and never makes the verdict `REQUEST_CHANGES`. `comments` holds blockers only.
 
-            **A clean verdict merges the pull request.** A `COMMENT` carrying a summary and no inline comments is squash-merged by the merge job that runs after you, without anybody looking at it first. So post one only where you would merge the change yourself, and use `REQUEST_CHANGES` only when at least one finding blocks — and a pull request that meets one of the review tests above and asked for nobody always blocks.
+            **A clean verdict merges the pull request.** A `COMMENT` carrying a summary and no inline comments is squash-merged by the merge job that runs after you, without anybody looking at it first. So write one only where you would merge the change yourself, and use `REQUEST_CHANGES` only when at least one finding blocks — and a pull request that meets one of the review tests above and asked for nobody always blocks.
 
-            Every `line` must be one the diff touches, or GitHub rejects the whole review with a 422. `side` is `"RIGHT"` for an added or changed line and `"LEFT"` for a removed one. A finding about a file the diff does not touch goes in the body, not in `comments`.
+            Every `line` must be one the diff touches, or GitHub rejects the whole review with a 422 and the run fails with nothing posted. `side` is `"RIGHT"` for an added or changed line and `"LEFT"` for a removed one. A finding about a file the diff does not touch goes in the body, not in `comments`.
 
-            **Post nothing separately — one review is the deliverable.** Comments without a verdict leave the pull request unblocked with findings scattered through it, and a verdict without its comments makes the author hunt for the lines. A run that posts comments and no verdict fails the job.
+            **The file is the whole deliverable.** A run that leaves no valid `verdict.json` fails and posts nothing.
 
             Open the body with one sentence saying whether anything blocks. Then group the findings under `### Correctness`, `### Drift against the documents`, `### Project rules` and `### Suggestions`, leaving out any group that is empty. Quote the rule or the document you measured against, so the author can check your reading. A finding with no file and line is not a finding.
 
             Report only what you can point at. Where something cannot be determined from this code and those documents, say so and stop. Never pick the most plausible reading and carry on.
 
-      # A run that posted inline comments and no verdict still reported success,
-      # and the pull request then sat unblocked with findings scattered over it.
-      # Three silent successes in this workflow's first day earned this guard.
-      - name: Fail if no verdict was posted
-        if: always()
+      # The verdict leaves this job as a file and nothing else. A run that wrote
+      # inline comments and no verdict once reported success, and the pull
+      # request sat unblocked with findings scattered over it; a missing file now
+      # fails here, and post is skipped.
+      - name: Hand the verdict to the next job
+        uses: actions/upload-artifact@v7
+        with:
+          name: verdict
+          path: verdict.json
+          if-no-files-found: error
+
+  # No model runs here, on a fresh runner. verdict.json is model output, so it is
+  # untrusted: the review is rebuilt from the fields this step names, with the
+  # commit taken from the event, and anything else in the file is dropped. The
+  # pull request is always the event's, so this can post nowhere else.
+  post:
+    needs: claude-review
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # post the review, and dismiss the previous one
+    outputs:
+      clean: ${{ steps.post.outputs.clean }}
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: verdict
+
+      # Posted before the dismissal, so a review GitHub rejects (a 422 for a line
+      # the diff does not touch) leaves the previous blocker in force rather than
+      # leaving the pull request with no verdict at all.
+      #
+      # A CHANGES_REQUESTED review stays in force across every later push. A
+      # COMMENT review does not clear it, and GITHUB_TOKEN is forbidden from
+      # APPROVE, which is the one event that would. Without the dismissal the
+      # first run that finds a nit blocks the pull request until somebody
+      # dismisses it by hand, and the reviewer becomes something people work
+      # around. Both logins are matched because older reviews are claude[bot]'s.
+      - name: Check the verdict and post it
+        id: post
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          n=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
-            --jq "[.[] | select(.user.login == \"github-actions[bot]\")
-                       | select(.submitted_at > \"$REVIEW_SINCE\")
-                       | select((.body|length) > 0)] | length")
-          [ "$n" -gt 0 ] || { echo "The review step posted no verdict for this run." >&2; exit 1; }
-          echo "Verdict posted."
+          set -euo pipefail
+
+          jq -e --arg sha "$HEAD_SHA" '
+            if (.event == "COMMENT" or .event == "REQUEST_CHANGES")
+               and (.body | type == "string" and length > 0)
+               and ((.comments // []) | type == "array")
+            then {event, body, commit_id: $sha,
+                  comments: [(.comments // [])[]
+                    | with_entries(select(.key == "path" or .key == "line" or .key == "side" or .key == "body"))]}
+            else error("verdict.json is not a COMMENT or REQUEST_CHANGES review with a body")
+            end' verdict.json > review.json
+
+          id=$(gh api "repos/$REPO/pulls/$PR/reviews" --input review.json --jq '.id')
+          echo "clean=$(jq '.event == "COMMENT" and (.comments | length) == 0' review.json)" >> "$GITHUB_OUTPUT"
+          echo "Posted review $id."
+
+          export NEW_ID=$id
+          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq '.[] | select((.user.login == "claude[bot]" or .user.login == "github-actions[bot]") and .state == "CHANGES_REQUESTED" and (.id | tostring) != env.NEW_ID) | .id' \
+          | while read -r old; do
+              gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$old/dismissals" \
+                -f message='Superseded by a newer review.' -f event=DISMISS
+            done
 
   # A pull request nothing is blocking does not wait on somebody noticing that
-  # nothing is blocking it. needs: means this job is skipped when the review job
-  # is skipped (a draft) or fails (no verdict).
+  # nothing is blocking it. needs: means this job is skipped when an earlier one
+  # is skipped (a draft) or fails (no valid verdict, or a rejected post).
   #
-  # Clean means all three: this run's last review by github-actions[bot] — the
-  # verdict — is a plain COMMENT with a body rather than CHANGES_REQUESTED, and
-  # it carries no inline findings. Only that login counts: a member's ordinary
-  # comment review posted mid-run would otherwise be read as a clean verdict and
-  # merge over the reviewer's blocker. The last bot review is taken before its
-  # state is tested, so an earlier clean one in the same run cannot win.
-  # All three are needed, because COMMENTED alone does not mean clean — the runs
-  # of 01-10-2026 that posted comments and no verdict landed as COMMENTED too,
-  # with an empty body and one inline comment each (kete-doc#27).
+  # It acts on the one verdict post checked and posted, so no other review
+  # counts: not a member's, and not one another run's model might try to place
+  # here. Clean means both: that verdict is a plain COMMENT rather than
+  # REQUEST_CHANGES, and it carries no inline findings.
   #
   # The merge is deliberately not Claude's. The diff under review is untrusted
   # input, and a model holding the merge button is a model a diff can argue into
-  # merging. A diff can still argue the model into a clean verdict, and this job
-  # merges on it; what the split removes is everything outside that verdict —
-  # merging another pull request, skipping the behind check, pushing to main,
-  # dispatching a deploy.
+  # merging. A diff can still argue the model into a clean verdict on its own
+  # pull request, and this job merges on it; that is the only lever left.
   merge:
-    needs: claude-review
+    needs: post
     runs-on: ubuntu-latest
     permissions:
       contents: write # merge a clean pull request
-      pull-requests: write # read the verdict, and update a branch that is behind
+      pull-requests: read # the changed files and the issues it closes
+      issues: write # close those issues: GitHub does not, for this merge (S19, #344)
       actions: write # dispatch the backend deploy after a merge (S17, #339)
 
     steps:
@@ -276,23 +292,13 @@ jobs:
           REPO: ${{ github.repository }}
           BASE: ${{ github.event.pull_request.base.ref }}
           HEAD: ${{ github.event.pull_request.head.ref }}
-          REVIEW_SINCE: ${{ needs.claude-review.outputs.review_since }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CLEAN: ${{ needs.post.outputs.clean }}
         run: |
           set -euo pipefail
 
-          id=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
-            --jq "[.[] | select(.user.login == \"github-actions[bot]\")
-                       | select(.submitted_at > \"$REVIEW_SINCE\")] | last
-                  | select(.state == \"COMMENTED\" and (.body|length) > 0)
-                  | .id // empty")
-          if [ -z "$id" ]; then
-            echo "This run requested changes, or posted no clean verdict. Not merging."
-            exit 0
-          fi
-
-          findings=$(gh api "repos/$REPO/pulls/$PR/reviews/$id/comments" --jq 'length')
-          if [ "$findings" -ne 0 ]; then
-            echo "The verdict carries $findings inline findings. Not merging."
+          if [ "$CLEAN" != true ]; then
+            echo "The review requested changes or carries inline findings. Not merging."
             exit 0
           fi
 
@@ -310,28 +316,26 @@ jobs:
           fi
 
           # A branch behind its base was reviewed against something that is no
-          # longer what it will become, which is #302's lesson. Update it and stop:
-          # the update pushes, that push is another synchronize event, and the run
-          # it fires reviews the merged result and merges it.
-          #
-          # The update merges $BASE into the branch. It is never a rebase, because
-          # kete-doc/doc/overview.md forbids history-rewriting operations and a
-          # rebase of a pushed branch needs a force push to land.
+          # longer what it will become, which is #302's lesson, so it is left for
+          # a person. Update branch on the pull request is a person's push, and the
+          # review runs again by itself. An update made here would be pushed with
+          # github.token, and GitHub holds the run that push causes for approval
+          # in the Actions tab, where nobody looks (S17, #339). The button's
+          # default merges the base in; its rebase option rewrites pushed commits,
+          # which kete-doc/doc/overview.md forbids.
           behind=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq '.behind_by')
           if [ "$behind" -gt 0 ]; then
-            if gh api -X PUT "repos/$REPO/pulls/$PR/update-branch" --silent 2>/dev/null; then
-              echo "Branch was $behind commits behind $BASE. Updated; the next run merges it."
-            else
-              echo "Branch is $behind commits behind $BASE and will not update — a conflict. Left open."
-            fi
+            echo "Branch is $behind commits behind $BASE. Press Update branch on the pull request (not the rebase option); the review runs again and merges it."
             exit 0
           fi
 
           # Squashed, so one pull request is one commit on $BASE. GitHub writes a
           # Co-authored-by trailer for every author in the squashed range, which is
           # what keeps this inside kete-doc/doc/contributing.md's authorship rule
-          # rather than being the squash that rule forbids.
-          if gh api -X PUT "repos/$REPO/pulls/$PR/merge" -f merge_method=squash --silent; then
+          # rather than being the squash that rule forbids. Pinned to the commit
+          # that was reviewed: if a push landed since, GitHub answers 409 and the
+          # unreviewed head is not merged (S20, #350).
+          if gh api -X PUT "repos/$REPO/pulls/$PR/merge" -f merge_method=squash -f sha="$HEAD_SHA" --silent; then
             echo "Merged #$PR."
           else
             echo "Merge refused. Left open for a person."
@@ -349,3 +353,18 @@ jobs:
             gh workflow run deploy-backend.yml --repo "$REPO" --ref main
             echo "Dispatched deploy-backend.yml on main."
           fi
+
+          # Last, so a failure here never costs a merge or a deploy. GitHub has not
+          # closed the issue a pull request names when the pull request was merged
+          # with github.token: thirteen of thirteen such merges since 30-09-2026
+          # left it open, and every person's merge closed it (S19, #344). So
+          # this closes them. github.token can write only in this repository, so
+          # an issue in another one stays for whoever merged to close.
+          refs=$(gh pr view "$PR" -R "$REPO" --json closingIssuesReferences \
+            --jq '.closingIssuesReferences[] | "\(.repository.owner.login)/\(.repository.name) \(.number)"') \
+            || { echo "Could not read the issues #$PR closes. Close them by hand."; refs=""; }
+          while read -r repo n; do
+            [ -n "$n" ] || continue
+            gh issue close "$n" -R "$repo" --comment "Closed by #$PR, merged by the automated review." \
+              || echo "Could not close $repo#$n. Close it by hand."
+          done <<<"$refs"
