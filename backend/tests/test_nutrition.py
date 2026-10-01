@@ -22,7 +22,7 @@ Nutrient Reference Values for Australia and New Zealand (B4, #154; the
 reference is beside MACRO_SPLIT in main.py). A change to it changes the gram
 figures here; the energy figures do not depend on it.
 
-No database: these run in CI, unlike the race tests (#305).
+No database: these run anywhere, even without TEST_DATABASE_URL.
 """
 
 import pytest
