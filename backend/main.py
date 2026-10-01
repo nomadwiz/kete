@@ -796,7 +796,10 @@ def list_recipes(q: str = "", user_id: int = Depends(current_user_id),
     """Browse and search. Scoped to the signed-in user by the token."""
     query = db.query(models.Recipe).filter_by(user_id=user_id)
     if q:
-        query = query.filter(models.Recipe.name.ilike(f"%{q}%"))
+        # Name or cuisine, as the search box promises (B25, #327). Still
+        # inside the user's own recipes: filter_by above scopes it first.
+        query = query.filter(or_(models.Recipe.name.ilike(f"%{q}%"),
+                                 models.Recipe.cuisine.ilike(f"%{q}%")))
     return [_summary(r) for r in query.order_by(models.Recipe.name).all()]
 
 
