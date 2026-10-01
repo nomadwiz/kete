@@ -1,9 +1,9 @@
 """
 Kete — INFS803 A02 backend.
 
-Eighteen endpoints over PostgreSQL: accounts and JWT auth, each user's own
+Twenty-one endpoints over PostgreSQL: accounts and JWT auth, each user's own
 recipe library, their weekly meal plan, and the nutrition targets computed
-from their measurements by the Mifflin-St Jeor equation. A nineteenth route,
+from their measurements by the Mifflin-St Jeor equation. A twenty-second route,
 GET /health, reports only whether the process is serving and is not counted.
 
 Every endpoint except /register and /login takes the user id from the bearer
