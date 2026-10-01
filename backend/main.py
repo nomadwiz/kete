@@ -253,7 +253,9 @@ class RecipeIn(BaseModel):
     cuisine: str = Field(max_length=60)
     ingredients: str
     steps: str
-    servings: int = Field(gt=0)                 # matches ck_recipe_servings
+    # gt=0 matches ck_recipe_servings. le=100 is a human bound, chosen well
+    # inside the 32-bit column: unbounded, 2147483648 overflowed it as a 500.
+    servings: int = Field(gt=0, le=100)
     energy_kcal: int = Field(ge=0, le=99999)    # Numeric(7, 2)
     protein_g: int = Field(ge=0, le=9999)       # Numeric(6, 2)
     carbs_g: int = Field(ge=0, le=9999)
