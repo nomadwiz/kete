@@ -9,7 +9,9 @@ you write
 
 These definitions match schema.sql exactly. If you change one, change both.
 tests/test_schema.py builds a database from each and fails on any difference:
-the server's database is built from schema.sql, the tests' from this file.
+the server's database is built from schema.sql, the tests' from this file. Like
+every database test it runs only where TEST_DATABASE_URL is set, so CI skips
+it until S15 (#305).
 """
 
 from datetime import datetime, timezone
