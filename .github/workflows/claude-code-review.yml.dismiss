@@ -1,0 +1,18 @@
+      # A CHANGES_REQUESTED review stays in force across every later push. A
+      # COMMENT review does not clear it, and GITHUB_TOKEN is forbidden from
+      # APPROVE, which is the one event that would. Without this step the first
+      # run that finds a nit blocks the pull request until somebody dismisses it
+      # by hand, and the reviewer becomes something people work around.
+      - name: Dismiss the previous review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq '.[] | select((.user.login == "claude[bot]" or .user.login == "github-actions[bot]") and .state == "CHANGES_REQUESTED") | .id' \
+          | while read -r id; do
+              gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
+                -f message='Superseded by a newer review.' -f event=DISMISS
+            done
+

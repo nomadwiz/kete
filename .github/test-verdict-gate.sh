@@ -32,7 +32,7 @@ gh() { case $1 in
     pr) [ -n "${FAIL_LOOKUP:-}" ] && return 1; printf '%s' "${REFS:-}"; return;;
     issue) [ "${FAIL_CLOSE:-}" = "$3" ] && return 1; echo "close $5#$3" >> "$OUT/log"; return;;
   esac
-  local q= path= input= args="$*"; while [ $# -gt 0 ]; do case $1 in --jq) q=$2; shift 2;; --input) input=$2; shift 2;; -X|-f|-F|--repo|--ref) shift 2;; api|--paginate|--silent) shift;; *) path=$1; shift;; esac; done
+  local q= path= input= args="$*"; while [ $# -gt 0 ]; do case $1 in --jq) q=$2; shift 2;; --input) input=$2; shift 2;; -X|-f|--repo|--ref) shift 2;; api|--paginate|--silent) shift;; *) path=$1; shift;; esac; done
   case $path in
     */update-branch) echo "update" >> "$OUT/log";;
     */dismissals) echo "dismiss ${path%/dismissals}" | sed 's#.*/#dismiss #' >> "$OUT/log";;
@@ -111,9 +111,12 @@ merge true frontend/x.ts
 check "merge: a failed issue lookup still leaves the merge done and the job green" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ] && [ "$(cat $OUT/rc)" = 0 ]'
 unset FAIL_LOOKUP
 if [ "$DISPATCHES" -gt 0 ]; then
-  export REFS='o/r 5' FAIL_LOOKUP=1
+  export REFS='o/r 5'
   merge true backend/main.py
-  check "merge: the deploy is dispatched before issues are closed, and a lookup failure does not stop it" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch " ] && [ "$(cat $OUT/rc)" = 0 ]'
+  check "merge: the deploy is dispatched before issues are closed" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch close o/r#5 " ] && [ "$(cat $OUT/rc)" = 0 ]'
+  export FAIL_LOOKUP=1
+  merge true backend/main.py
+  check "merge: a failed issue lookup does not stop the deploy" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch " ] && [ "$(cat $OUT/rc)" = 0 ]'
   unset REFS FAIL_LOOKUP
   merge true backend/main.py
   check "merge: a backend change on main merges and dispatches the deploy" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch " ]'
