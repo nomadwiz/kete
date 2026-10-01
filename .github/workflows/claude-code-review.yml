@@ -280,7 +280,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # merge a clean pull request
-      pull-requests: write # update a branch that is behind
+      pull-requests: read # the changed files and the issues it closes
+      issues: write # close those issues: GitHub does not, for this merge (S19, #344)
       actions: write # dispatch the backend deploy after a merge (S17, #339)
 
     steps:
@@ -315,20 +316,16 @@ jobs:
           fi
 
           # A branch behind its base was reviewed against something that is no
-          # longer what it will become, which is #302's lesson. Update it and stop.
-          # The update is pushed with github.token, so it starts no run by itself
-          # (S17, #339): somebody pushes again or re-runs the review.
-          #
-          # The update merges $BASE into the branch. It is never a rebase, because
-          # kete-doc/doc/overview.md forbids history-rewriting operations and a
-          # rebase of a pushed branch needs a force push to land.
+          # longer what it will become, which is #302's lesson, so it is left for
+          # a person. Update branch on the pull request is a person's push, and the
+          # review runs again by itself. An update made here would be pushed with
+          # github.token, and GitHub holds the run that push causes for approval
+          # in the Actions tab, where nobody looks (S17, #339). The button's
+          # default merges the base in; its rebase option rewrites pushed commits,
+          # which kete-doc/doc/overview.md forbids.
           behind=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq '.behind_by')
           if [ "$behind" -gt 0 ]; then
-            if gh api -X PUT "repos/$REPO/pulls/$PR/update-branch" --silent 2>/dev/null; then
-              echo "Branch was $behind commits behind $BASE. Updated; push again or re-run the review to merge it."
-            else
-              echo "Branch is $behind commits behind $BASE and will not update — a conflict. Left open."
-            fi
+            echo "Branch is $behind commits behind $BASE. Press Update branch on the pull request (not the rebase option); the review runs again and merges it."
             exit 0
           fi
 
@@ -345,6 +342,7 @@ jobs:
             exit 0
           fi
 
+
           # A push made with github.token starts no workflow, so deploy-backend.yml's
           # push trigger never sees this merge (S17, #339). workflow_dispatch is the
           # documented exception. The pattern below copies that file's push paths:
@@ -356,3 +354,18 @@ jobs:
             gh workflow run deploy-backend.yml --repo "$REPO" --ref main
             echo "Dispatched deploy-backend.yml on main."
           fi
+
+          # Last, so a failure here never costs a merge or a deploy. GitHub has not
+          # closed the issue a pull request names when the pull request was merged
+          # with github.token: thirteen of thirteen such merges since 30-09-2026
+          # left it open, and every person's merge closed it (S19, #344). So
+          # this closes them. github.token can write only in this repository, so
+          # an issue in another one stays for whoever merged to close.
+          refs=$(gh pr view "$PR" -R "$REPO" --json closingIssuesReferences \
+            --jq '.closingIssuesReferences[] | "\(.repository.owner.login)/\(.repository.name) \(.number)"') \
+            || { echo "Could not read the issues #$PR closes. Close them by hand."; refs=""; }
+          while read -r repo n; do
+            [ -n "$n" ] || continue
+            gh issue close "$n" -R "$repo" --comment "Closed by #$PR, merged by the automated review." \
+              || echo "Could not close $repo#$n. Close it by hand."
+          done <<<"$refs"

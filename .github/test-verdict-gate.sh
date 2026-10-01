@@ -23,13 +23,22 @@ POST=$(block "Check the verdict and post it"); MERGE=$(block "Merge what the rev
 DISPATCHES=$(grep -c 'gh workflow run' <<<"$MERGE")
 
 # The stub records every write in $OUT/log and serves reads from the fixtures:
-# $LIST (the pull request's reviews) and $FILES (the changed files).
-gh() { local q= path= input= args="$*"; while [ $# -gt 0 ]; do case $1 in --jq) q=$2; shift 2;; --input) input=$2; shift 2;; -X|-f|--repo|--ref) shift 2;; api|--paginate|--silent) shift;; workflow) echo "dispatch" >> "$OUT/log"; return;; *) path=$1; shift;; esac; done
+# $LIST (the pull request's reviews), $FILES (the changed files), $BEHIND (how
+# far behind the base) and $REFS (the issues the pull request closes, one
+# "owner/repo number" per line). $FAIL_CLOSE makes closing that issue number
+# fail, and $FAIL_LOOKUP makes the issue lookup fail.
+gh() { case $1 in
+    workflow) echo "dispatch" >> "$OUT/log"; return;;
+    pr) [ -n "${FAIL_LOOKUP:-}" ] && return 1; printf '%s' "${REFS:-}"; return;;
+    issue) [ "${FAIL_CLOSE:-}" = "$3" ] && return 1; echo "close $5#$3" >> "$OUT/log"; return;;
+  esac
+  local q= path= input= args="$*"; while [ $# -gt 0 ]; do case $1 in --jq) q=$2; shift 2;; --input) input=$2; shift 2;; -X|-f|-F|--repo|--ref) shift 2;; api|--paginate|--silent) shift;; *) path=$1; shift;; esac; done
   case $path in
+    */update-branch) echo "update" >> "$OUT/log";;
     */dismissals) echo "dismiss ${path%/dismissals}" | sed 's#.*/#dismiss #' >> "$OUT/log";;
     */reviews) if [ -n "$input" ]; then cp "$input" "$OUT/posted.json"; echo "post" >> "$OUT/log"; echo 42; else jq -r "$q" <<<"$LIST"; fi;;
     */files) echo "$FILES";;
-    */compare/*) echo 0;;
+    */compare/*) echo "${BEHIND:-0}";;
     */merge) grep -q 'sha=abc123' <<<"$args" && echo "merge pinned" >> "$OUT/log" || echo "merge UNPINNED" >> "$OUT/log";;
   esac; }
 export -f gh
@@ -70,9 +79,10 @@ check "post: no verdict.json fails and posts nothing" '[ "$(cat $OUT/rc)" != 0 ]
 post x '{"event":"REQUEST_CHANGES","body":"no"}' '[{"id":7,"user":{"login":"github-actions[bot]"},"state":"CHANGES_REQUESTED"},{"id":8,"user":{"login":"kylewakos"},"state":"CHANGES_REQUESTED"},{"id":9,"user":{"login":"claude[bot]"},"state":"CHANGES_REQUESTED"},{"id":42,"user":{"login":"github-actions[bot]"},"state":"CHANGES_REQUESTED"}]'
 check "post: posts first, then dismisses old bot blocks, never the new one or a person's" '[ "$(tr "\n" " " < $OUT/log)" = "post dismiss 7 dismiss 9 " ]'
 
-# merge: $1 what post said (CLEAN), $2 changed files.
+# merge: $1 what post said (CLEAN), $2 changed files. BEHIND, REFS, FAIL_CLOSE
+# and FAIL_LOOKUP are read from the environment; $OUT/rc is the exit status.
 merge() { export OUT; OUT=$(mktemp -d); : > "$OUT/log"; export CLEAN=$1 FILES=$2
-  bash -c "$MERGE" >/dev/null 2>&1; }
+  bash -c "$MERGE" >/dev/null 2>&1; echo $? > "$OUT/rc"; }
 
 merge true frontend/x.ts
 check "merge: a clean verdict merges, pinned to the reviewed commit" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ]'
@@ -82,7 +92,29 @@ merge "" frontend/x.ts
 check "merge: no verdict from post holds" '[ ! -s $OUT/log ]'
 merge true .github/workflows/claude-code-review.yml
 check "merge: a workflow change is left for a person" '[ ! -s $OUT/log ]'
+export BEHIND=3
+merge true frontend/x.ts
+check "merge: a clean branch that is behind is left for Update branch, not updated or merged" '[ ! -s $OUT/log ]'
+unset BEHIND
+export REFS=$'o/r 5\nnomadwiz/kete 7'
+merge true frontend/x.ts
+check "merge: after merging, closes every issue the pull request names" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned close o/r#5 close nomadwiz/kete#7 " ] && [ "$(cat $OUT/rc)" = 0 ]'
+export FAIL_CLOSE=5
+merge true frontend/x.ts
+check "merge: an issue that will not close is skipped, and the rest still close" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned close nomadwiz/kete#7 " ] && [ "$(cat $OUT/rc)" = 0 ]'
+unset FAIL_CLOSE
+merge false frontend/x.ts
+check "merge: nothing is closed when nothing merges" '[ ! -s $OUT/log ]'
+unset REFS
+export FAIL_LOOKUP=1
+merge true frontend/x.ts
+check "merge: a failed issue lookup still leaves the merge done and the job green" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ] && [ "$(cat $OUT/rc)" = 0 ]'
+unset FAIL_LOOKUP
 if [ "$DISPATCHES" -gt 0 ]; then
+  export REFS='o/r 5' FAIL_LOOKUP=1
+  merge true backend/main.py
+  check "merge: the deploy is dispatched before issues are closed, and a lookup failure does not stop it" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch " ] && [ "$(cat $OUT/rc)" = 0 ]'
+  unset REFS FAIL_LOOKUP
   merge true backend/main.py
   check "merge: a backend change on main merges and dispatches the deploy" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch " ]'
 fi
