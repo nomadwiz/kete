@@ -20,7 +20,9 @@ F=.github/workflows/claude-code-review.yml
 block() { awk -v n="$1" '$0 ~ "name: "n {f=1} f && /run: \|/ {p=1; next} p && /^ {0,9}[^ ]/ {exit} p {sub(/^          /,""); print}' "$F"; }
 POST=$(block "Check the verdict and post it"); MERGE=$(block "Merge what the review found clean")
 [ -n "$POST" ] && [ -n "$MERGE" ] || { echo "FAIL: a step was not found in the workflow"; exit 1; }
-DISPATCHES=$(grep -c 'gh workflow run' <<<"$MERGE")
+# The deploy cases run whenever the repository has a deploy to dispatch, so
+# deleting the dispatch from the merge step fails them instead of skipping them.
+HAS_DEPLOY=$([ -f .github/workflows/deploy-backend.yml ] && echo 1 || echo 0)
 
 # The stub records every write in $OUT/log and serves reads from the fixtures:
 # $LIST (the pull request's reviews), $FILES (the changed files), $BEHIND (how
@@ -110,7 +112,7 @@ export FAIL_LOOKUP=1
 merge true frontend/x.ts
 check "merge: a failed issue lookup still leaves the merge done and the job green" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ] && [ "$(cat $OUT/rc)" = 0 ]'
 unset FAIL_LOOKUP
-if [ "$DISPATCHES" -gt 0 ]; then
+if [ "$HAS_DEPLOY" = 1 ]; then
   export REFS='o/r 5'
   merge true backend/main.py
   check "merge: the deploy is dispatched before issues are closed" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch close o/r#5 " ] && [ "$(cat $OUT/rc)" = 0 ]'
