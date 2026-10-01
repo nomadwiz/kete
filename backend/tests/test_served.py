@@ -11,9 +11,8 @@ served. It goes through TestClient for exactly those three things and no more.
 
 The first half needs no database, because every request in it is refused
 before a query runs, and it proves that by handing the route a session that
-fails the test if touched. It therefore runs in CI, where the database tests
-are skipped (S15, #305). The second half needs TEST_DATABASE_URL, like the rest
-of the suite.
+fails the test if touched, so it runs even without TEST_DATABASE_URL. The
+second half needs that database, like the rest of the suite.
 """
 
 from datetime import datetime, timezone

@@ -5,7 +5,7 @@ The tests need a real PostgreSQL, because what they check is how the database's
 own constraints behave — something SQLite or a mock cannot stand in for. They
 run against the database named by TEST_DATABASE_URL and wipe it before every
 test, so that must be a throwaway database of its own, never the one the API
-uses. Unset, the whole suite is skipped.
+uses. Unset, the database tests are skipped on a laptop and fail in CI.
 """
 
 import os
@@ -43,6 +43,11 @@ def _same_database(a: str, b: str) -> bool:
 @pytest.fixture(scope="session")
 def engine():
     if not TEST_DATABASE_URL:
+        # A skipped run exits 0, so in CI a missing database would look exactly
+        # like a passing one (S15, #305). GitHub Actions sets CI=true.
+        if os.getenv("CI"):
+            pytest.fail("TEST_DATABASE_URL is not set in CI — see "
+                        ".github/workflows/deploy-backend.yml", pytrace=False)
         pytest.skip("TEST_DATABASE_URL is not set — see backend/README.md")
     # Every test truncates every table. Refuse outright rather than trust
     # whoever set the variable to have pointed it somewhere disposable. The
