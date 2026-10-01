@@ -74,3 +74,22 @@ def Session(engine):
             "TRUNCATE plan_slots, recipes, nutrition_targets, profiles, users "
             "RESTART IDENTITY CASCADE"))
     return sessionmaker(bind=engine, autoflush=False)
+
+
+@pytest.fixture
+def db_client(Session):
+    """The API over HTTP, with every request's session from the test database.
+
+    For tests that need what a client actually receives: the user id read from
+    the token, the status code and the serialised body.
+    """
+    from fastapi.testclient import TestClient
+
+    import main
+
+    def session():
+        with Session() as db:
+            yield db
+    main.app.dependency_overrides[main.get_db] = session
+    yield TestClient(main.app)
+    main.app.dependency_overrides.clear()

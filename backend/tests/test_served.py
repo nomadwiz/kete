@@ -86,18 +86,8 @@ def test_a_token_that_does_not_verify_is_a_401(client, path):
 
 
 # --------------------------------------------------------------------------
-# Served from the database: needs TEST_DATABASE_URL
+# Served from the database: needs TEST_DATABASE_URL (db_client, in conftest.py)
 # --------------------------------------------------------------------------
-@pytest.fixture
-def db_client(Session):
-    def session():
-        with Session() as db:
-            yield db
-    main.app.dependency_overrides[main.get_db] = session
-    yield TestClient(main.app)
-    main.app.dependency_overrides.clear()
-
-
 def _user(db, name):
     user = models.User(first_name="Test", last_name="User", username=name,
                        email=f"{name}@example.com", password_hash="not-a-real-hash")
