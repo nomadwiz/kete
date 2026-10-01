@@ -28,6 +28,7 @@ class FakeS3:
         self.objects = {}        # key -> bytes
         self.deleted = []
         self.fail_upload = False
+        self.fail_link = False   # S3 stores, then will not sign a link
 
     def upload(self, key, data, content_type):
         if self.fail_upload:
@@ -36,7 +37,10 @@ class FakeS3:
         return key
 
     def link_for(self, key):
-        return f"https://signed.test/{key}?signature=abc" if key else None
+        # The real one answers None on a failed presign, never raises.
+        if self.fail_link or not key:
+            return None
+        return f"https://signed.test/{key}?signature=abc"
 
     def delete(self, key):
         self.deleted.append(key)
@@ -245,3 +249,55 @@ def test_a_failed_replacement_keeps_the_old_photo(Session, s3, owner):
     assert list(s3.objects) == [old]
     with Session() as db:
         assert db.get(models.Recipe, rid).photo_url == old
+
+
+# --------------------------------------------------------------------------
+# A link that cannot be signed (B22, #267)
+# --------------------------------------------------------------------------
+# storage.link_for answers None when S3 stores an object but will not sign a
+# link to it. That is a null photo_url, never a 500: the photograph is there,
+# and the next read signs a fresh link.
+def test_an_upload_whose_link_cannot_be_signed_still_succeeds(Session, s3,
+                                                              owner):
+    """The object is stored and its key saved before the link is made, so a
+    500 here told the user an upload had failed when it had not."""
+    uid, rid, _ = owner
+    s3.fail_link = True
+
+    with Session() as db:
+        out = _upload(db, rid, uid)
+
+    assert out.photo_url is None
+    [key] = s3.objects                           # the photograph is stored
+    with Session() as db:
+        assert db.get(models.Recipe, rid).photo_url == key   # and recorded
+
+
+def test_a_link_that_cannot_be_signed_leaves_the_recipe_list_working(
+        Session, s3, owner):
+    uid, rid, _ = owner
+    with Session() as db:
+        _upload(db, rid, uid)
+        db.add(models.Recipe(user_id=uid, name="Another"))
+        db.commit()
+    s3.fail_link = True
+
+    with Session() as db:
+        recipes = main.list_recipes(user_id=uid, db=db)
+
+    assert len(recipes) == 2
+    assert [r.photo_url for r in recipes] == [None, None]
+
+
+def test_a_link_that_cannot_be_signed_leaves_the_recipe_readable(Session, s3,
+                                                                 owner):
+    uid, rid, _ = owner
+    with Session() as db:
+        _upload(db, rid, uid)
+    s3.fail_link = True
+
+    with Session() as db:
+        recipe = main.get_recipe(rid, user_id=uid, db=db)
+
+    assert recipe.recipe_id == rid
+    assert recipe.photo_url is None

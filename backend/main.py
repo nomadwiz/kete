@@ -265,7 +265,14 @@ class RecipeCreatedOut(BaseModel):
 
 
 class PhotoOut(BaseModel):
-    photo_url: str
+    # Optional for the reason RecipeSummary's is: storage.link_for answers None
+    # when S3 will not sign a link. Required, that turned an upload which had
+    # already stored the photograph and its key into a 500 (B22, #267).
+    photo_url: Optional[str] = Field(
+        description="A temporary link to the stored photograph. null when the "
+                    "photograph was stored but a link to it could not be "
+                    "signed just now; reading the recipe again gives a fresh "
+                    "one.")
 
 
 class PlanRecipe(BaseModel):
