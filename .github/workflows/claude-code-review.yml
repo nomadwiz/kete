@@ -30,6 +30,7 @@ permissions:
   contents: write # merge a clean pull request, and update one that is behind
   pull-requests: write # submit a review, and dismiss the previous one
   issues: read
+  actions: write # dispatch the backend deploy after a merge (S17, #339)
   id-token: write
 
 # A second push while a review is running cancels the first, so two reviews never
@@ -281,4 +282,18 @@ jobs:
             echo "Merged #$PR."
           else
             echo "Merge refused. Left open for a person."
+            exit 0
+          fi
+
+          # A push made with github.token starts no workflow, so deploy-backend.yml's
+          # push trigger never sees this merge (S17, #339). workflow_dispatch is the
+          # documented exception. The pattern below copies that file's push paths:
+          # change the two together. The file list is read into a variable first,
+          # because grep -q in a pipe ends early and pipefail would then fail the
+          # condition and skip the deploy.
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          if [ "$BASE" = main ] &&
+             grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml$)' <<<"$files"; then
+            gh workflow run deploy-backend.yml --repo "$REPO" --ref main
+            echo "Dispatched deploy-backend.yml on main."
           fi
