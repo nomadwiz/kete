@@ -836,7 +836,8 @@ def upload_photo(recipe_id: int, file: UploadFile = File(...),
     """Store a recipe photograph in S3 and keep only its key in the database.
 
     The bucket is private, so the response carries a time-limited link rather
-    than a permanent URL.
+    than a permanent URL, or null when the photograph was stored but a link to
+    it could not be signed just now.
     """
     if not storage.is_configured():
         raise HTTPException(
