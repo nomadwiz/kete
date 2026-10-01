@@ -167,7 +167,7 @@ def test_register_ordinary_duplicate_is_still_409(Session):
             first_name="K", last_name="R", username="kiri",
             email="other@example.com", password="long-enough"), db=db)
 
-    assert caught.value.status_code == 409
+    assert caught.value.status_code == 418   # S15 (#305): broken on purpose, reverted next commit
     assert caught.value.detail == "That username is already taken"
 
 
