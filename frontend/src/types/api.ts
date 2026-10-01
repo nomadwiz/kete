@@ -59,8 +59,49 @@ export interface paths {
         /**
          * Update Profile
          * @description Update the signed-in user's account details.
+         *
+         *     Changing the username or email needs current_password, because either one
+         *     is what the account signs in with (S14). Changing only the name does not.
          */
         put: operations["update_profile_profile_put"];
+        post?: never;
+        /**
+         * Delete Account
+         * @description Delete the account and everything in it, given the password.
+         *
+         *     One row goes and the database takes the rest: profiles, nutrition_targets,
+         *     recipes and plan_slots all reference users ON DELETE CASCADE. That is the
+         *     cascading deletion section 7.2 describes, and this is its only caller.
+         *
+         *     Photographs are the exception. They live in S3, which no foreign key
+         *     reaches, so their keys are read first and each object is removed once the
+         *     rows are gone, best effort, as delete_recipe does for one. Deleting them
+         *     first would lose them if the commit then failed.
+         */
+        delete: operations["delete_account_profile_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change Password
+         * @description Replace the password, given the current one.
+         *
+         *     Tokens already issued stay valid until they expire (twelve hours at most):
+         *     a token carries no record of the password it was issued under, and ending
+         *     them early would need a per-user counter in the schema. A known limitation,
+         *     recorded in the report, not an oversight.
+         */
+        put: operations["change_password_profile_password_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -184,7 +225,8 @@ export interface paths {
          * @description Store a recipe photograph in S3 and keep only its key in the database.
          *
          *     The bucket is private, so the response carries a time-limited link rather
-         *     than a permanent URL.
+         *     than a permanent URL, or null when the photograph was stored but a link to
+         *     it could not be signed just now.
          */
         post: operations["upload_photo_recipes__recipe_id__photo_post"];
         delete?: never;
@@ -352,6 +394,11 @@ export interface components {
             carbs_g: components["schemas"]["NutrientComparison"];
             fat_g: components["schemas"]["NutrientComparison"];
         };
+        /** DeleteAccountIn */
+        DeleteAccountIn: {
+            /** Password */
+            password: string;
+        };
         /**
          * ErrorDetail
          * @description The shape of every error this application raises.
@@ -475,10 +522,20 @@ export interface components {
              */
             percent: number;
         };
+        /** PasswordIn */
+        PasswordIn: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
         /** PhotoOut */
         PhotoOut: {
-            /** Photo Url */
-            photo_url: string;
+            /**
+             * Photo Url
+             * @description A temporary link to the stored photograph. null when the photograph was stored but a link to it could not be signed just now; reading the recipe again gives a fresh one.
+             */
+            photo_url: string | null;
         };
         /** PlanRecipe */
         PlanRecipe: {
@@ -549,6 +606,11 @@ export interface components {
              * Format: email
              */
             email: string;
+            /**
+             * Current Password
+             * @description Required when username or email changes, since either is what the account signs in with. Not needed to change only the name.
+             */
+            current_password?: string | null;
         };
         /** ProfileOut */
         ProfileOut: {
@@ -847,6 +909,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
+            /** @description The current password is incorrect */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
             /** @description The account behind the token no longer exists */
             404: {
                 headers: {
@@ -858,6 +929,122 @@ export interface operations {
             };
             /** @description That username or email is already taken */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_account_profile_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bearer token missing, malformed or expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description The current password is incorrect */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description The account behind the token no longer exists */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_profile_password_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bearer token missing, malformed or expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description The current password is incorrect */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description The account behind the token no longer exists */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1067,6 +1254,15 @@ export interface operations {
             };
             /** @description Bearer token missing, malformed or expired */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description The account behind the token no longer exists */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
