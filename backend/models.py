@@ -118,7 +118,9 @@ class Recipe(Base):
     protein_g: Mapped[float | None] = mapped_column(Numeric(6, 2))     # per serving
     carbs_g: Mapped[float | None] = mapped_column(Numeric(6, 2))       # per serving
     fat_g: Mapped[float | None] = mapped_column(Numeric(6, 2))         # per serving
-    photo_url: Mapped[str | None] = mapped_column(String(500))  # file lives in S3
+    # The S3 object key, not a URL; storage.link_for signs a link from it on
+    # every read. The name is historical, as schema.sql explains.
+    photo_url: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     owner = relationship("User", back_populates="recipes")

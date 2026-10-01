@@ -62,7 +62,10 @@ CREATE TABLE IF NOT EXISTS recipes (
                    CONSTRAINT ck_recipe_carbs   CHECK (carbs_g >= 0),
     fat_g          NUMERIC(6,2)    -- per serving
                    CONSTRAINT ck_recipe_fat     CHECK (fat_g >= 0),
-    photo_url      VARCHAR(500),   -- object lives in S3; only the URL is stored
+    -- The S3 object key, not a URL: the bucket is private, so the API signs a
+    -- one-hour link from the key on every read (see storage.py). The column
+    -- keeps the name it had before that change, to spare a migration.
+    photo_url      VARCHAR(500),
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
