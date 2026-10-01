@@ -118,8 +118,9 @@ jobs:
           # which carries contents: write whatever this job declares, and sets it
           # as Claude's GH_TOKEN over any env: given here (S18, #343). Two costs:
           # that exchange is also where a workflow file differing from main's was
-          # refused, so a pull request editing this file now runs its own copy;
-          # and the verdict is posted by github-actions[bot], not claude[bot].
+          # refused, so a pull request editing this file now runs its own copy,
+          # whose merge job leaves it for a person if that check survives the
+          # edit; and the verdict is posted by github-actions[bot], not claude[bot].
           # The dismissal step and the prompt match both logins, because earlier
           # reviews on open pull requests are claude[bot]'s. The guard and the
           # merge job match github-actions[bot] only: every claude[bot] review
@@ -295,6 +296,19 @@ jobs:
             exit 0
           fi
 
+          # A change to any workflow is merged by a person, never here. Such a
+          # pull request runs its own copy of this file, so the check only holds
+          # while the edit leaves it in — it stops a rules change merging itself
+          # because somebody forgot the draft flag, not a hostile one, whose
+          # deletion of it would show in its own diff. The file list is read into
+          # a variable, because grep -q in a pipe ends early and pipefail would
+          # then fail the condition.
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          if grep -q '^\.github/workflows/' <<<"$files"; then
+            echo "This pull request changes a workflow. Left open for a person to merge."
+            exit 0
+          fi
+
           # A branch behind its base was reviewed against something that is no
           # longer what it will become, which is #302's lesson. Update it and stop:
           # the update pushes, that push is another synchronize event, and the run
@@ -327,10 +341,9 @@ jobs:
           # A push made with github.token starts no workflow, so deploy-backend.yml's
           # push trigger never sees this merge (S17, #339). workflow_dispatch is the
           # documented exception. The pattern below copies that file's push paths:
-          # change the two together. The file list is read into a variable first,
-          # because grep -q in a pipe ends early and pipefail would then fail the
-          # condition and skip the deploy.
-          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          # change the two together. Its deploy-backend.yml branch never fires
+          # here, because the workflow check above leaves that change to a
+          # person, and a person's merge fires the push trigger itself.
           if [ "$BASE" = main ] &&
              grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml$)' <<<"$files"; then
             gh workflow run deploy-backend.yml --repo "$REPO" --ref main

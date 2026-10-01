@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks the verdict gate in claude-code-review.yml: which reviews satisfy the
-# "Fail if no verdict was posted" guard, and which the merge job merges on. Run
+# "Fail if no verdict was posted" guard, and which the merge job merges on —
+# including that it never merges a change to a workflow. Run
 # it after editing either filter: ./.github/test-verdict-gate.sh
 #
 # The gate decides whether a pull request merges unseen. Before S18
@@ -20,10 +21,11 @@ block() { awk -v n="$1" '$0 ~ "name: "n {f=1} f && /run: \|/ {p=1; next} p && /^
 GUARD=$(block "Fail if no verdict"); MERGE=$(block "Merge what the review")
 [ -n "$GUARD" ] && [ -n "$MERGE" ] || { echo "FAIL: a step was not found in the workflow"; exit 1; }
 
-# Serves $FIX as the review list, reports no inline findings and no lag
-# behind the base, and prints MERGED when the merge call is reached.
+# Serves $FIX as the review list and $FILES as the changed files, reports no
+# inline findings and no lag behind the base, and prints MERGED when the merge
+# call is reached.
 gh() { local q= path=; while [ $# -gt 0 ]; do case $1 in --jq) q=$2; shift 2;; -X|-f) shift 2;; api|--paginate|--silent) shift;; workflow) return;; *) path=$1; shift;; esac; done
-  case $path in */reviews) jq -r "$q" <<<"$FIX";; */comments) echo 0;; */compare/*) echo 0;; */merge) echo MERGED;; */files) echo frontend/x;; esac; }
+  case $path in */reviews) jq -r "$q" <<<"$FIX";; */comments) echo 0;; */compare/*) echo 0;; */merge) echo MERGED;; */files) echo "${FILES:-frontend/x}";; esac; }
 export -f gh
 export REVIEW_SINCE=2026-10-02T00:00:00Z PR=1 REPO=o/r BASE=main HEAD=b
 
@@ -42,4 +44,7 @@ t "4 bot clean, then bot requests changes"         "[$(r 5 "$bot" COMMENTED ok 2
 t "5 bot empty-bodied comment (a thread reply)"    "[$(r 7 "$bot" COMMENTED '' 2026-10-02T00:01:00Z)]" fail held
 t "6 claude[bot] clean, before this run"           "[$(r 8 "$old" COMMENTED ok 2026-10-01T00:01:00Z)]" fail held
 t "7 no reviews"                                   "[]" fail held
+export FILES=.github/workflows/claude-code-review.yml
+t "8 bot clean, but the change edits a workflow"   "[$(r 9 "$bot" COMMENTED clean 2026-10-02T00:01:00Z)]" pass held
+unset FILES
 exit $fail
