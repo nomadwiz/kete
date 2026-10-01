@@ -1,50 +1,89 @@
 #!/usr/bin/env bash
-# Checks the verdict gate in claude-code-review.yml: which reviews satisfy the
-# "Fail if no verdict was posted" guard, and which the merge job merges on —
-# including that it never merges a change to a workflow. Run
-# it after editing either filter: ./.github/test-verdict-gate.sh
+# Checks the verdict gate in claude-code-review.yml: what the post job accepts
+# from verdict.json and what it posts, which reviews it dismisses, and what the
+# merge job merges on. Run it after editing either job:
+# ./.github/test-verdict-gate.sh
 #
-# The gate decides whether a pull request merges unseen. Before S18
-# (nomadwiz/kete#343) both filters selected by time, state and body but never
-# by author, so a member's ordinary comment review posted during a run counted
-# as a clean verdict and merged over the reviewer's blocker — rows 1 and 3
-# below, found by @laysokhour-computer in review of nomadwiz/kete#346.
+# verdict.json is written by the model, so it is untrusted input. The post job
+# must rebuild the review from the fields it names and take the commit from the
+# event, whatever the file says; the merge job must act on the one verdict post
+# checked and nothing else (S21, nomadwiz/kete#351). Several cases below are the
+# abuse cases: a forged commit, an extra pull request number, APPROVE.
 #
 # Each step's own run: script is read out of the workflow and executed with gh
-# stubbed, so this checks the shell and its quoting as the runner sees them,
-# not a copy of the filter.
+# stubbed, so this checks the shell and its quoting as the runner sees them, not
+# a copy of the filter.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 F=.github/workflows/claude-code-review.yml
 
 block() { awk -v n="$1" '$0 ~ "name: "n {f=1} f && /run: \|/ {p=1; next} p && /^ {0,9}[^ ]/ {exit} p {sub(/^          /,""); print}' "$F"; }
-GUARD=$(block "Fail if no verdict"); MERGE=$(block "Merge what the review")
-[ -n "$GUARD" ] && [ -n "$MERGE" ] || { echo "FAIL: a step was not found in the workflow"; exit 1; }
+POST=$(block "Check the verdict and post it"); MERGE=$(block "Merge what the review found clean")
+[ -n "$POST" ] && [ -n "$MERGE" ] || { echo "FAIL: a step was not found in the workflow"; exit 1; }
+DISPATCHES=$(grep -c 'gh workflow run' <<<"$MERGE")
 
-# Serves $FIX as the review list and $FILES as the changed files, reports no
-# inline findings and no lag behind the base, and prints MERGED when the merge
-# call is reached.
-gh() { local q= path=; while [ $# -gt 0 ]; do case $1 in --jq) q=$2; shift 2;; -X|-f) shift 2;; api|--paginate|--silent) shift;; workflow) return;; *) path=$1; shift;; esac; done
-  case $path in */reviews) jq -r "$q" <<<"$FIX";; */comments) echo 0;; */compare/*) echo 0;; */merge) echo MERGED;; */files) echo "${FILES:-frontend/x}";; esac; }
+# The stub records every write in $OUT/log and serves reads from the fixtures:
+# $LIST (the pull request's reviews) and $FILES (the changed files).
+gh() { local q= path= input= args="$*"; while [ $# -gt 0 ]; do case $1 in --jq) q=$2; shift 2;; --input) input=$2; shift 2;; -X|-f|--repo|--ref) shift 2;; api|--paginate|--silent) shift;; workflow) echo "dispatch" >> "$OUT/log"; return;; *) path=$1; shift;; esac; done
+  case $path in
+    */dismissals) echo "dismiss ${path%/dismissals}" | sed 's#.*/#dismiss #' >> "$OUT/log";;
+    */reviews) if [ -n "$input" ]; then cp "$input" "$OUT/posted.json"; echo "post" >> "$OUT/log"; echo 42; else jq -r "$q" <<<"$LIST"; fi;;
+    */files) echo "$FILES";;
+    */compare/*) echo 0;;
+    */merge) grep -q 'sha=abc123' <<<"$args" && echo "merge pinned" >> "$OUT/log" || echo "merge UNPINNED" >> "$OUT/log";;
+  esac; }
 export -f gh
-export REVIEW_SINCE=2026-10-02T00:00:00Z PR=1 REPO=o/r BASE=main HEAD=b
+export PR=1 REPO=o/r BASE=main HEAD=b HEAD_SHA=abc123
 
-bot='"user":{"login":"github-actions[bot]"}'; mem='"user":{"login":"kylewakos"}'; old='"user":{"login":"claude[bot]"}'
-r() { echo "{\"id\":$1,$2,\"state\":\"$3\",\"body\":\"$4\",\"submitted_at\":\"$5\"}"; }
 fail=0
-t() { export FIX=$2
-  g=$(bash -c "$GUARD" >/dev/null 2>&1 && echo pass || echo fail)
-  m=$(bash -c "$MERGE" 2>/dev/null | grep -q '^MERGED$' && echo merged || echo held)
-  [ "$g/$m" = "$3/$4" ] && echo "ok:   $1" || { echo "FAIL: $1 — wanted guard $3, $4; got guard $g, $m"; fail=1; }; }
+check() { if eval "$2"; then echo "ok:   $1"; else echo "FAIL: $1"; fail=1; fi; }
 
-t "1 bot requests changes, then a member comments" "[$(r 1 "$bot" CHANGES_REQUESTED x 2026-10-02T00:01:00Z),$(r 2 "$mem" COMMENTED lgtm 2026-10-02T00:02:00Z)]" pass held
-t "2 bot posts a clean verdict"                    "[$(r 3 "$bot" COMMENTED clean 2026-10-02T00:01:00Z)]" pass merged
-t "3 only a member comments"                       "[$(r 4 "$mem" COMMENTED hi 2026-10-02T00:01:00Z)]" fail held
-t "4 bot clean, then bot requests changes"         "[$(r 5 "$bot" COMMENTED ok 2026-10-02T00:01:00Z),$(r 6 "$bot" CHANGES_REQUESTED no 2026-10-02T00:02:00Z)]" pass held
-t "5 bot empty-bodied comment (a thread reply)"    "[$(r 7 "$bot" COMMENTED '' 2026-10-02T00:01:00Z)]" fail held
-t "6 claude[bot] clean, before this run"           "[$(r 8 "$old" COMMENTED ok 2026-10-01T00:01:00Z)]" fail held
-t "7 no reviews"                                   "[]" fail held
-export FILES=.github/workflows/claude-code-review.yml
-t "8 bot clean, but the change edits a workflow"   "[$(r 9 "$bot" COMMENTED clean 2026-10-02T00:01:00Z)]" pass held
-unset FILES
+# A pull request can commit a verdict.json of its own; the review job must
+# remove it before the model runs, or a run whose model writes nothing would
+# hand on the author's verdict instead of failing.
+rm_line=$(grep -n -A1 'name: Remove any verdict the pull request carries' "$F" | grep 'run: rm -f verdict.json$' | cut -d- -f1)
+review_line=$(grep -n 'name: Review$' "$F" | cut -d: -f1)
+check "review: a verdict.json in the pull request is removed before the model runs" \
+  '[ -n "$rm_line" ] && [ -n "$review_line" ] && [ "$rm_line" -lt "$review_line" ]'
+
+# post: $1 name, $2 verdict.json content ("" means no file), $3 reviews list.
+post() { export OUT; OUT=$(mktemp -d); export GITHUB_OUTPUT=$OUT/out LIST=${3:-[]}; : > "$OUT/log"
+  [ -n "$2" ] && printf '%s' "$2" > "$OUT/verdict.json"
+  (cd "$OUT" && bash -c "$POST") >/dev/null 2>&1; echo $? > "$OUT/rc"; }
+
+post x '{"event":"COMMENT","body":"clean","comments":[]}'
+check "post: a clean verdict is posted, on the event's commit, and called clean" '[ "$(cat $OUT/rc)" = 0 ] && grep -qx post $OUT/log && [ "$(jq -r .commit_id $OUT/posted.json)" = abc123 ] && grep -qx "clean=true" $OUT/out'
+post x '{"event":"COMMENT","body":"ok","comments":[{"path":"a","line":1,"side":"RIGHT","body":"x"}]}'
+check "post: a comment carrying inline findings is posted, not clean" 'grep -qx post $OUT/log && grep -qx "clean=false" $OUT/out'
+post x '{"event":"REQUEST_CHANGES","body":"no","comments":[]}'
+check "post: a request for changes is posted, not clean" 'grep -qx post $OUT/log && grep -qx "clean=false" $OUT/out'
+post x '{"event":"COMMENT","body":"ok","commit_id":"evil","pull_number":999,"comments":[{"path":"a","line":1,"side":"RIGHT","body":"x","position":5,"commit_id":"evil"}]}'
+check "post: a forged commit and extra keys are dropped" '[ "$(jq -c "keys" $OUT/posted.json)" = "[\"body\",\"comments\",\"commit_id\",\"event\"]" ] && [ "$(jq -r .commit_id $OUT/posted.json)" = abc123 ] && [ "$(jq -c ".comments[0]|keys" $OUT/posted.json)" = "[\"body\",\"line\",\"path\",\"side\"]" ]'
+post x '{"event":"APPROVE","body":"lgtm"}'
+check "post: APPROVE fails the run and posts nothing" '[ "$(cat $OUT/rc)" != 0 ] && ! grep -q post $OUT/log'
+post x '{"event":"COMMENT","body":""}'
+check "post: an empty body fails the run and posts nothing" '[ "$(cat $OUT/rc)" != 0 ] && ! grep -q post $OUT/log'
+post x 'not json'
+check "post: a file that is not JSON fails and posts nothing" '[ "$(cat $OUT/rc)" != 0 ] && ! grep -q post $OUT/log'
+post x ''
+check "post: no verdict.json fails and posts nothing" '[ "$(cat $OUT/rc)" != 0 ] && ! grep -q post $OUT/log'
+post x '{"event":"REQUEST_CHANGES","body":"no"}' '[{"id":7,"user":{"login":"github-actions[bot]"},"state":"CHANGES_REQUESTED"},{"id":8,"user":{"login":"kylewakos"},"state":"CHANGES_REQUESTED"},{"id":9,"user":{"login":"claude[bot]"},"state":"CHANGES_REQUESTED"},{"id":42,"user":{"login":"github-actions[bot]"},"state":"CHANGES_REQUESTED"}]'
+check "post: posts first, then dismisses old bot blocks, never the new one or a person's" '[ "$(tr "\n" " " < $OUT/log)" = "post dismiss 7 dismiss 9 " ]'
+
+# merge: $1 what post said (CLEAN), $2 changed files.
+merge() { export OUT; OUT=$(mktemp -d); : > "$OUT/log"; export CLEAN=$1 FILES=$2
+  bash -c "$MERGE" >/dev/null 2>&1; }
+
+merge true frontend/x.ts
+check "merge: a clean verdict merges, pinned to the reviewed commit" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ]'
+merge false frontend/x.ts
+check "merge: a verdict that is not clean holds" '[ ! -s $OUT/log ]'
+merge "" frontend/x.ts
+check "merge: no verdict from post holds" '[ ! -s $OUT/log ]'
+merge true .github/workflows/claude-code-review.yml
+check "merge: a workflow change is left for a person" '[ ! -s $OUT/log ]'
+if [ "$DISPATCHES" -gt 0 ]; then
+  merge true backend/main.py
+  check "merge: a backend change on main merges and dispatches the deploy" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch " ]'
+fi
 exit $fail
