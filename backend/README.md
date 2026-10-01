@@ -5,7 +5,7 @@ framework. INFS803 A02, Choice B.
 
 ## Status
 
-All 18 endpoints run real queries against PostgreSQL. Accounts, JWT auth, the
+All 21 endpoints run real queries against PostgreSQL. Accounts, JWT auth, the
 recipe library, the weekly plan and the nutrition engine are implemented, and
 recipe photographs upload to S3 — that endpoint answers 503 when `S3_BUCKET`
 is not configured rather than pretending to have stored anything.
@@ -73,7 +73,7 @@ username, email or plan slot get a 409, not a 500. Each test holds the clashing
 row open in one session so the endpoint's own check misses it, then lets it
 commit — the race is forced, not left to timing.
 
-## Endpoints (18 total, 7 POST)
+## Endpoints (21 total, 7 POST)
 
 | # | Method | Path | Auth |
 |---|--------|------|------|
@@ -81,25 +81,28 @@ commit — the race is forced, not left to timing.
 | 2 | POST | `/login` | public |
 | 3 | GET | `/profile` | bearer |
 | 4 | PUT | `/profile` | bearer |
-| 5 | POST | `/profile/metrics` | bearer |
-| 6 | GET | `/profile/metrics` | bearer |
-| 7 | GET | `/targets` | bearer |
-| 8 | GET | `/recipes?q=` | bearer |
-| 9 | GET | `/recipes/{id}` | bearer |
-| 10 | POST | `/recipes` | bearer |
-| 11 | POST | `/recipes/{id}/photo` | bearer |
-| 12 | PUT | `/recipes/{id}` | bearer |
-| 13 | DELETE | `/recipes/{id}` | bearer |
-| 14 | GET | `/mealplan?week=` | bearer |
-| 15 | POST | `/mealplan` | bearer |
-| 16 | DELETE | `/mealplan/{slot_id}` | bearer |
-| 17 | POST | `/mealplan/generate` | bearer |
-| 18 | DELETE | `/mealplan/week/{week}` | bearer |
+| 5 | PUT | `/profile/password` | bearer |
+| 6 | DELETE | `/profile` | bearer |
+| 7 | POST | `/profile/metrics` | bearer |
+| 8 | GET | `/profile/metrics` | bearer |
+| 9 | GET | `/targets` | bearer |
+| 10 | GET | `/recipes?q=` | bearer |
+| 11 | GET | `/recipes/{id}` | bearer |
+| 12 | POST | `/recipes` | bearer |
+| 13 | POST | `/recipes/{id}/photo` | bearer |
+| 14 | PUT | `/recipes/{id}` | bearer |
+| 15 | DELETE | `/recipes/{id}` | bearer |
+| 16 | GET | `/mealplan?week=` | bearer |
+| 17 | GET | `/mealplan/summary?week=` | bearer |
+| 18 | POST | `/mealplan` | bearer |
+| 19 | DELETE | `/mealplan/{slot_id}` | bearer |
+| 20 | POST | `/mealplan/generate` | bearer |
+| 21 | DELETE | `/mealplan/week/{week}` | bearer |
 | — | GET | `/health` | public |
 
-`GET /health` is a nineteenth route and is not counted: it reports only
+`GET /health` is a twenty-second route and is not counted: it reports only
 whether the process is serving, which is no service to a user. `openapi.json`
-therefore shows 19 operations over 13 paths.
+therefore shows 22 operations over 15 paths.
 
 Every endpoint except `/register`, `/login` and `/health` needs an
 `Authorization: Bearer <token>` header. The API reads `user_id` out of the token
