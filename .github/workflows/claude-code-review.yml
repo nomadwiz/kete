@@ -69,6 +69,9 @@ jobs:
           path: kete-doc
           token: ${{ secrets.KETE_CROSS_REPO_TOKEN }}
           fetch-depth: 0
+          # Not stored in .git/config, where the model's Read could open it.
+          # Nothing after this runs a git command that needs to authenticate.
+          persist-credentials: false
 
       # A CHANGES_REQUESTED review stays in force across every later push. A
       # COMMENT review does not clear it, and GITHUB_TOKEN is forbidden from
