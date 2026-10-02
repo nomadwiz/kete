@@ -36,6 +36,8 @@ const NUTRIENTS: { key: Exclude<keyof Day, "day_of_week">; caption: string }[] =
     { key: "fat_g", caption: "Fat (g)" },
   ];
 
+const COLUMNS = ["Total", "Target", "Difference", "% of target"];
+
 const DAY_NAMES: Record<Day["day_of_week"], string> = {
   Mon: "Monday",
   Tue: "Tuesday",
@@ -76,18 +78,15 @@ export function Comparison({ summary }: { summary: WeekSummary }) {
                 {/* Empty, and a td: it heads neither axis -- planner.tsx's
                     corner cell, for the same reason. */}
                 <td />
-                <th className="py-2 pl-1.5 text-right font-normal" scope="col">
-                  Total
-                </th>
-                <th className="py-2 pl-1.5 text-right font-normal" scope="col">
-                  Target
-                </th>
-                <th className="py-2 pl-1.5 text-right font-normal" scope="col">
-                  Difference
-                </th>
-                <th className="py-2 pl-1.5 text-right font-normal" scope="col">
-                  % of target
-                </th>
+                {COLUMNS.map((column) => (
+                  <th
+                    className="py-2 pl-1.5 text-right font-normal"
+                    key={column}
+                    scope="col"
+                  >
+                    {column}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -109,7 +108,7 @@ export function Comparison({ summary }: { summary: WeekSummary }) {
                       {signed(figure.difference)}
                     </td>
                     <td className="py-2 pl-1.5 text-right">
-                      {figure.percent}%
+                      {plain(figure.percent)}%
                     </td>
                   </tr>
                 );
