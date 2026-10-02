@@ -2,8 +2,10 @@ import { Form, Link, useActionData, useLoaderData } from "react-router";
 
 import { datesOf, isoWeek, shiftWeek } from "../api/week";
 import { Button } from "../components/ui/button";
+import { Comparison } from "../components/ui/comparison";
+import { NoMeasurements } from "../components/ui/no-measurements";
 import { Notice } from "../components/ui/notice";
-import { Screen } from "../components/ui/screen";
+import { Band, Screen } from "../components/ui/screen";
 import { PATHS, QUERY } from "../routes";
 import type { DayOfWeek, MealPosition, PlanWeek } from "../types/plan";
 import { useWrite } from "../use-write";
@@ -62,7 +64,7 @@ const WEEK_RANGE = new Intl.DateTimeFormat("en-NZ", {
 });
 
 export default function Planner() {
-  const { week, slots, recipes } = useLoaderData() as PlanWeek;
+  const { week, slots, recipes, summary } = useLoaderData() as PlanWeek;
   const error = useActionData() as string | null | undefined;
   // Whether anything is in flight. Both kinds of submit below are disabled
   // while it is: a second click on Add places the same recipe again and is
@@ -313,10 +315,9 @@ export default function Planner() {
 
                           {/* The figure the server computed for one serving of
                             this recipe, printed as sent. Nothing on this
-                            screen adds any of them up: the day's and the
-                            week's totals against the target are C18
-                            (nomadwiz/kete#182), from an endpoint that does the
-                            arithmetic. */}
+                            screen adds any of them up: the day's totals
+                            against the target are the panel below, from an
+                            endpoint that does the arithmetic (ADR 001). */}
                           <span className="planner__energy">
                             {slot.recipe.energy_kcal.toLocaleString("en-NZ")}{" "}
                             kcal
@@ -396,6 +397,17 @@ export default function Planner() {
             ))}
           </tbody>
         </table>
+
+        {/* C18 (nomadwiz/kete#182). Under the grid, because it reads the grid:
+          each placement revalidates the loader, so the totals redraw with
+          the week. Null is the 404 that means no measurements are saved, and
+          the panel's place is taken by what the dashboard says in the same
+          case -- the week can still be planned without targets. */}
+        <Band heading="Against your daily target">
+          <div className="mt-2">
+            {summary ? <Comparison summary={summary} /> : <NoMeasurements />}
+          </div>
+        </Band>
       </div>
     </Screen>
   );

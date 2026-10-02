@@ -1,25 +1,43 @@
 import { screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   jsonResponse,
   renderAt,
   stubFetch,
+  summaryBody,
   TARGETS_BODY,
 } from "../test/router";
+
+// The dashboard compares the current week, so the clock is pinned and the
+// week is a literal: Thursday 24 September 2026 is in 2026-W39, which
+// ../api/week.test.ts pins. Computing it here with the function the loader
+// calls would assert only that the loader called it.
+const SUMMARY = "/mealplan/summary?week=2026-W39";
 
 function signedIn() {
   window.localStorage.setItem("kete.token", "a-token");
 }
 
+beforeEach(() => {
+  // Only Date. Testing Library waits on real timers, and faking those hangs
+  // the first query that has to wait for anything.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 8, 24));
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("the dashboard with targets saved", () => {
   it("draws the four figures in order, with the unit inside each value", async () => {
     signedIn();
-    stubFetch({ "/targets": async () => jsonResponse(200, TARGETS_BODY) });
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
 
     renderAt("/dashboard");
 
@@ -39,7 +57,10 @@ describe("the dashboard with targets saved", () => {
 
   it("offers the three principal areas, each reaching its own address", async () => {
     signedIn();
-    stubFetch({ "/targets": async () => jsonResponse(200, TARGETS_BODY) });
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
 
     renderAt("/dashboard");
 
@@ -54,7 +75,10 @@ describe("the dashboard with targets saved", () => {
 
   it("sends anyone asking where the figures come from to the targets screen", async () => {
     signedIn();
-    stubFetch({ "/targets": async () => jsonResponse(200, TARGETS_BODY) });
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
 
     renderAt("/dashboard");
 
@@ -64,11 +88,87 @@ describe("the dashboard with targets saved", () => {
   });
 });
 
+// C18 (nomadwiz/kete#182). The dashboard compares the week the person is in.
+describe("the dashboard's week against targets", () => {
+  it("asks for the summary of the current week", async () => {
+    signedIn();
+    const { calls } = stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
+
+    renderAt("/dashboard");
+
+    await screen.findByText("Daily energy");
+
+    expect(calls).toContain(SUMMARY);
+  });
+
+  // The planner's panel, for the current week: the same four tables, printed
+  // as sent. No whole-week figure -- the comparison is per day (product.md
+  // section 3) and the client may not add one up (ADR 001).
+  it("draws the planner's per-day tables for the current week", async () => {
+    signedIn();
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () =>
+        jsonResponse(
+          200,
+          summaryBody("2026-W39", { Wed: [1850, 120, 200, 70] }),
+        ),
+    });
+
+    renderAt("/dashboard");
+
+    const energy = await screen.findByRole("table", { name: "Energy (kcal)" });
+    const wednesday = within(energy)
+      .getByRole("rowheader", { name: "Wednesday" })
+      .closest("tr");
+
+    expect(
+      within(wednesday!)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["1,850", "2,480", "-630", "75%"]);
+    expect(within(energy).getAllByRole("rowheader")).toHaveLength(7);
+    expect(screen.getAllByRole("table")).toHaveLength(4);
+  });
+
+  it("reaches the planner for the week it is showing", async () => {
+    signedIn();
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
+
+    renderAt("/dashboard");
+
+    expect(
+      await screen.findByRole("link", { name: "Plan this week" }),
+    ).toHaveAttribute("href", "/planner");
+  });
+
+  it("draws no tables when no measurements are saved", async () => {
+    signedIn();
+    stubFetch({
+      "/targets": async () => jsonResponse(404, { detail: "No targets" }),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
+    });
+
+    renderAt("/dashboard");
+
+    await screen.findByRole("link", { name: "Add your measurements" });
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+});
+
 describe("the dashboard with no measurements saved", () => {
   it("names what is missing and reaches the form, without announcing a failure", async () => {
     signedIn();
     stubFetch({
       "/targets": async () => jsonResponse(404, { detail: "No targets" }),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
     });
 
     renderAt("/dashboard");
@@ -84,6 +184,7 @@ describe("the dashboard with no measurements saved", () => {
     signedIn();
     stubFetch({
       "/targets": async () => jsonResponse(404, { detail: "No targets" }),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
     });
 
     renderAt("/dashboard");
@@ -99,6 +200,7 @@ describe("the dashboard with no measurements saved", () => {
     signedIn();
     stubFetch({
       "/targets": async () => jsonResponse(404, { detail: "No targets" }),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
     });
 
     renderAt("/dashboard");
@@ -114,6 +216,7 @@ describe("the dashboard when the API answers badly", () => {
     signedIn();
     stubFetch({
       "/targets": async () => jsonResponse(401, { detail: "Expired" }),
+      [SUMMARY]: async () => jsonResponse(401, { detail: "Expired" }),
     });
 
     const { router } = renderAt("/dashboard");
@@ -131,6 +234,9 @@ describe("the dashboard when the API answers badly", () => {
     signedIn();
     stubFetch({
       "/targets": async () => {
+        throw new TypeError("Failed to fetch");
+      },
+      [SUMMARY]: async () => {
         throw new TypeError("Failed to fetch");
       },
     });

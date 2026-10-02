@@ -1,8 +1,8 @@
-import { Link, useLoaderData } from "react-router";
+import { useLoaderData } from "react-router";
 
 import { Figures } from "../components/ui/figures";
+import { NoMeasurements } from "../components/ui/no-measurements";
 import { Band, Screen } from "../components/ui/screen";
-import { PATHS } from "../routes";
 import type { Targets as TargetFigures } from "../types/targets";
 
 // One locale, fixed, rather than the reader's own. The project writes every
@@ -51,18 +51,7 @@ export default function Targets() {
         lede="Kete works these out from your body measurements, and there are none saved yet."
       >
         <Band heading="Your daily target">
-          <div className="border-t border-rule pt-4">
-            <p className="max-w-(--measure) text-sm text-muted-foreground">
-              Five figures — weight, height, age, sex and activity level — and
-              Kete works out the rest.
-            </p>
-            <Link
-              className="mt-4 inline-block font-semibold underline decoration-accent decoration-2 underline-offset-4"
-              to={PATHS.measurements}
-            >
-              Add your measurements
-            </Link>
-          </div>
+          <NoMeasurements />
         </Band>
       </Screen>
     );

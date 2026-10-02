@@ -1,5 +1,6 @@
 import type { components } from "./api";
 import type { RecipeSummary } from "./recipe";
+import type { Targets } from "./targets";
 
 // One filled position in a week, as GET /mealplan?week= answers an array of.
 // Two traps. It carries no `week` field coming back -- the week is what was
@@ -32,7 +33,14 @@ export type PlanWeek = {
   week: string;
   slots: PlanSlot[];
   recipes: RecipeSummary[];
+  summary: WeekSummary | null;
 };
+
+// What GET /mealplan/summary?week= answers: seven days, Mon to Sun, each with
+// the four nutrients as total, target, difference and percent -- all four
+// computed by the server (ADR 001) and rounded there (ADR 007), so the screen
+// prints them as sent. Null on the screen is the 404 that means no targets yet.
+export type WeekSummary = components["schemas"]["WeekSummaryOut"];
 
 // The body POST /mealplan/generate takes. One field, and it is the week --
 // which the screen already holds, so the action never recomputes it. There is
@@ -40,3 +48,11 @@ export type PlanWeek = {
 // because the endpoint fills every position, and the action discards it the
 // way it discards the slot_id a placement answers with.
 export type GenerateIn = components["schemas"]["GenerateIn"];
+
+// What the /dashboard loader hands the screen: the daily target, and the
+// current week against it. Both are null until measurements are saved -- the
+// two endpoints answer 404 on the same condition (ADR 001, ADR 004).
+export type Dashboard = {
+  targets: Targets | null;
+  summary: WeekSummary | null;
+};

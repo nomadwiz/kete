@@ -34,12 +34,14 @@ import type {
 } from "./types/auth";
 import type { ActivityLevel, Metrics, Sex } from "./types/measurement";
 import type {
+  Dashboard,
   DayOfWeek,
   GenerateIn,
   MealPosition,
   PlanSlot,
   PlanSlotIn,
   PlanWeek,
+  WeekSummary,
 } from "./types/plan";
 import type { Profile } from "./types/profile";
 import type {
@@ -619,23 +621,28 @@ async function recipeAction({ params, request: req }: ActionFunctionArgs) {
   });
 }
 
-// Shared by /targets and /dashboard, which ask the same question of the same
-// endpoint. One function rather than two copies, although this is only the
-// second occurrence and the house rule extracts on the third: what is shared
-// is the knowledge that a 404 here means no measurements saved, and ADR 004
-// requires that rule live in one place.
+// A read whose 404 means a form has not been filled in yet, answered as null
+// rather than as a failure. GET /targets and GET /profile/metrics carry that
+// rule, and GET /mealplan/summary, which answers 404 on the same condition, is
+// the third -- C18 (nomadwiz/kete#182), where ADR 004 said the extraction falls
+// due. What is shared is the three branches: null on a 404, sign-in on a 401
+// (withSession's), and everything else rethrown to the error boundary.
 //
-// Null is a state and not a failure. GET /targets answers 404 until
-// measurements have been saved, which ADR 001 records, so a screen renders its
-// own empty panel for it rather than rethrowing. The error boundary now
-// renders inside AppLayout, so a rethrow would no longer cost the navigation
-// -- but it would still tell a user who has simply not filled the form in yet
-// that something went wrong, which is the wrong answer whatever survives
-// around it.
-function targetsLoader(): Promise<Targets | null> {
+// Null is a state and not a failure; backend/openapi.json says so in as many
+// words for the first two. A screen renders its own empty panel for it rather
+// than rethrowing. The error boundary
+// renders inside AppLayout, so a rethrow would no longer cost the navigation --
+// but it would still tell a user who has simply not filled the form in yet that
+// something went wrong, which is the wrong answer whatever survives around it.
+//
+// Only for a route whose contract gives the 404 that meaning. The same status
+// on POST /profile/metrics means the account is gone, and on GET
+// /recipes/{recipe_id} that the address names nothing -- recipeLoader keeps its
+// own catch for that reason, and must not be folded into this.
+function nullUntilMeasured<T>(path: string): Promise<T | null> {
   return withSession(async () => {
     try {
-      return await authed<Targets>("/targets");
+      return await authed<T>(path);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         return null;
@@ -644,37 +651,50 @@ function targetsLoader(): Promise<Targets | null> {
       throw error;
     }
   });
+}
+
+// Shared by /targets and /dashboard, which ask the same question of the same
+// endpoint -- ADR 004 requires that rule live in one place.
+function targetsLoader(): Promise<Targets | null> {
+  return nullUntilMeasured<Targets>("/targets");
+}
+
+// The daily target, and the current week against it -- C18
+// (nomadwiz/kete#182). The week is the one the person is in, read from the
+// viewer's own calendar by the same isoWeek the planner uses, so the
+// dashboard and an unaddressed /planner always compare the same seven days.
+async function dashboardLoader(): Promise<Dashboard> {
+  const [targets, summary] = await Promise.all([
+    targetsLoader(),
+    summaryOf(isoWeek(new Date())),
+  ]);
+
+  return { targets, summary };
 }
 
 // The saved figures, so the form can offer them back rather than asking a
 // returning user to remember what they last typed. GET /profile/metrics exists
-// for that and for nothing else.
-//
-// Null is the same state targetsLoader answers for, at the other end of the
-// same pair: this endpoint answers 404 until measurements have been saved, and
-// backend/main.py declares that status as a state rather than a failure. So a
-// first visit renders the empty form, which is the screen the person was sent
-// here to fill in, rather than the error boundary telling them something went
-// wrong.
+// for that and for nothing else. Null is a first visit, which renders the empty
+// form -- the screen the person was sent here to fill in.
 function metricsLoader(): Promise<Metrics | null> {
-  return withSession(async () => {
-    try {
-      return await authed<Metrics>("/profile/metrics");
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
-        return null;
-      }
-
-      throw error;
-    }
-  });
+  return nullUntilMeasured<Metrics>("/profile/metrics");
 }
 
-// The week the address names, its filled positions, and the library a recipe
-// is placed from. Two requests rather than one because the grid offers a
-// choice of recipe in every empty position, and GET /mealplan answers only
-// what is already placed. They go together rather than in turn: neither needs
-// the other's answer.
+// A week's totals against the targets, or null until measurements are saved.
+// Read by both screens that show the comparison, /planner and /dashboard.
+function summaryOf(week: string): Promise<WeekSummary | null> {
+  return nullUntilMeasured<WeekSummary>(
+    `/mealplan/summary?${QUERY.week}=${week}`,
+  );
+}
+
+// The week the address names, its filled positions, the library a recipe is
+// placed from, and the week's totals against the targets. Three requests
+// rather than one because the grid offers a choice of recipe in every empty
+// position, GET /mealplan answers only what is already placed, and the
+// comparison is the server's arithmetic rather than this screen's (ADR 001).
+// They go together rather than in turn: none needs another's answer. Each
+// placement revalidates this loader, so the totals redraw with the grid.
 //
 // The week is returned alongside the slots because a PlanSlotOut carries no
 // week field -- backend/openapi.json declares slot_id, day_of_week,
@@ -702,12 +722,13 @@ async function plannerLoader({
   const week = asked ?? thisWeek;
 
   return withSession(async () => {
-    const [slots, recipes] = await Promise.all([
+    const [slots, recipes, summary] = await Promise.all([
       authed<PlanSlot[]>(`/mealplan?${QUERY.week}=${week}`),
       authed<RecipeSummary[]>("/recipes"),
+      summaryOf(week),
     ]);
 
-    return { week, slots, recipes };
+    return { week, slots, recipes, summary };
   });
 }
 
@@ -1027,7 +1048,7 @@ const routes = [
               {
                 path: PATHS.dashboard,
                 Component: DASHBOARD,
-                loader: targetsLoader,
+                loader: dashboardLoader,
               },
               {
                 path: PATHS.measurements,
