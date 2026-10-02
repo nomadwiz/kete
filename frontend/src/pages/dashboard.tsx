@@ -1,5 +1,6 @@
 import { Link, useLoaderData } from "react-router";
 
+import { Comparison } from "../components/ui/comparison";
 import { Figures } from "../components/ui/figures";
 import { NoMeasurements } from "../components/ui/no-measurements";
 import { Band, Screen } from "../components/ui/screen";
@@ -60,7 +61,7 @@ function Areas() {
 }
 
 export default function Dashboard() {
-  const { targets } = useLoaderData() as DashboardData;
+  const { targets, summary } = useLoaderData() as DashboardData;
 
   // Null is the 404 the loader caught: no measurements saved, so there is
   // nothing to compute a target from. It is not an error and is not announced
@@ -122,6 +123,27 @@ export default function Dashboard() {
             How these are worked out
           </Link>
         </Band>
+
+        {/* C18 (nomadwiz/kete#182): the week the person is in, against the
+            target above, in the planner's own per-day tables. Not the
+            single weekly percentage visual-language.md section 3.3 sketches:
+            product.md section 3 judges the comparison per day, and a weekly
+            figure would be arithmetic the client may not do (ADR 001). Null
+            only if the targets vanished between the two reads, and then the
+            band is simply absent. */}
+        {summary ? (
+          <Band heading="This week against your target">
+            <div className="mt-2">
+              <Comparison summary={summary} />
+            </div>
+            <Link
+              className="mt-4 inline-block text-sm underline decoration-rule decoration-2 underline-offset-4 transition-colors duration-200 hover:decoration-accent"
+              to={PATHS.planner}
+            >
+              Plan this week
+            </Link>
+          </Band>
+        ) : null}
 
         <Band heading="Where to go next">
           <Areas />

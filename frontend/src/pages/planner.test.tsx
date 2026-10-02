@@ -52,8 +52,11 @@ const LIBRARY = [
 // dinner. The day's own <th scope="row"> is a rowheader and not a cell, so it
 // is not among them -- and finding the row through it is the assertion that
 // the header is a header.
+//
+// Within the grid, by its caption: the totals panel under it has a row header
+// for every day as well.
 function cellsOf(day: string) {
-  const row = screen
+  const row = within(screen.getByRole("table", { name: /^Seven days/ }))
     .getByRole("rowheader", { name: new RegExp(`^${day}`) })
     .closest("tr");
 
@@ -85,10 +88,10 @@ describe("a week with recipes in it", () => {
 
     renderAt(`/planner?week=${WEEK}`);
 
-    // By the row header rather than by the recipe's name: the name is also in
-    // every one of the twenty selects offering it, so a text query for it
-    // matches twenty-one elements.
-    await screen.findByRole("rowheader", { name: /^Tuesday/ });
+    // By the grid rather than by the recipe's name: the name is also in every
+    // one of the twenty selects offering it, so a text query for it matches
+    // twenty-one elements.
+    await screen.findByRole("table", { name: /^Seven days/ });
 
     // Tuesday lunch is the second of Tuesday's three cells, and Sunday dinner
     // the third of Sunday's. Both are asserted, because a grid that put every
@@ -848,7 +851,7 @@ describe("the week's totals against targets", () => {
 
     renderAt(`/planner?week=${WEEK}`);
 
-    await screen.findByRole("rowheader", { name: /^Tuesday/ });
+    await screen.findByRole("table", { name: /^Seven days/ });
 
     expect(calls).toContain(SUMMARY);
   });
@@ -867,8 +870,139 @@ describe("the week's totals against targets", () => {
     renderAt(`/planner?week=${WEEK}`);
 
     expect(
-      await screen.findByRole("rowheader", { name: /^Tuesday/ }),
+      await screen.findByRole("table", { name: /^Seven days/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
+  });
+});
+
+// The panel under the grid: one table per nutrient, a row per day, and the
+// four figures the server sent. product.md section 3: figures, no verdict.
+describe("the totals panel", () => {
+  // The cells of one day's row in one nutrient's table, after its row header:
+  // total, target, difference and percent of target.
+  function figuresOf(caption: string, day: string) {
+    const table = screen.getByRole("table", { name: caption });
+    const row = within(table)
+      .getByRole("rowheader", { name: day })
+      .closest("tr");
+
+    return within(row!)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent);
+  }
+
+  it("draws one table per nutrient, a row per day and a column per figure", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    const energy = await screen.findByRole("table", { name: "Energy (kcal)" });
+
+    for (const caption of ["Protein (g)", "Carbohydrate (g)", "Fat (g)"]) {
+      expect(screen.getByRole("table", { name: caption })).toBeInTheDocument();
+    }
+    expect(
+      within(energy)
+        .getAllByRole("rowheader")
+        .map((header) => header.textContent),
+    ).toEqual([
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]);
+    expect(
+      within(energy)
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent),
+    ).toEqual(["Total", "Target", "Difference", "% of target"]);
+  });
+
+  // The server's figures are deliberately not the sum of SLOTS: Tuesday's slot
+  // carries 540 kcal and the summary says 999. A screen that added up the slots
+  // would print 540.
+  it("prints the server's figures as sent, with the difference signed", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () =>
+        jsonResponse(
+          200,
+          summaryBody(WEEK, {
+            Tue: [999, 22, 71, 16],
+            Sun: [2600, 186, 96, 58],
+          }),
+        ),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await screen.findByRole("table", { name: "Energy (kcal)" });
+
+    expect(figuresOf("Energy (kcal)", "Tuesday")).toEqual([
+      "999",
+      "2,480",
+      "-1,481",
+      "40%",
+    ]);
+    expect(figuresOf("Energy (kcal)", "Sunday")).toEqual([
+      "2,600",
+      "2,480",
+      "+120",
+      "105%",
+    ]);
+    // On target exactly carries no sign at all.
+    expect(figuresOf("Protein (g)", "Sunday")).toEqual([
+      "186",
+      "186",
+      "0",
+      "100%",
+    ]);
+  });
+
+  // ADR 001: an empty day is a result. Its figures are printed as the server
+  // sent them, and nothing is added to say the week is empty.
+  it("prints an empty day's zeros and full shortfall as sent", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await screen.findByRole("table", { name: "Fat (g)" });
+
+    expect(figuresOf("Fat (g)", "Monday")).toEqual(["0", "83", "-83", "0%"]);
+  });
+
+  it("says what is missing where the panel would be, when no measurements are saved", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    expect(
+      await screen.findByRole("link", { name: "Add your measurements" }),
+    ).toHaveAttribute("href", "/measurements");
+    expect(
+      screen.queryByRole("table", { name: "Energy (kcal)" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

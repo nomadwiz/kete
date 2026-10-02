@@ -103,6 +103,64 @@ describe("the dashboard's week against targets", () => {
 
     expect(calls).toContain(SUMMARY);
   });
+
+  // The planner's panel, for the current week: the same four tables, printed
+  // as sent. No whole-week figure -- the comparison is per day (product.md
+  // section 3) and the client may not add one up (ADR 001).
+  it("draws the planner's per-day tables for the current week", async () => {
+    signedIn();
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () =>
+        jsonResponse(
+          200,
+          summaryBody("2026-W39", { Wed: [1850, 120, 200, 70] }),
+        ),
+    });
+
+    renderAt("/dashboard");
+
+    const energy = await screen.findByRole("table", { name: "Energy (kcal)" });
+    const wednesday = within(energy)
+      .getByRole("rowheader", { name: "Wednesday" })
+      .closest("tr");
+
+    expect(
+      within(wednesday!)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["1,850", "2,480", "-630", "75%"]);
+    expect(within(energy).getAllByRole("rowheader")).toHaveLength(7);
+    expect(screen.getAllByRole("table")).toHaveLength(4);
+  });
+
+  it("reaches the planner for the week it is showing", async () => {
+    signedIn();
+    stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
+
+    renderAt("/dashboard");
+
+    expect(
+      await screen.findByRole("link", { name: "Plan this week" }),
+    ).toHaveAttribute("href", "/planner");
+  });
+
+  it("draws no tables when no measurements are saved", async () => {
+    signedIn();
+    stubFetch({
+      "/targets": async () => jsonResponse(404, { detail: "No targets" }),
+      [SUMMARY]: async () => jsonResponse(404, { detail: "No targets yet" }),
+    });
+
+    renderAt("/dashboard");
+
+    await screen.findByRole("link", { name: "Add your measurements" });
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
 });
 
 describe("the dashboard with no measurements saved", () => {
