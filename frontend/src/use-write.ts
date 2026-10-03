@@ -52,7 +52,8 @@ import "./use-write.css";
 // passwordAction, deleteAccountAction, recipesAction, recipeAction,
 // plannerAction, measurementsAction, signUpAction and signInAction each return
 // the server's message as a string when the form can be retyped to fix it, and
-// null or a redirect when the write went through. Change that in one action and this reads a refusal as a success.
+// null or a redirect when the write went through. Change that in one action
+// and this reads a refusal as a success.
 //
 // The address, not a boolean. `succeeded` is held as the location key the
 // write landed at, so the sentence clears itself when the person navigates.
