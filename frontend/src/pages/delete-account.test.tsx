@@ -16,9 +16,7 @@ async function deleteAccount() {
   const user = userEvent.setup();
 
   await user.type(await screen.findByLabelText("Password"), "kumara-42");
-  await user.click(
-    screen.getByRole("button", { name: "Delete your account" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Delete your account" }));
 }
 
 // A JSON body on a DELETE, which is unusual enough to assert: the API reads the
