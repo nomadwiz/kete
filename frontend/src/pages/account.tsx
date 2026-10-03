@@ -108,6 +108,22 @@ export default function Account() {
             />
           </Field>
 
+          {/* Always drawn and never required. The API asks for it only when
+              the username or email changes, which this uncontrolled form cannot
+              know without a change handler per field, so the label says when
+              it is needed and profileAction sends it only when typed. */}
+          <Field
+            htmlFor="current-password"
+            label="Current password (only to change your username or email)"
+          >
+            <input
+              id="current-password"
+              name="current_password"
+              autoComplete="current-password"
+              type="password"
+            />
+          </Field>
+
           <Button
             className="justify-self-start"
             variant="accent"

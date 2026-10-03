@@ -80,35 +80,36 @@ describe("the account form", () => {
   });
 });
 
-// The status the screen is built around. PUT /profile answers 409 when the
-// username or email is already somebody else's, and a person who has just
-// typed a name has to see why while still holding what they typed.
+// The statuses the screen is built around. PUT /profile answers 409 when the
+// username or email is already somebody else's, in one sentence for each, and
+// 403 when either changes without the right current password. A person who has
+// just typed a name has to see why while still holding what they typed.
 //
 // The assertion is not the message text alone. ErrorBoundary prints whatever
 // it caught too, so a version that threw this status rather than returning it
 // would render the same sentence and pass -- the defect C22 (#236) found on
 // sign-in. What only the form renders is its own role="alert", above fields
 // that still carry the typed values, at the address that was never left.
-describe("the account form refused with a 409", () => {
-  it("shows the server's message with the typed values intact", async () => {
+describe("the account form refused", () => {
+  it.each([
+    [409, "That username is already taken"],
+    [409, "That email is already taken"],
+    [403, "Current password is incorrect"],
+  ])('shows a %i "%s" with the typed values intact', async (status, detail) => {
     signedIn();
-    stubProfile(async () =>
-      jsonResponse(409, { detail: "That username is already taken" }),
-    );
+    stubProfile(async () => jsonResponse(status, { detail }));
 
     const { router } = renderAt("/account");
 
     await amendUsername("taken");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "That username is already taken",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
     expect(screen.getByLabelText("Username")).toHaveValue("taken");
     expect(screen.getByLabelText("First name")).toHaveValue("Aroha");
     expect(router.state.location.pathname).toBe("/account");
   });
 
-  // The other half of the same rule. 409 and 422 are answered by typing
+  // The other half of the same rule. 403, 409 and 422 are answered by typing
   // something different; every other status the write can answer with is not,
   // so it goes to the boundary rather than appearing above a Save button that
   // can never work. A catch that took every ApiError would print "No such
@@ -146,10 +147,38 @@ describe("amending one field", () => {
 
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
+    // Exactly these four, so the blank current password is not sent either:
+    // an empty string would be refused as a wrong password, where an absent
+    // one lets a change to the name alone through.
     expect(put).toBeDefined();
     expect(JSON.parse(String(put?.[1]?.body))).toEqual({
       ...PROFILE_BODY,
       username: "aroha-t",
+    });
+  });
+
+  it("sends the current password when one is typed", async () => {
+    signedIn();
+    const { fetchStub } = stubProfile(async () =>
+      jsonResponse(200, { ...PROFILE_BODY, username: "aroha-t" }),
+    );
+
+    renderAt("/account");
+
+    await userEvent.type(
+      await screen.findByLabelText(/Current password/),
+      "kumara-42",
+    );
+    await amendUsername("aroha-t");
+
+    await screen.findByRole("status");
+
+    const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
+
+    expect(JSON.parse(String(put?.[1]?.body))).toEqual({
+      ...PROFILE_BODY,
+      username: "aroha-t",
+      current_password: "kumara-42",
     });
   });
 });
