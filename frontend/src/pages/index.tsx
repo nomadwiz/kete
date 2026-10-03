@@ -1,5 +1,6 @@
 export { default as ACCOUNT } from "./account";
 export { default as DASHBOARD } from "./dashboard";
+export { default as DELETE_ACCOUNT } from "./delete-account";
 export { default as HOME } from "./home";
 export { default as MEASUREMENT } from "./measurement";
 export { default as NOT_FOUND } from "./not-found";

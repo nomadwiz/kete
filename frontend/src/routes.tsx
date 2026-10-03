@@ -16,6 +16,7 @@ import PublicLayout from "./components/public-layout";
 import {
   ACCOUNT,
   DASHBOARD,
+  DELETE_ACCOUNT,
   HOME,
   MEASUREMENT,
   NOT_FOUND,
@@ -44,7 +45,12 @@ import type {
   PlanWeek,
   WeekSummary,
 } from "./types/plan";
-import type { PasswordIn, Profile, ProfileIn } from "./types/profile";
+import type {
+  DeleteAccountIn,
+  PasswordIn,
+  Profile,
+  ProfileIn,
+} from "./types/profile";
 import type {
   RecipeCreatedOut,
   RecipeDetail,
@@ -66,6 +72,7 @@ const PATHS = {
   planner: "/planner",
   account: "/account",
   account_password: "/account/password",
+  account_delete: "/account/delete",
   not_found: "*",
 } as const;
 
@@ -245,6 +252,40 @@ async function passwordAction({ request: req }: ActionFunctionArgs) {
     }
 
     return null;
+  });
+}
+
+// DELETE /profile, with the password in a JSON body. 403 and 422 go back to
+// the form and 404 to the boundary, as passwordAction's do. A 204 means the
+// account is gone, so the token is cleared and the person sent home, as
+// signOutAction does -- home rather than sign-in, since there is no account
+// left to sign in to. A 403 leaves the token alone: it is not a session end.
+async function deleteAccountAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const confirmation: DeleteAccountIn = {
+    password: String(form.get("password") ?? ""),
+  };
+
+  return withSession(async () => {
+    try {
+      await authed<void>("/profile", {
+        method: "DELETE",
+        body: JSON.stringify(confirmation),
+      });
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 422)
+      ) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    clearToken();
+
+    return redirect(PATHS.home);
   });
 }
 
@@ -1159,6 +1200,11 @@ const routes = [
                 path: PATHS.account_password,
                 Component: PASSWORD,
                 action: passwordAction,
+              },
+              {
+                path: PATHS.account_delete,
+                Component: DELETE_ACCOUNT,
+                action: deleteAccountAction,
               },
             ],
           },
