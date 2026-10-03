@@ -19,6 +19,7 @@ import {
   HOME,
   MEASUREMENT,
   NOT_FOUND,
+  PASSWORD,
   PLANNER,
   RECIPE_DETAIL,
   RECIPES,
@@ -43,7 +44,7 @@ import type {
   PlanWeek,
   WeekSummary,
 } from "./types/plan";
-import type { Profile, ProfileIn } from "./types/profile";
+import type { PasswordIn, Profile, ProfileIn } from "./types/profile";
 import type {
   RecipeCreatedOut,
   RecipeDetail,
@@ -64,6 +65,7 @@ const PATHS = {
   recipe: "/recipes/:id",
   planner: "/planner",
   account: "/account",
+  account_password: "/account/password",
   not_found: "*",
 } as const;
 
@@ -209,6 +211,39 @@ async function profileAction({ request: req }: ActionFunctionArgs) {
     // Null rather than a redirect: the person stays where they are, and
     // account.tsx reads null as the save that worked, since React Router
     // answers undefined until an action has run.
+    return null;
+  });
+}
+
+// PUT /profile/password answers 204 with no body, which request() returns as
+// undefined. 403 is a wrong current password and 422 a new one under eight
+// characters: both are answered by typing again, so they go back to the form,
+// as profileAction's do. The 404 is the account gone, and goes to the boundary
+// for profileAction's reason. Null on success, which password.tsx confirms.
+async function passwordAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const passwords: PasswordIn = {
+    current_password: String(form.get("current_password") ?? ""),
+    new_password: String(form.get("new_password") ?? ""),
+  };
+
+  return withSession(async () => {
+    try {
+      await authed<void>("/profile/password", {
+        method: "PUT",
+        body: JSON.stringify(passwords),
+      });
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 422)
+      ) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
     return null;
   });
 }
@@ -1119,6 +1154,11 @@ const routes = [
                 Component: ACCOUNT,
                 loader: profileLoader,
                 action: profileAction,
+              },
+              {
+                path: PATHS.account_password,
+                Component: PASSWORD,
+                action: passwordAction,
               },
             ],
           },
