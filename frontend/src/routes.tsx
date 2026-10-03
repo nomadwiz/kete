@@ -157,9 +157,10 @@ function profileLoader(): Promise<Profile> {
 
 // PUT /profile is a full replace and takes no partial update, so all four
 // fields travel whether or not they changed. The current password travels only
-// when typed: the API wants it for a new username or email and nothing else,
-// and an empty string would be refused as a wrong password where an absent one
-// lets a change to the name alone through.
+// when typed, so the form sends nothing the person did not type. Sending an
+// empty one would change nothing: the API checks the password only when the
+// username or email changes, and treats an empty one as it treats an absent
+// one.
 async function profileAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const password = String(form.get("current_password") ?? "");

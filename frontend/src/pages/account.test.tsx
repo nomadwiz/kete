@@ -148,8 +148,9 @@ describe("amending one field", () => {
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
     // Exactly these four, so the blank current password is not sent either:
-    // an empty string would be refused as a wrong password, where an absent
-    // one lets a change to the name alone through.
+    // the form sends nothing the person did not type. Leaving it out changes
+    // nothing the API decides -- it treats an empty password as an absent one,
+    // and asks for one only when the username or email changes.
     expect(put).toBeDefined();
     expect(JSON.parse(String(put?.[1]?.body))).toEqual({
       ...PROFILE_BODY,
