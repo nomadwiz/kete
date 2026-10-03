@@ -81,6 +81,37 @@ describe("the guard on the signed-in layout", () => {
   );
 });
 
+// C31 (nomadwiz/kete#304), the same rule inverted. The exact list of calls is
+// the assertion that the guard asks nothing: /targets and the summary are the
+// dashboard's own, so a guard that checked the token against the API would add
+// a path to the list, or fail on the stub's unlisted-path error.
+describe("the guard on sign in", () => {
+  it("sends a visitor who holds a token to the dashboard without calling the API itself", async () => {
+    signedIn();
+    const { calls } = stubFetch({
+      "/targets": async () => jsonResponse(200, TARGETS_BODY),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+    });
+
+    const { router } = renderAt("/sign-in");
+
+    expect(await screen.findByText("2,480 kcal")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/dashboard");
+    expect(calls).toEqual(["/targets", SUMMARY]);
+  });
+
+  it("shows a visitor with no token the form", async () => {
+    const { calls } = stubFetch({});
+    const { router } = renderAt("/sign-in");
+
+    expect(
+      await screen.findByRole("button", { name: "Sign in" }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("signing out", () => {
   it("disposes the credential rather than ceasing to send it", async () => {
     signedIn();

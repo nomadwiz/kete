@@ -110,6 +110,19 @@ function requireSession() {
   return null;
 }
 
+// requireSession inverted, C31 (nomadwiz/kete#304): a visitor who already holds
+// a token is not shown the sign-in form. Presence is the whole test -- no
+// request, no expiry check. A stale token resolves itself: /dashboard's loader
+// is answered 401, authed() clears the credential, and withSession sends the
+// visitor back here, now with nothing to redirect on.
+function redirectSignedIn() {
+  if (readToken()) {
+    throw redirect(PATHS.dashboard);
+  }
+
+  return null;
+}
+
 // Every loader and action that reaches the API runs its work through this, so
 // an expired token sends the user to sign in rather than to the error boundary
 // without each of them repeating the rule. The redirect lives here rather than
@@ -1028,7 +1041,12 @@ const routes = [
         children: [
           { path: PATHS.home, Component: HOME },
           { path: PATHS.sign_up, Component: SIGN_UP, action: signUpAction },
-          { path: PATHS.sign_in, Component: SIGN_IN, action: signInAction },
+          {
+            path: PATHS.sign_in,
+            Component: SIGN_IN,
+            loader: redirectSignedIn,
+            action: signInAction,
+          },
         ],
       },
       {
