@@ -81,35 +81,47 @@ describe("the guard on the signed-in layout", () => {
   );
 });
 
-// C31 (nomadwiz/kete#304), the same rule inverted. The exact list of calls is
-// the assertion that the guard asks nothing: /targets and the summary are the
-// dashboard's own, so a guard that checked the token against the API would add
-// a path to the list, or fail on the stub's unlisted-path error.
-describe("the guard on sign in", () => {
-  it("sends a visitor who holds a token to the dashboard without calling the API itself", async () => {
-    signedIn();
-    const { calls } = stubFetch({
-      "/targets": async () => jsonResponse(200, TARGETS_BODY),
-      [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
-    });
+// C31 (nomadwiz/kete#304) and C35 (nomadwiz/kete#357), the same rule inverted.
+// The exact list of calls is the assertion that the guard asks nothing:
+// /targets and the summary are the dashboard's own, so a guard that checked the
+// token against the API would add a path to the list, or fail on the stub's
+// unlisted-path error. Each address is paired with its form's submit button.
+const GUARDED_FORMS = [
+  ["/sign-in", "Sign in"],
+  ["/sign-up", "Create an account"],
+];
 
-    const { router } = renderAt("/sign-in");
+describe("the guard on sign in and sign up", () => {
+  it.each(GUARDED_FORMS)(
+    "sends a visitor who holds a token from %s to the dashboard without calling the API itself",
+    async (path) => {
+      signedIn();
+      const { calls } = stubFetch({
+        "/targets": async () => jsonResponse(200, TARGETS_BODY),
+        [SUMMARY]: async () => jsonResponse(200, summaryBody("2026-W39")),
+      });
 
-    expect(await screen.findByText("2,480 kcal")).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/dashboard");
-    expect(calls).toEqual(["/targets", SUMMARY]);
-  });
+      const { router } = renderAt(path);
 
-  it("shows a visitor with no token the form", async () => {
-    const { calls } = stubFetch({});
-    const { router } = renderAt("/sign-in");
+      expect(await screen.findByText("2,480 kcal")).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/dashboard");
+      expect(calls).toEqual(["/targets", SUMMARY]);
+    },
+  );
 
-    expect(
-      await screen.findByRole("button", { name: "Sign in" }),
-    ).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/sign-in");
-    expect(calls).toEqual([]);
-  });
+  it.each(GUARDED_FORMS)(
+    "shows a visitor with no token the form at %s",
+    async (path, button) => {
+      const { calls } = stubFetch({});
+      const { router } = renderAt(path);
+
+      expect(
+        await screen.findByRole("button", { name: button }),
+      ).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(path);
+      expect(calls).toEqual([]);
+    },
+  );
 });
 
 describe("signing out", () => {

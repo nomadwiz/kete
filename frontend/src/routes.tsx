@@ -110,11 +110,15 @@ function requireSession() {
   return null;
 }
 
-// requireSession inverted, C31 (nomadwiz/kete#304): a visitor who already holds
-// a token is not shown the sign-in form. Presence is the whole test -- no
-// request, no expiry check. A stale token resolves itself: /dashboard's loader
-// is answered 401, authed() clears the credential, and withSession sends the
-// visitor back here, now with nothing to redirect on.
+// requireSession inverted, C31 (nomadwiz/kete#304) and C35 (nomadwiz/kete#357):
+// a visitor who already holds a token is shown neither the sign-in nor the
+// sign-up form, so making a second account means signing out first. Sign-up
+// needs it because signUpAction ends on /sign-in?created=1 with no new token,
+// and a visitor still holding the old one would be sent from there to the old
+// dashboard, never seeing that the account was created. Presence is the whole
+// test -- no request, no expiry check. A stale token resolves itself:
+// /dashboard's loader is answered 401, authed() clears the credential, and
+// withSession sends the visitor to /sign-in, now with nothing to redirect on.
 function redirectSignedIn() {
   if (readToken()) {
     throw redirect(PATHS.dashboard);
@@ -1040,7 +1044,12 @@ const routes = [
         Component: PublicLayout,
         children: [
           { path: PATHS.home, Component: HOME },
-          { path: PATHS.sign_up, Component: SIGN_UP, action: signUpAction },
+          {
+            path: PATHS.sign_up,
+            Component: SIGN_UP,
+            loader: redirectSignedIn,
+            action: signUpAction,
+          },
           {
             path: PATHS.sign_in,
             Component: SIGN_IN,
