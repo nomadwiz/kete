@@ -177,12 +177,14 @@ async function profileAction({ request: req }: ActionFunctionArgs) {
         body: JSON.stringify(details),
       });
     } catch (error) {
-      // Two of the four statuses PUT /profile declares, and only those two.
-      // A 409 means the username or email is already somebody else's and a
-      // 422 that a field is malformed: both are answered by typing something
-      // different, so the message goes back to the form the person is still
-      // standing in with what they typed, which the boundary would take the
-      // page and the typed values with it.
+      // Three of the six statuses PUT /profile declares, and only those
+      // three. A 403 means the current password is missing or wrong for a new
+      // username or email, a 409 that the username or email is already
+      // somebody else's, and a 422 that a field is malformed: all three are
+      // answered by typing something different, so the message goes back to
+      // the form the person is still standing in with what they typed, which
+      // the boundary would take the page and the typed values with it. The 403
+      // is not a session end -- only a 401 is, and that one is withSession's.
       //
       // The 404 is not among them. It means the account behind the token no
       // longer exists, which profileLoader sends to the boundary -- returning
@@ -190,7 +192,7 @@ async function profileAction({ request: req }: ActionFunctionArgs) {
       // a validation message and invite another Save that cannot work.
       if (
         error instanceof ApiError &&
-        (error.status === 409 || error.status === 422)
+        (error.status === 403 || error.status === 409 || error.status === 422)
       ) {
         return error.message;
       }
