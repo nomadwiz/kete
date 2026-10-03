@@ -147,10 +147,38 @@ describe("amending one field", () => {
 
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
+    // Exactly these four, so the blank current password is not sent either:
+    // an empty string would be refused as a wrong password, where an absent
+    // one lets a change to the name alone through.
     expect(put).toBeDefined();
     expect(JSON.parse(String(put?.[1]?.body))).toEqual({
       ...PROFILE_BODY,
       username: "aroha-t",
+    });
+  });
+
+  it("sends the current password when one is typed", async () => {
+    signedIn();
+    const { fetchStub } = stubProfile(async () =>
+      jsonResponse(200, { ...PROFILE_BODY, username: "aroha-t" }),
+    );
+
+    renderAt("/account");
+
+    await userEvent.type(
+      await screen.findByLabelText(/Current password/),
+      "kumara-42",
+    );
+    await amendUsername("aroha-t");
+
+    await screen.findByRole("status");
+
+    const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
+
+    expect(JSON.parse(String(put?.[1]?.body))).toEqual({
+      ...PROFILE_BODY,
+      username: "aroha-t",
+      current_password: "kumara-42",
     });
   });
 });

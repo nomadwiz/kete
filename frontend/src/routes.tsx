@@ -43,7 +43,7 @@ import type {
   PlanWeek,
   WeekSummary,
 } from "./types/plan";
-import type { Profile } from "./types/profile";
+import type { Profile, ProfileIn } from "./types/profile";
 import type {
   RecipeCreatedOut,
   RecipeDetail,
@@ -156,14 +156,19 @@ function profileLoader(): Promise<Profile> {
 }
 
 // PUT /profile is a full replace and takes no partial update, so all four
-// fields travel whether or not they changed.
+// fields travel whether or not they changed. The current password travels only
+// when typed: the API wants it for a new username or email and nothing else,
+// and an empty string would be refused as a wrong password where an absent one
+// lets a change to the name alone through.
 async function profileAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
-  const details: Profile = {
+  const password = String(form.get("current_password") ?? "");
+  const details: ProfileIn = {
     first_name: String(form.get("first_name") ?? ""),
     last_name: String(form.get("last_name") ?? ""),
     username: String(form.get("username") ?? ""),
     email: String(form.get("email") ?? ""),
+    ...(password ? { current_password: password } : {}),
   };
 
   return withSession(async () => {
