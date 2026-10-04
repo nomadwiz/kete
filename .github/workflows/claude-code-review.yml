@@ -282,7 +282,7 @@ jobs:
       contents: write # merge a clean pull request
       pull-requests: read # the changed files and the issues it closes
       issues: write # close those issues: GitHub does not, for this merge (S19, #344)
-      actions: write # dispatch the backend deploy after a merge (S17, #339)
+      actions: write # dispatch the backend and client deploys after a merge (S17, #339)
 
     steps:
       - name: Merge what the review found clean
@@ -352,6 +352,12 @@ jobs:
              grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml$)' <<<"$files"; then
             gh workflow run deploy-backend.yml --repo "$REPO" --ref main
             echo "Dispatched deploy-backend.yml on main."
+          fi
+          # The same for the client, against deploy-client.yml's push paths (K9, #195).
+          if [ "$BASE" = main ] &&
+             grep -qE '^(frontend/|backend/openapi\.json$|\.github/workflows/deploy-client\.yml$)' <<<"$files"; then
+            gh workflow run deploy-client.yml --repo "$REPO" --ref main
+            echo "Dispatched deploy-client.yml on main."
           fi
 
           # Last, so a failure here never costs a merge or a deploy. GitHub has not
