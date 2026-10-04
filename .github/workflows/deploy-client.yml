@@ -1,0 +1,141 @@
+# Builds the client and deploys it to the S3 bucket behind its CloudFront
+# distribution on every push to main that touches what the bundle is built
+# from. Lint, tests and the build run first; a failure in any stops the deploy.
+#
+# The bucket is private and CloudFront reaches it through origin access
+# control, so this uploads to the bucket and then clears CloudFront's copies.
+# Answering a deep link such as /recipes/3 with index.html and a 200 is the
+# distribution's setting, made by the cloud lane (K6, #192), not this file's.
+#
+# Repository secrets this needs (Settings -> Secrets and variables -> Actions):
+#   AWS_ACCESS_KEY_ID       access key of the IAM user that deploys the client
+#   AWS_SECRET_ACCESS_KEY   that user's secret access key
+#   CLIENT_BUCKET           the bucket's name, without s3://
+#   CLIENT_DISTRIBUTION_ID  the client distribution's ID, such as E2ABC123DEF456
+# And one repository variable (the Variables tab, not Secrets), because Vite
+# writes it into public JavaScript anyway:
+#   VITE_API_BASE_URL       the API distribution's https:// address, no trailing slash
+#
+# That IAM user may do nothing but s3:ListBucket on the bucket,
+# s3:PutObject and s3:DeleteObject on its objects, and
+# cloudfront:CreateInvalidation on the one distribution.
+
+name: Deploy client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "backend/openapi.json" # the build generates its API types from it (C21, #235)
+      - ".github/workflows/deploy-client.yml"
+  # A pull request runs lint, the tests and the build only, so a change is
+  # known to build before it merges. Only a push to main deploys.
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "backend/openapi.json"
+      - ".github/workflows/deploy-client.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two merges in quick succession deploy one after the other, never interleaved.
+concurrency:
+  group: deploy-client
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      # The whole repository, not frontend/ alone: generate:types, which runs
+      # ahead of test and build, reads ../backend/openapi.json.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+      # Vite writes the address into the bundle when it builds, and nothing can
+      # change it afterwards. An empty one ships a client that calls its own
+      # origin; an http:// one, a client the browser will not let call the API
+      # from an https:// page; a trailing slash, requests to //profile. So a
+      # deploy run stops on any of them. A pull request builds whatever is set.
+      - name: Build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            case "$VITE_API_BASE_URL" in
+              https://*[!/]) ;;
+              *) echo "::error::Set the repository variable VITE_API_BASE_URL to the API's https:// address, with no trailing slash."
+                 exit 1 ;;
+            esac
+          fi
+          npm run build
+
+      # The deploy uploads exactly the bundle that was tested, not a rebuild.
+      - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request'
+        with:
+          name: dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      BUCKET: ${{ secrets.CLIENT_BUCKET }}
+      DISTRIBUTION: ${{ secrets.CLIENT_DISTRIBUTION_ID }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      # Three syncs, in this order, so a visitor mid-deploy never receives an
+      # index.html naming files that are not there yet:
+      #   1. the fingerprinted assets, new names beside the old, cacheable for a
+      #      year because a later build never reuses a name;
+      #   2. everything else, index.html and public/ included, which keep their
+      #      names and so must never be cached hard (frontend/README.md, Serving
+      #      the build), deleting stale files outside assets/ — files a filter
+      #      excludes are excluded from --delete too;
+      #   3. the assets again with --delete, which removes the previous build's.
+      #      It uploads nothing new, but repeats the header in case it does.
+      # The names are stripped of whitespace: a value pasted into GitHub's
+      # secret form easily keeps a trailing newline.
+      - name: Upload to the bucket
+        run: |
+          bucket=$(printf '%s' "$BUCKET" | tr -d '[:space:]')
+          forever="public, max-age=31536000, immutable"
+          aws s3 sync dist/assets "s3://$bucket/assets" --cache-control "$forever"
+          aws s3 sync dist "s3://$bucket" --exclude "assets/*" --cache-control "no-cache" --delete
+          aws s3 sync dist/assets "s3://$bucket/assets" --cache-control "$forever" --delete
+
+      # /* rather than /index.html alone, so favicon.svg, any other public/ file
+      # and any deep link CloudFront answered with index.html are cleared too.
+      # A wildcard counts as one invalidation path, the same as one file.
+      - name: Clear CloudFront's cached copies
+        run: |
+          distribution=$(printf '%s' "$DISTRIBUTION" | tr -d '[:space:]')
+          aws cloudfront create-invalidation --distribution-id "$distribution" --paths "/*" --no-cli-pager
