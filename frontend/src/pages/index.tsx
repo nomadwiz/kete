@@ -1,8 +1,10 @@
 export { default as ACCOUNT } from "./account";
 export { default as DASHBOARD } from "./dashboard";
+export { default as DELETE_ACCOUNT } from "./delete-account";
 export { default as HOME } from "./home";
 export { default as MEASUREMENT } from "./measurement";
 export { default as NOT_FOUND } from "./not-found";
+export { default as PASSWORD } from "./password";
 export { default as PLANNER } from "./planner";
 export { default as RECIPES } from "./recipes";
 export { default as RECIPE_DETAIL } from "./recipe";

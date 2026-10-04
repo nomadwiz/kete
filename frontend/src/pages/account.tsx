@@ -8,6 +8,9 @@ import { PATHS } from "../routes";
 import type { Profile } from "../types/profile";
 import { useWrite } from "../use-write";
 
+const LINK =
+  "text-ink underline decoration-accent decoration-2 underline-offset-4";
+
 export default function Account() {
   // The saved account details. The four controls take them as defaultValue
   // rather than value, so they stay uncontrolled, for the reason
@@ -137,18 +140,28 @@ export default function Account() {
         {/* The measurements are a separate form because they are a separate
             endpoint -- GET /profile answers these four fields and nothing about
             the body -- so this screen points at it rather than drawing it. The
-            link is written in the component body: the page reaches PATHS through
-            a circular import and it is still undefined while this module
-            evaluates. */}
-        <p className="border-t border-rule pt-4 text-sm text-muted-foreground">
-          Your body measurements are kept apart from these details.{" "}
-          <Link
-            className="text-ink underline decoration-accent decoration-2 underline-offset-4"
-            to={PATHS.measurements}
-          >
-            Change your measurements
-          </Link>
-        </p>
+            password and the deletion are separate endpoints too (#316), each
+            with its own screen. The links are written in the component body:
+            the page reaches PATHS through a circular import and it is still
+            undefined while this module evaluates. */}
+        <div className="grid gap-2 border-t border-rule pt-4 text-sm text-muted-foreground">
+          <p>
+            Your body measurements are kept apart from these details.{" "}
+            <Link className={LINK} to={PATHS.measurements}>
+              Change your measurements
+            </Link>
+          </p>
+          <p>
+            <Link className={LINK} to={PATHS.account_password}>
+              Change your password
+            </Link>
+          </p>
+          <p>
+            <Link className={LINK} to={PATHS.account_delete}>
+              Delete your account
+            </Link>
+          </p>
+        </div>
       </div>
     </Screen>
   );

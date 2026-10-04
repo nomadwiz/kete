@@ -148,8 +148,9 @@ describe("amending one field", () => {
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
     // Exactly these four, so the blank current password is not sent either:
-    // an empty string would be refused as a wrong password, where an absent
-    // one lets a change to the name alone through.
+    // the form sends nothing the person did not type. Leaving it out changes
+    // nothing the API decides -- it treats an empty password as an absent one,
+    // and asks for one only when the username or email changes.
     expect(put).toBeDefined();
     expect(JSON.parse(String(put?.[1]?.body))).toEqual({
       ...PROFILE_BODY,
@@ -180,5 +181,26 @@ describe("amending one field", () => {
       username: "aroha-t",
       current_password: "kumara-42",
     });
+  });
+});
+
+// The two screens #316's routes are reached from. Each link is followed rather
+// than its href read, so a route missing from routes.tsx fails here too.
+describe("the links beside the account form", () => {
+  it.each([
+    ["Change your password", "/account/password", "Your password"],
+    ["Delete your account", "/account/delete", "Delete your account"],
+  ])('"%s" goes to %s', async (name, path, heading) => {
+    signedIn();
+    stubProfile(async () => jsonResponse(200, PROFILE_BODY));
+
+    const { router } = renderAt("/account");
+
+    await userEvent.click(await screen.findByRole("link", { name }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: heading }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(path);
   });
 });

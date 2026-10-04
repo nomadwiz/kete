@@ -12,3 +12,10 @@ import type { components } from "./api";
 // only what changed would blank the rest.
 export type Profile = components["schemas"]["ProfileOut"];
 export type ProfileIn = components["schemas"]["ProfileIn"];
+
+// PUT /profile/password's body (#316). The minimum length on new_password is
+// the server's, and password.tsx repeats it as minLength.
+export type PasswordIn = components["schemas"]["PasswordIn"];
+
+// DELETE /profile's body (#316): the password, sent as JSON on a DELETE.
+export type DeleteAccountIn = components["schemas"]["DeleteAccountIn"];

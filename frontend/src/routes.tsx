@@ -16,9 +16,11 @@ import PublicLayout from "./components/public-layout";
 import {
   ACCOUNT,
   DASHBOARD,
+  DELETE_ACCOUNT,
   HOME,
   MEASUREMENT,
   NOT_FOUND,
+  PASSWORD,
   PLANNER,
   RECIPE_DETAIL,
   RECIPES,
@@ -43,7 +45,12 @@ import type {
   PlanWeek,
   WeekSummary,
 } from "./types/plan";
-import type { Profile, ProfileIn } from "./types/profile";
+import type {
+  DeleteAccountIn,
+  PasswordIn,
+  Profile,
+  ProfileIn,
+} from "./types/profile";
 import type {
   RecipeCreatedOut,
   RecipeDetail,
@@ -64,6 +71,8 @@ const PATHS = {
   recipe: "/recipes/:id",
   planner: "/planner",
   account: "/account",
+  account_password: "/account/password",
+  account_delete: "/account/delete",
   not_found: "*",
 } as const;
 
@@ -157,9 +166,10 @@ function profileLoader(): Promise<Profile> {
 
 // PUT /profile is a full replace and takes no partial update, so all four
 // fields travel whether or not they changed. The current password travels only
-// when typed: the API wants it for a new username or email and nothing else,
-// and an empty string would be refused as a wrong password where an absent one
-// lets a change to the name alone through.
+// when typed, so the form sends nothing the person did not type. Sending an
+// empty one would change nothing: the API checks the password only when the
+// username or email changes, and treats an empty one as it treats an absent
+// one.
 async function profileAction({ request: req }: ActionFunctionArgs) {
   const form = await req.formData();
   const password = String(form.get("current_password") ?? "");
@@ -209,6 +219,73 @@ async function profileAction({ request: req }: ActionFunctionArgs) {
     // account.tsx reads null as the save that worked, since React Router
     // answers undefined until an action has run.
     return null;
+  });
+}
+
+// PUT /profile/password answers 204 with no body, which request() returns as
+// undefined. 403 is a wrong current password and 422 a new one under eight
+// characters: both are answered by typing again, so they go back to the form,
+// as profileAction's do. The 404 is the account gone, and goes to the boundary
+// for profileAction's reason. Null on success, which password.tsx confirms.
+async function passwordAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const passwords: PasswordIn = {
+    current_password: String(form.get("current_password") ?? ""),
+    new_password: String(form.get("new_password") ?? ""),
+  };
+
+  return withSession(async () => {
+    try {
+      await authed<void>("/profile/password", {
+        method: "PUT",
+        body: JSON.stringify(passwords),
+      });
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 422)
+      ) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    return null;
+  });
+}
+
+// DELETE /profile, with the password in a JSON body. 403 and 422 go back to
+// the form and 404 to the boundary, as passwordAction's do. A 204 means the
+// account is gone, so the token is cleared and the person sent home, as
+// signOutAction does -- home rather than sign-in, since there is no account
+// left to sign in to. A 403 leaves the token alone: it is not a session end.
+async function deleteAccountAction({ request: req }: ActionFunctionArgs) {
+  const form = await req.formData();
+  const confirmation: DeleteAccountIn = {
+    password: String(form.get("password") ?? ""),
+  };
+
+  return withSession(async () => {
+    try {
+      await authed<void>("/profile", {
+        method: "DELETE",
+        body: JSON.stringify(confirmation),
+      });
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 422)
+      ) {
+        return error.message;
+      }
+
+      throw error;
+    }
+
+    clearToken();
+
+    return redirect(PATHS.home);
   });
 }
 
@@ -1118,6 +1195,16 @@ const routes = [
                 Component: ACCOUNT,
                 loader: profileLoader,
                 action: profileAction,
+              },
+              {
+                path: PATHS.account_password,
+                Component: PASSWORD,
+                action: passwordAction,
+              },
+              {
+                path: PATHS.account_delete,
+                Component: DELETE_ACCOUNT,
+                action: deleteAccountAction,
               },
             ],
           },
