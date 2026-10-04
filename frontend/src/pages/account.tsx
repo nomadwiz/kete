@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Form, Link, useActionData, useLoaderData } from "react-router";
 
 import { Button } from "../components/ui/button";
@@ -37,6 +38,17 @@ export default function Account() {
   // decide separately what a write that worked looks like. The confirmation
   // below is unchanged: this is the screen the others were told to copy.
   const { busy: saving, succeeded } = useWrite("POST");
+
+  // Empty the password once a save has worked, as password.tsx does. Only the
+  // password: reset() would also rewrite the four details from their
+  // defaultValue, and this leaves them exactly as the person sees them.
+  const password = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (succeeded && password.current) {
+      password.current.value = "";
+    }
+  }, [succeeded]);
 
   return (
     <Screen
@@ -120,6 +132,7 @@ export default function Account() {
             label="Current password (only to change your username or email)"
           >
             <input
+              ref={password}
               id="current-password"
               name="current_password"
               autoComplete="current-password"

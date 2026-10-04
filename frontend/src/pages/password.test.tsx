@@ -46,6 +46,48 @@ describe("changing the password", () => {
       new_password: "pikopiko-77",
     });
   });
+
+  // The form is uncontrolled, so without a reset both passwords would sit
+  // under the confirmation, and a second Change would re-send the old current
+  // password and be refused for it.
+  it("empties both password fields after a change that worked", async () => {
+    signedIn();
+    stubFetch({
+      "/profile/password": async () => new Response(null, { status: 204 }),
+    });
+
+    renderAt("/account/password");
+
+    await changePassword();
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Your password is changed.",
+    );
+    expect(screen.getByLabelText("Current password")).toHaveValue("");
+    expect(screen.getByLabelText("New password")).toHaveValue("");
+  });
+
+  // useWrite's `succeeded` is true after each of these, so this is the case
+  // that shows the reset follows every change and not only the first.
+  it("empties them again after a second change in a row", async () => {
+    signedIn();
+    const { fetchStub } = stubFetch({
+      "/profile/password": async () => new Response(null, { status: 204 }),
+    });
+
+    renderAt("/account/password");
+
+    await changePassword();
+    await screen.findByRole("status");
+    await changePassword();
+
+    await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Your password is changed.",
+    );
+    expect(screen.getByLabelText("Current password")).toHaveValue("");
+    expect(screen.getByLabelText("New password")).toHaveValue("");
+  });
 });
 
 // The form's own role="alert", not the text alone: ErrorBoundary prints the
@@ -67,6 +109,23 @@ describe("the password form refused", () => {
       "Current password is incorrect",
     );
     expect(router.state.location.pathname).toBe("/account/password");
+  });
+
+  // The reason the form is uncontrolled: a refusal keeps what was typed.
+  it("keeps both typed passwords after a 403", async () => {
+    signedIn();
+    stubFetch({
+      "/profile/password": async () =>
+        jsonResponse(403, { detail: "Current password is incorrect" }),
+    });
+
+    renderAt("/account/password");
+
+    await changePassword();
+
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Current password")).toHaveValue("kumara-42");
+    expect(screen.getByLabelText("New password")).toHaveValue("pikopiko-77");
   });
 
   it("sends a 404 to the error boundary", async () => {

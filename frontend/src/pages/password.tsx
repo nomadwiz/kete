@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Form, useActionData } from "react-router";
 
 import { Button } from "../components/ui/button";
@@ -12,6 +13,20 @@ export default function Password() {
   const result = useActionData() as string | null | undefined;
   const error = typeof result === "string" ? result : null;
   const { busy: saving, succeeded } = useWrite("POST");
+
+  // Empty both fields once a change has worked, so neither password is left
+  // in the page and a second Change does not re-send the old one. Only then:
+  // a refusal keeps what was typed, which is why the form is uncontrolled.
+  // `succeeded` drops to false while each write is in flight, so this runs
+  // after every change that works, not only the first. Neither input has a
+  // defaultValue, so reset() empties them.
+  const form = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (succeeded) {
+      form.current?.reset();
+    }
+  }, [succeeded]);
 
   return (
     <Screen
@@ -33,7 +48,12 @@ export default function Password() {
 
         {/* One new-password field, not two: sign-up asks once, and this
             screen follows it. */}
-        <Form className="grid gap-6" method="post" aria-busy={saving}>
+        <Form
+          ref={form}
+          className="grid gap-6"
+          method="post"
+          aria-busy={saving}
+        >
           <Field htmlFor="current-password" label="Current password">
             <input
               id="current-password"

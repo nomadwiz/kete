@@ -182,6 +182,46 @@ describe("amending one field", () => {
       current_password: "kumara-42",
     });
   });
+
+  // Only the password is emptied after a save: the other four keep what the
+  // person typed, and no password is left in the page.
+  it("empties the current password after a save that worked", async () => {
+    signedIn();
+    stubProfile(async () =>
+      jsonResponse(200, { ...PROFILE_BODY, username: "aroha-t" }),
+    );
+
+    renderAt("/account");
+
+    await userEvent.type(
+      await screen.findByLabelText(/Current password/),
+      "kumara-42",
+    );
+    await amendUsername("aroha-t");
+
+    await screen.findByRole("status");
+    expect(screen.getByLabelText(/Current password/)).toHaveValue("");
+    expect(screen.getByLabelText("Username")).toHaveValue("aroha-t");
+    expect(screen.getByLabelText("First name")).toHaveValue("Aroha");
+  });
+
+  it("keeps the typed current password after a 403", async () => {
+    signedIn();
+    stubProfile(async () =>
+      jsonResponse(403, { detail: "Current password is incorrect" }),
+    );
+
+    renderAt("/account");
+
+    await userEvent.type(
+      await screen.findByLabelText(/Current password/),
+      "kumara-42",
+    );
+    await amendUsername("aroha-t");
+
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText(/Current password/)).toHaveValue("kumara-42");
+  });
 });
 
 // The two screens #316's routes are reached from. Each link is followed rather
