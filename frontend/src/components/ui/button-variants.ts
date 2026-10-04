@@ -39,8 +39,9 @@ export const buttonVariants = cva(
         // of them on the planner do not make the accent mean nothing.
         secondary:
           "bg-background text-ink border border-border hover:not-disabled:bg-ink hover:not-disabled:text-paper disabled:bg-surface disabled:text-muted-foreground",
-        // The one control that destroys something. Filled, so it is told apart
-        // from secondary by shape and not by hue alone: --color-destructive and
+        // A control that destroys something: the delete on /recipes/:id and
+        // the submit on /account/delete. Filled, so it is told apart from
+        // secondary by shape and not by hue alone: --color-destructive and
         // --color-border measure 1.08:1 against each other.
         destructive:
           "bg-destructive text-paper inset-ring-1 inset-ring-border hover:not-disabled:bg-ink disabled:bg-surface disabled:text-muted-foreground",

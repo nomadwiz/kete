@@ -314,11 +314,12 @@ export default function RecipeDetail() {
                 click sends a second DELETE, which the API answers 404 -- read
                 here as the success it is, so nothing would look wrong, but it
                 is still a request nobody meant to make. */}
-              {/* The one control in the client that destroys something, and the
-                only caller of --kokowai. Colour is not what says so: the
-                confirmation above names the cascade in words, and this button
-                is told from a secondary one by being filled rather than by its
-                hue -- the two measure 1.08:1 against each other. */}
+              {/* One of the two controls in the client that destroy something,
+                and so call --kokowai; the other is the submit on
+                /account/delete. Colour is not what says so: the confirmation
+                above names the cascade in words, and this button is told from
+                a secondary one by being filled rather than by its hue -- the
+                two measure 1.08:1 against each other. */}
               <Button
                 type="submit"
                 variant="destructive"
