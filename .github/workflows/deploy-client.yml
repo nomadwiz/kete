@@ -3,9 +3,10 @@
 # from. Lint, tests and the build run first; a failure in any stops the deploy.
 #
 # The bucket is private and CloudFront reaches it through origin access
-# control, so this uploads to the bucket and then clears CloudFront's copies.
-# Answering a deep link such as /recipes/3 with index.html and a 200 is the
-# distribution's setting, made by the cloud lane (K6, #192), not this file's.
+# control, as ADR 011 decided (nomadwiz/kete-doc, doc/design/decisions/adr/
+# 011-both-tiers-through-cloudfront.md), so this uploads to the bucket and then
+# clears CloudFront's copies. Answering a deep link such as /recipes/3 with
+# index.html and a 200 is the distribution's setting (K6, #192), not this file's.
 #
 # Repository secrets this needs (Settings -> Secrets and variables -> Actions):
 #   AWS_ACCESS_KEY_ID       access key of the IAM user that deploys the client
@@ -42,8 +43,11 @@ permissions:
   contents: read
 
 # Two merges in quick succession deploy one after the other, never interleaved.
+# A group holds one running and one pending run, and a newly queued run cancels
+# the pending one, so a pull request's build-only run waits in a group of its
+# own: in this one it would cancel a merge's waiting deploy.
 concurrency:
-  group: deploy-client
+  group: ${{ github.event_name == 'pull_request' && format('deploy-client-pr-{0}', github.ref) || 'deploy-client' }}
   cancel-in-progress: false
 
 jobs:
