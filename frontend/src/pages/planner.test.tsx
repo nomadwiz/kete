@@ -622,8 +622,7 @@ describe("filling a whole week from the library", () => {
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/generate": async () =>
         jsonResponse(400, {
-          detail:
-            "Add at least one recipe before generating a week",
+          detail: "Add at least one recipe before generating a week",
         }),
     });
 
