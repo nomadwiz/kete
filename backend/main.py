@@ -42,6 +42,7 @@ from security import hash_password, make_token, read_token, verify_password
 app = FastAPI(
     title="Kete API",
     version="0.1.0",
+    servers=[{"url": "https://dcjsfknp8gdzf.cloudfront.net", "description": "Deployed API"}],
     description=(
         "Nutrition-aware meal planner. Record your measurements once, write "
         "your own recipes, arrange them into a week, and see the week's totals "
