@@ -96,11 +96,10 @@ describe("the targets screen", () => {
     expect(screen.queryByText(/^Worked out/)).not.toBeInTheDocument();
   });
 
-  // The note stops before saying how the day's energy is divided, because
-  // MACRO_SPLIT in backend/main.py is uncited -- nomadwiz/kete#251. A digit
-  // appearing here is the defect that check exists to catch: on screen and in
-  // a report screenshot it would read exactly like a sourced figure.
-  it("says where the figures come from without printing a single digit", async () => {
+  // The split is MACRO_SPLIT in backend/main.py (20 / 50 / 30), cited to the
+  // NHMRC's Macronutrient balance page -- nomadwiz/kete#251. The note states
+  // it in words, so this test changes with MACRO_SPLIT.
+  it("states the macronutrient split in plain words", async () => {
     signedIn();
     stubFetch({ "/targets": async () => jsonResponse(200, TARGETS_BODY) });
 
@@ -108,7 +107,12 @@ describe("the targets screen", () => {
 
     const note = await screen.findByText(/^Kete worked these out/);
 
-    expect(note.textContent).not.toMatch(/\d/);
+    expect(note.textContent).toContain(
+      "a fifth of the energy goes to protein, half to carbohydrate and the rest to fat",
+    );
+    expect(note.textContent).toContain(
+      "ranges Australian and New Zealand guidance recommends",
+    );
   });
 
   it("names the missing measurements on a 404, without announcing a failure", async () => {
