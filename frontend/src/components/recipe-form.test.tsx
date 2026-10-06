@@ -107,6 +107,7 @@ describe("the recipe form with no recipe given", () => {
     expect(screen.getByLabelText("Method")).not.toBeRequired();
 
     expect(screen.getByLabelText("Servings")).toHaveAttribute("min", "1");
+    expect(screen.getByLabelText("Servings")).toHaveAttribute("max", "100");
 
     for (const [label, max] of [
       ["Energy (kcal)", "99999"],
