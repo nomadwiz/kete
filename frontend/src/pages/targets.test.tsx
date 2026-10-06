@@ -98,7 +98,8 @@ describe("the targets screen", () => {
 
   // The split is MACRO_SPLIT in backend/main.py (20 / 50 / 30), cited to the
   // NHMRC's Macronutrient balance page -- nomadwiz/kete#251. The note states
-  // it in words, so this test changes with MACRO_SPLIT.
+  // it in words, so the sentence and this test must be changed by hand
+  // whenever MACRO_SPLIT changes; neither follows it automatically.
   it("states the macronutrient split in plain words", async () => {
     signedIn();
     stubFetch({ "/targets": async () => jsonResponse(200, TARGETS_BODY) });
