@@ -270,133 +270,148 @@ export default function Planner() {
           </div>
         ) : null}
 
-        <table className="planner__grid" aria-busy={busy}>
-          {/* The caption is the table's accessible name, given by the element
+        {/* The wrapper scrolls so the table never has to change its display
+          (see the top of this file). An element that scrolls must be
+          focusable or a keyboard cannot move it, hence tabIndex; it is named
+          by the caption it contains, which is also the table's name. */}
+        <div
+          className="planner__scroll"
+          role="region"
+          aria-labelledby="planner-caption"
+          tabIndex={0}
+        >
+          <table className="planner__grid" aria-busy={busy}>
+            {/* The caption is the table's accessible name, given by the element
             rather than by an attribute pointing at it. */}
-          <caption className="planner__caption">
-            Seven days against breakfast, lunch and dinner, for {week}.
-          </caption>
+            <caption id="planner-caption" className="planner__caption">
+              Seven days against breakfast, lunch and dinner, for {week}.
+            </caption>
 
-          <thead>
-            <tr>
-              {/* Empty, and a td rather than a th: it heads neither the row of
+            <thead>
+              <tr>
+                {/* Empty, and a td rather than a th: it heads neither the row of
                 meal names nor the column of days, and a th with nothing in it
                 is announced as a header that has no name. */}
-              <td className="planner__corner" />
-              {MEALS.map((meal) => (
-                <th className="planner__meal" scope="col" key={meal.code}>
-                  {meal.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
+                <td className="planner__corner" />
+                {MEALS.map((meal) => (
+                  <th className="planner__meal" scope="col" key={meal.code}>
+                    {meal.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
 
-          <tbody>
-            {DAYS.map((day, index) => (
-              <tr key={day.code}>
-                <th className="planner__day" scope="row">
-                  {day.name}
-                  <span className="planner__date">
-                    {DAY_DATE.format(dates[index])}
-                  </span>
-                </th>
+            <tbody>
+              {DAYS.map((day, index) => (
+                <tr key={day.code}>
+                  <th className="planner__day" scope="row">
+                    {day.name}
+                    <span className="planner__date">
+                      {DAY_DATE.format(dates[index])}
+                    </span>
+                  </th>
 
-                {MEALS.map((meal) => {
-                  const slot = placed.get(`${day.code}|${meal.code}`);
-                  const position = `${day.name} ${meal.name.toLowerCase()}`;
+                  {MEALS.map((meal) => {
+                    const slot = placed.get(`${day.code}|${meal.code}`);
+                    const position = `${day.name} ${meal.name.toLowerCase()}`;
 
-                  return (
-                    <td className="planner__cell" key={meal.code}>
-                      {slot ? (
-                        <>
-                          <span className="planner__recipe">
-                            {slot.recipe.name}
-                          </span>
+                    return (
+                      <td className="planner__cell" key={meal.code}>
+                        {slot ? (
+                          <>
+                            <span className="planner__recipe">
+                              {slot.recipe.name}
+                            </span>
 
-                          {/* The figure the server computed for one serving of
+                            {/* The figure the server computed for one serving of
                             this recipe, printed as sent. Nothing on this
                             screen adds any of them up: the day's totals
                             against the target are the panel below, from an
                             endpoint that does the arithmetic (ADR 001). */}
-                          <span className="planner__energy">
-                            {slot.recipe.energy_kcal.toLocaleString("en-NZ")}{" "}
-                            kcal
-                          </span>
+                            <span className="planner__energy">
+                              {slot.recipe.energy_kcal.toLocaleString("en-NZ")}{" "}
+                              kcal
+                            </span>
 
-                          <Form method="post">
-                            <input type="hidden" name="intent" value="remove" />
+                            <Form method="post">
+                              <input
+                                type="hidden"
+                                name="intent"
+                                value="remove"
+                              />
+                              <input
+                                type="hidden"
+                                name="slot_id"
+                                value={slot.slot_id}
+                              />
+                              <Button
+                                type="submit"
+                                size="xs"
+                                disabled={busy}
+                                aria-label={`Remove ${slot.recipe.name} from ${position}`}
+                              >
+                                Remove
+                              </Button>
+                            </Form>
+                          </>
+                        ) : library ? (
+                          <Form className="planner__place" method="post">
+                            <input type="hidden" name="intent" value="place" />
+                            <input type="hidden" name="week" value={week} />
                             <input
                               type="hidden"
-                              name="slot_id"
-                              value={slot.slot_id}
+                              name="day_of_week"
+                              value={day.code}
                             />
-                            <Button
-                              type="submit"
-                              size="xs"
-                              disabled={busy}
-                              aria-label={`Remove ${slot.recipe.name} from ${position}`}
-                            >
-                              Remove
-                            </Button>
-                          </Form>
-                        </>
-                      ) : library ? (
-                        <Form className="planner__place" method="post">
-                          <input type="hidden" name="intent" value="place" />
-                          <input type="hidden" name="week" value={week} />
-                          <input
-                            type="hidden"
-                            name="day_of_week"
-                            value={day.code}
-                          />
-                          <input
-                            type="hidden"
-                            name="meal_position"
-                            value={meal.code}
-                          />
+                            <input
+                              type="hidden"
+                              name="meal_position"
+                              value={meal.code}
+                            />
 
-                          {/* Uncontrolled, with no onChange and no submit on
+                            {/* Uncontrolled, with no onChange and no submit on
                             selection: a select that navigates the moment it
                             changes cannot be corrected by anyone reaching it
                             from the keyboard, who passes through every option
                             on the way to the one they want. */}
-                          <select
-                            className="planner__choice"
-                            name="recipe_id"
-                            defaultValue=""
-                            aria-label={`Recipe for ${position}`}
-                            required
-                          >
-                            <option value="">Choose a recipe</option>
-                            {recipes.map((recipe) => (
-                              <option
-                                key={recipe.recipe_id}
-                                value={recipe.recipe_id}
-                              >
-                                {recipe.name}
-                              </option>
-                            ))}
-                          </select>
+                            <select
+                              className="planner__choice"
+                              name="recipe_id"
+                              defaultValue=""
+                              aria-label={`Recipe for ${position}`}
+                              required
+                            >
+                              <option value="">Choose a recipe</option>
+                              {recipes.map((recipe) => (
+                                <option
+                                  key={recipe.recipe_id}
+                                  value={recipe.recipe_id}
+                                >
+                                  {recipe.name}
+                                </option>
+                              ))}
+                            </select>
 
-                          <Button
-                            type="submit"
-                            size="xs"
-                            disabled={busy}
-                            aria-label={`Add a recipe to ${position}`}
-                          >
-                            Add
-                          </Button>
-                        </Form>
-                      ) : (
-                        <span className="planner__vacant">Empty</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                            <Button
+                              type="submit"
+                              size="xs"
+                              disabled={busy}
+                              aria-label={`Add a recipe to ${position}`}
+                            >
+                              Add
+                            </Button>
+                          </Form>
+                        ) : (
+                          <span className="planner__vacant">Empty</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {/* C18 (nomadwiz/kete#182). Under the grid, because it reads the grid:
           each placement revalidates the loader, so the totals redraw with
