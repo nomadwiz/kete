@@ -153,18 +153,21 @@
 }
 
 /* Below the column the seven-by-three weave cannot hold its shape: three cells
-   of a usable width need more than a phone has. The table scrolls sideways
-   inside its own box, which is what the responsive rule asks for -- the table
-   may scroll, the page may not. */
+   of a usable width need more than a phone has. The wrapper scrolls sideways,
+   which is what the responsive rule asks for -- the table may scroll, the page
+   may not. The table keeps its display, because changing it drops the table
+   role. The wrapper is focusable (tabindex is set in the markup) and takes the
+   ring from the unlayered :focus-visible rule in index.css. The table's
+   min-width is the corner plus three cells; without it, width: 100% and
+   table-layout: fixed squeeze the columns instead of overflowing. */
 @media (max-width: 52rem) {
   .planner {
-    .planner__grid {
-      display: block;
+    .planner__scroll {
       overflow-x: auto;
-      /* An element that scrolls is a focus target, so it is reachable by
-         keyboard rather than only by a pointer. tabindex is set in the markup;
-         this is the ring it gets. */
-      min-width: 0;
+    }
+
+    .planner__grid {
+      min-width: 33rem;
     }
 
     .planner__corner {

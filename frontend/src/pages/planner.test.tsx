@@ -77,6 +77,29 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("the grid's scrolling region", () => {
+  it("is a named, focusable region around a table that is still a table", async () => {
+    signedIn();
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, SLOTS),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    // Below 52rem the region scrolls sideways, and an element that scrolls has
+    // to be reachable from the keyboard. jsdom computes no layout, so this
+    // asserts the markup that makes it so; the ring itself is seen in a browser.
+    const region = await screen.findByRole("region", { name: /^Seven days/ });
+
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(
+      within(region).getByRole("table", { name: /^Seven days/ }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("a week with recipes in it", () => {
   it("draws each recipe in its own day and meal, and nowhere else", async () => {
     signedIn();
