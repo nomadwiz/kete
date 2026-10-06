@@ -869,11 +869,15 @@ async function plannerLoader({
 //     above the grid invites another go at something that cannot work.
 //
 //   generate, POST /mealplan/generate
-//     400 "The recipe library is empty. Add at least one recipe before
-//     generating a week." -- the library was there when the loader read it and
-//     is not now, and the sentence names the thing to do about it.
-//     409 "The week changed while it was being generated" -- the double click.
-//     This route declares no 404 at all.
+//     400 "Add at least one recipe before generating a week" -- the library
+//     was there when the loader read it and is not now, and the sentence names
+//     the thing to do about it.
+//     409 "That week changed while it was being generated — try again" -- the
+//     double click -- or "A recipe was deleted while the week was being
+//     generated — try again" -- the other tab. A retry rereads the library.
+//     This route declares no 404: a recipe deleted mid-request is a 409
+//     here (nomadwiz/kete#295), unlike `place`, whose caller named the recipe
+//     and whose retry would fail the same way.
 //
 //   clear, DELETE /mealplan/week/{week}
 //     declares 401 and 422 and nothing else -- no 404, because emptying a week
