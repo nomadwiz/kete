@@ -59,6 +59,8 @@ const PROTECTED = [
   "/recipes/1",
   "/planner",
   "/account",
+  "/account/password",
+  "/account/delete",
 ];
 
 describe("the guard on the signed-in layout", () => {
