@@ -623,7 +623,7 @@ describe("filling a whole week from the library", () => {
       "/mealplan/generate": async () =>
         jsonResponse(400, {
           detail:
-            "The recipe library is empty. Add at least one recipe before generating a week.",
+            "Add at least one recipe before generating a week",
         }),
     });
 
@@ -636,7 +636,7 @@ describe("filling a whole week from the library", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The recipe library is empty.",
+      "Add at least one recipe before generating a week",
     );
     expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
   });
@@ -766,7 +766,7 @@ describe("more of what filling a week answers for", () => {
       "/recipes": async () => jsonResponse(200, LIBRARY),
       "/mealplan/generate": async () =>
         jsonResponse(409, {
-          detail: "The week changed while it was being generated",
+          detail: "That week changed while it was being generated — try again",
         }),
     });
 
@@ -779,7 +779,7 @@ describe("more of what filling a week answers for", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The week changed while it was being generated",
+      "That week changed while it was being generated — try again",
     );
   });
 
