@@ -102,6 +102,7 @@ export default function RecipeForm({
             type="number"
             defaultValue={recipe?.servings ?? ""}
             min="1"
+            max="100"
             step="1"
             required
           />
