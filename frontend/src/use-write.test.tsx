@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider, useFetcher } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -80,6 +80,9 @@ async function saveTheAccount() {
 // to reach, and a person at a keyboard is still the only thing that can say
 // they do.
 describe("focus after a write", () => {
+  // useWrite returns focus in an effect, which runs after the commit the
+  // findBy* above resolved on. Each assertion waits for it rather than racing
+  // it, because a slow runner can get there first.
   // Catches the implementation that disables the button and forgets it: with
   // no restoration this is document.body, and the next Tab starts from the top
   // of the page rather than from the control that was just used.
@@ -97,10 +100,12 @@ describe("focus after a write", () => {
     await saveTheAccount();
 
     expect(await screen.findByRole("status")).toBeInTheDocument();
-    expect(document.activeElement).not.toBe(document.body);
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Save changes" }),
-    );
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Save changes" }),
+      );
+    });
   });
 
   // The same rule on the path where the form stays put for a different reason.
@@ -121,10 +126,12 @@ describe("focus after a write", () => {
 
     await screen.findByRole("alert");
 
-    expect(document.activeElement).not.toBe(document.body);
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Save changes" }),
-    );
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Save changes" }),
+      );
+    });
   });
 
   // The case the naive fix gets wrong, and the reason the hook records a chain
@@ -178,9 +185,13 @@ describe("focus after a write", () => {
       name: "Remove Kumara and lentil soup from Monday breakfast",
     });
 
-    expect(document.activeElement).not.toBe(document.body);
-    expect(document.activeElement?.tagName).toBe("TD");
-    expect(document.activeElement).toHaveTextContent("Kumara and lentil soup");
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement?.tagName).toBe("TD");
+      expect(document.activeElement).toHaveTextContent(
+        "Kumara and lentil soup",
+      );
+    });
   });
 });
 
