@@ -80,9 +80,10 @@ async function saveTheAccount() {
 // to reach, and a person at a keyboard is still the only thing that can say
 // they do.
 describe("focus after a write", () => {
-  // useWrite returns focus in an effect, which runs after the commit the
-  // findBy* above resolved on. Each assertion waits for it rather than racing
+  // useWrite returns focus in an effect, which runs after the commit each
+  // test's findBy* resolved on. Each assertion waits for it rather than racing
   // it, because a slow runner can get there first.
+
   // Catches the implementation that disables the button and forgets it: with
   // no restoration this is document.body, and the next Tab starts from the top
   // of the page rather than from the control that was just used.
