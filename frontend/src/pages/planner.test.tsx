@@ -607,7 +607,7 @@ describe("filling a whole week from the library", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  // POST /mealplan/generate declares 400 and no 404, and the 400's own
+  // POST /mealplan/generate declares 400 and 409 and no 404, and the 400's own
   // sentence names the thing to do about it. The library was there when the
   // loader read it, so this is the second-tab case the 409 above is: the
   // session and the week are both intact and the revalidation repairs the
@@ -781,6 +781,38 @@ describe("more of what filling a week answers for", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The week changed while it was being generated",
     );
+  });
+
+  // A recipe deleted in another tab between the library read and the slot
+  // insert is a 409 here, not a 404: a retry rereads the library and
+  // succeeds (nomadwiz/kete#295). It must not reach the boundary.
+  it("shows the server's own sentence when a recipe was deleted under the request", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, []),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      "/mealplan/generate": async () =>
+        jsonResponse(409, {
+          detail:
+            "A recipe was deleted while the week was being generated — try again",
+        }),
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", {
+        name: "Fill the week from your library",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "A recipe was deleted while the week was being generated",
+    );
+    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
   });
 });
 
