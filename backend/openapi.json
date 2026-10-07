@@ -1484,6 +1484,7 @@
         "properties": {
           "password": {
             "type": "string",
+            "maxLength": 128,
             "title": "Password"
           }
         },
@@ -1566,10 +1567,12 @@
         "properties": {
           "username_or_email": {
             "type": "string",
+            "maxLength": 254,
             "title": "Username Or Email"
           },
           "password": {
             "type": "string",
+            "maxLength": 128,
             "title": "Password"
           }
         },
@@ -1729,10 +1732,12 @@
         "properties": {
           "current_password": {
             "type": "string",
+            "maxLength": 128,
             "title": "Current Password"
           },
           "new_password": {
             "type": "string",
+            "maxLength": 128,
             "minLength": 8,
             "title": "New Password"
           }
@@ -1905,14 +1910,17 @@
         "properties": {
           "first_name": {
             "type": "string",
+            "maxLength": 80,
             "title": "First Name"
           },
           "last_name": {
             "type": "string",
+            "maxLength": 80,
             "title": "Last Name"
           },
           "username": {
             "type": "string",
+            "maxLength": 50,
             "title": "Username"
           },
           "email": {
@@ -1923,7 +1931,8 @@
           "current_password": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 128
               },
               {
                 "type": "null"
@@ -2068,10 +2077,12 @@
           },
           "ingredients": {
             "type": "string",
+            "maxLength": 10000,
             "title": "Ingredients"
           },
           "steps": {
             "type": "string",
+            "maxLength": 10000,
             "title": "Steps"
           },
           "servings": {
@@ -2162,14 +2173,17 @@
         "properties": {
           "first_name": {
             "type": "string",
+            "maxLength": 80,
             "title": "First Name"
           },
           "last_name": {
             "type": "string",
+            "maxLength": 80,
             "title": "Last Name"
           },
           "username": {
             "type": "string",
+            "maxLength": 50,
             "title": "Username"
           },
           "email": {
@@ -2179,6 +2193,7 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 128,
             "minLength": 8,
             "title": "Password"
           }
