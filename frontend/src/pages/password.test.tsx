@@ -32,11 +32,15 @@ describe("changing the password", () => {
 
     renderAt("/account/password");
 
+    const before = await screen.findByRole("status");
+    expect(before).toBeEmptyDOMElement();
+
     await changePassword();
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Your password is changed.",
     );
+    expect(screen.getByRole("status")).toBe(before);
 
     const [, init] = fetchStub.mock.calls[0];
 

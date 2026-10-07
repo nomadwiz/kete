@@ -139,11 +139,14 @@ describe("amending one field", () => {
 
     renderAt("/account");
 
+    const before = await screen.findByRole("status");
+
     await amendUsername("aroha-t");
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Your details are saved.",
     );
+    expect(screen.getByRole("status")).toBe(before);
 
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 

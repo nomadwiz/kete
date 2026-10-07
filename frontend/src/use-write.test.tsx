@@ -240,7 +240,8 @@ describe("what a screen says when a write worked", () => {
     // a hook that reported every idle render as a success would greet every
     // visitor with a sentence about a write they never made.
     await screen.findByLabelText("Recipe for Monday breakfast");
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    const before = screen.getByRole("status");
+    expect(before).toBeEmptyDOMElement();
 
     await user.selectOptions(
       screen.getByLabelText("Recipe for Monday breakfast"),
@@ -253,6 +254,7 @@ describe("what a screen says when a write worked", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Your week is updated: 1 of 21 positions planned.",
     );
+    expect(screen.getByRole("status")).toBe(before);
   });
 
   // Why the hook keys the answer to a location rather than holding a boolean.
@@ -338,6 +340,9 @@ describe("what a screen says when a write worked", () => {
 
     const user = userEvent.setup();
 
+    const before = await screen.findByRole("status");
+    expect(before).toBeEmptyDOMElement();
+
     await user.type(await screen.findByLabelText("Name"), "Soup");
     await user.type(screen.getByLabelText("Servings"), "4");
     await user.type(screen.getByLabelText("Energy (kcal)"), "540");
@@ -349,6 +354,7 @@ describe("what a screen says when a write worked", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Your recipe is saved. It is in the list below.",
     );
+    expect(screen.getByRole("status")).toBe(before);
   });
 
   // The edit form is swapped for the read view in place, under a heading that
@@ -365,13 +371,18 @@ describe("what a screen says when a write worked", () => {
 
     renderAt("/recipes/7?edit");
 
-    await userEvent
-      .setup()
-      .click(await screen.findByRole("button", { name: "Save changes" }));
+    const save = await screen.findByRole("button", { name: "Save changes" });
+    // The edit view also holds the photograph's own region, which comes second.
+    const [before] = screen.getAllByRole("status");
+    expect(before).toBeEmptyDOMElement();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your changes are saved.",
-    );
+    await userEvent.setup().click(save);
+
+    // The same element, not a new one: a region mounted by the render that
+    // fills it is the defect C28 (nomadwiz/kete#285) is about, and the edit
+    // view's swap for the read view is where it would come back.
+    await screen.findByText("Your changes are saved.");
+    expect(screen.getByRole("status")).toBe(before);
   });
 
   // The other write on that route, and it must announce nothing: it lands on a
