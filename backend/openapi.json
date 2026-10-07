@@ -5,6 +5,12 @@
     "description": "Nutrition-aware meal planner. Record your measurements once, write your own recipes, arrange them into a week, and see the week's totals against your computed targets.",
     "version": "0.1.0"
   },
+  "servers": [
+    {
+      "url": "https://dcjsfknp8gdzf.cloudfront.net",
+      "description": "Deployed API"
+    }
+  ],
   "paths": {
     "/register": {
       "post": {

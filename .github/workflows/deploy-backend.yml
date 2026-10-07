@@ -33,8 +33,11 @@ permissions:
   contents: read
 
 # Two merges in quick succession deploy one after the other, never interleaved.
+# A group holds one running and one pending run, and a newly queued run cancels
+# the pending one, so a pull request's test-only run waits in a group of its
+# own: in this one it would cancel a merge's waiting deploy.
 concurrency:
-  group: deploy-backend
+  group: ${{ github.event_name == 'pull_request' && format('deploy-backend-pr-{0}', github.ref) || 'deploy-backend' }}
   cancel-in-progress: false
 
 jobs:

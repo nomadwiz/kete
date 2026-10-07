@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Form, Link, useActionData, useLoaderData } from "react-router";
 
 import { datesOf, isoWeek, shiftWeek } from "../api/week";
@@ -81,6 +82,21 @@ export default function Planner() {
   // by the time the grid has redrawn -- and there is nothing to tell apart
   // that the count does not already say.
   const { busy, succeeded } = useWrite("POST");
+
+  // Clearing a week removes the Clear button, so use-write.ts falls back to the
+  // nearest container still standing, and that is this div, which then holds
+  // only the Fill button. Focus is moved on to that button, which is what a
+  // keyboard user wants next. It lives here and not in use-write.ts because
+  // "the first button inside the fallback" is a guess about every other screen
+  // that nothing tests; this is the one place the fallback is known to be a
+  // wrapper around a single action. C28 (nomadwiz/kete#285).
+  const actions = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (succeeded && document.activeElement === actions.current) {
+      actions.current?.querySelector("button")?.focus();
+    }
+  }, [succeeded]);
 
   // One pass over the answer rather than a scan of it in each of twenty-one
   // cells. The key pairs the two axes because neither identifies a position on
@@ -224,7 +240,7 @@ export default function Planner() {
           calculation, and it is read by everyone who never opens the
           confirmation. */}
         {library ? (
-          <div className="planner__actions">
+          <div className="planner__actions" ref={actions}>
             <Form
               method="post"
               onSubmit={(event) => {

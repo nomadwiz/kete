@@ -741,6 +741,42 @@ describe("clearing a week", () => {
     expect(asked).toContain(WEEK);
     expect(asked).toMatch(/recipes are not touched/);
   });
+
+  // C28 (nomadwiz/kete#285). The Clear button leaves the page with the week it
+  // emptied, so use-write.ts's fallback lands on the nearest container that is
+  // left, which here holds only the Fill button. A keyboard user is better
+  // served by the button itself.
+  it("puts focus on the Fill button once the Clear button has gone", async () => {
+    signedIn();
+    stubConfirm(true);
+
+    let plan: unknown[] = SLOTS;
+
+    stubFetch({
+      [PLAN]: async () => jsonResponse(200, plan),
+      [SUMMARY]: async () => jsonResponse(200, summaryBody(WEEK)),
+      "/recipes": async () => jsonResponse(200, LIBRARY),
+      [`/mealplan/week/${WEEK}`]: async () => {
+        plan = [];
+
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    renderAt(`/planner?week=${WEEK}`);
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Clear the week" }));
+
+    await screen.findByText(/Nothing is planned for this week yet/);
+
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Fill the week from your library" }),
+      ).toHaveFocus(),
+    );
+  });
 });
 
 // The one row of the table this change altered outside its own two branches.
