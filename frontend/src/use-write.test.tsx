@@ -240,7 +240,7 @@ describe("what a screen says when a write worked", () => {
     // a hook that reported every idle render as a success would greet every
     // visitor with a sentence about a write they never made.
     await screen.findByLabelText("Recipe for Monday breakfast");
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
 
     await user.selectOptions(
       screen.getByLabelText("Recipe for Monday breakfast"),
@@ -307,7 +307,7 @@ describe("what a screen says when a write worked", () => {
     await user.click(screen.getByRole("link", { name: "Next week" }));
 
     await screen.findByText(/Nothing is planned for this week yet/);
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   // The screen that cannot work this out for itself. recipesAction answers a
@@ -399,7 +399,7 @@ describe("what a screen says when a write worked", () => {
     expect(
       await screen.findByText(/You have not written a recipe yet/),
     ).toBeVisible();
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });
 

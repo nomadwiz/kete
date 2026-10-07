@@ -59,7 +59,7 @@ describe("the account form", () => {
     // between the null its action returns and the undefined React Router
     // answers until one has run -- so a release that stopped making that
     // distinction would greet every visitor with "Your details are saved."
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   // The one place this screen departs from the two loaders beside it. GET

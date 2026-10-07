@@ -1,3 +1,4 @@
+import { StatusRegion } from "../components/ui/status-region";
 import { useEffect, useRef } from "react";
 import {
   Form,
@@ -122,11 +123,9 @@ export default function Recipes() {
           Written here rather than posted to a region in AppLayout, for the
           reason src/use-write.ts records, and worded as account.tsx words its
           own because that screen is the one this copies. */}
-      {succeeded ? (
-        <p className="recipes__saved" role="status">
-          Your recipe is saved. It is in the list below.
-        </p>
-      ) : null}
+      <StatusRegion plain className="recipes__saved">
+        {succeeded ? "Your recipe is saved. It is in the list below." : null}
+      </StatusRegion>
 
       <div className="recipes__bar">
         {/* A GET Form, so searching is a navigation and the loader answers it.

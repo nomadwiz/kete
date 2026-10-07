@@ -13,6 +13,7 @@ import { buttonVariants } from "../components/ui/button-variants";
 import { Field } from "../components/ui/field";
 import { Figures } from "../components/ui/figures";
 import { Notice } from "../components/ui/notice";
+import { StatusRegion } from "../components/ui/status-region";
 import { Screen } from "../components/ui/screen";
 import { PATHS, QUERY } from "../routes";
 // The component this file default-exports is also called RecipeDetail, and the
@@ -200,11 +201,9 @@ export default function RecipeDetail() {
               is silent. C28 (nomadwiz/kete#285). In the read branch rather
               than above the pair, because it is a claim about the record now
               on screen and the edit form is not showing that record. */}
-            {succeeded ? (
-              <Notice tone="progress" role="status">
-                Your changes are saved.
-              </Notice>
-            ) : null}
+            <StatusRegion>
+              {succeeded ? "Your changes are saved." : null}
+            </StatusRegion>
 
             {/* photo_url is optional and nullable, so the absent case is a state
               this page draws rather than an <img> with nothing to load -- which
@@ -409,11 +408,7 @@ function Photograph({
         </Notice>
       ) : null}
 
-      {succeeded ? (
-        <Notice tone="progress" role="status">
-          Photograph saved.
-        </Notice>
-      ) : null}
+      <StatusRegion>{succeeded ? "Photograph saved." : null}</StatusRegion>
 
       {uploading ? <progress aria-label="Uploading photograph" /> : null}
 

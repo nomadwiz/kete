@@ -4,6 +4,7 @@ import { Form, Link, useActionData, useLoaderData } from "react-router";
 import { Button } from "../components/ui/button";
 import { Field, FieldPair } from "../components/ui/field";
 import { Notice } from "../components/ui/notice";
+import { StatusRegion } from "../components/ui/status-region";
 import { Screen } from "../components/ui/screen";
 import { PATHS } from "../routes";
 import type { Profile } from "../types/profile";
@@ -67,11 +68,9 @@ export default function Account() {
             a change handler and a piece of state on a screen that deliberately
             holds none -- and the fields it sits above are the ones that were
             just saved, so what it says stays true of them. */}
-        {succeeded ? (
-          <Notice tone="progress" role="status">
-            Your details are saved.
-          </Notice>
-        ) : null}
+        <StatusRegion>
+          {succeeded ? "Your details are saved." : null}
+        </StatusRegion>
 
         {/* All four fields are posted whether or not they changed. PUT /profile
             replaces the account rather than patching it, so a form that sent
