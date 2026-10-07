@@ -20,13 +20,7 @@ commit the result in the same pull request, so the diff shows the contract
 change to the reviewer. The running API serves the same document at
 `/openapi.json`.
 
-Known gaps, each tracked as an issue rather than left in this file:
-
-| Gap | Issue |
-| --- | --- |
-| Only the conflict tests exist — none yet for the nutrition engine or cross-user access | B10 (#160), B11 (#164) |
-| `JWT_SECRET` falls back to a published default instead of refusing to start | B9 (#162) |
-| `allow_origins=["*"]` | B8 (#161) |
+Known gaps are tracked as issues on the board, not in this file.
 
 ## Run it
 
@@ -145,9 +139,13 @@ the same 409 rather than a 500.
 `check_db.py` reports what the connection and schema actually look like, and
 `check_s3.py` does the same for the photo bucket.
 
-## Before deploying to EC2
+## Which browsers may call it
 
-Three things, all tracked so none of them lives only here: generate a real
-`JWT_SECRET` and refuse to start without it (B9, #162), replace
-`allow_origins=["*"]` with the client's S3 origin (B8, #161), and run behind
-nginx rather than exposing uvicorn directly (B13, #163).
+`CORS_ORIGINS` in `.env` lists the origins a browser may call the API from,
+comma-separated, scheme included, no trailing slash. Unset, only the local dev
+server is allowed. On the instance it holds the client's CloudFront address.
+It is never `*`, and credentialed requests are not allowed: the client sends
+its token in the `Authorization` header, not in a cookie (B32, #401).
+
+`.github/workflows/deploy-backend.yml` deploys the API to EC2 on every merge to
+`main`, behind nginx, and refuses a commit whose tests fail.

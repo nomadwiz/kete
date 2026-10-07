@@ -6,19 +6,14 @@ Quick connection check. Run this after setting up PostgreSQL:
 It tells you whether the app can reach the database and which tables it found.
 """
 
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, make_url, text
 
 from database import DATABASE_URL, engine
 
-# Hide the password when printing the connection string
-safe = DATABASE_URL
-if "@" in safe and "//" in safe:
-    head, tail = safe.split("//", 1)
-    creds, host = tail.split("@", 1)
-    user = creds.split(":")[0]
-    safe = f"{head}//{user}:****@{host}"
-
-print(f"Connecting to: {safe}\n")
+# The database's name only. The host is a map of the infrastructure, and this
+# output gets pasted into issues, which go public with the repository. B33
+# (#402).
+print(f"Connecting to database: {make_url(DATABASE_URL).database}\n")
 
 try:
     with engine.connect() as conn:

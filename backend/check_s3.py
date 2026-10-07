@@ -28,10 +28,12 @@ def main() -> int:
 
     client = storage._client()
 
-    # Who are we? This fails loudly if the keys are wrong or mistyped.
+    # Are the keys valid? This fails loudly if they are wrong or mistyped. The
+    # identity's ARN is not printed: it carries the AWS account ID, and this
+    # output gets pasted into issues. B33 (#402).
     try:
-        ident = boto3.client("sts", region_name=storage.REGION).get_caller_identity()
-        print(f"IAM    : {ident['Arn']}")
+        boto3.client("sts", region_name=storage.REGION).get_caller_identity()
+        print("IAM    : the access key is valid")
     except Exception as exc:
         print(f"FAIL  the access key is not valid: {exc}")
         return 1
