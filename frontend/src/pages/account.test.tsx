@@ -59,7 +59,7 @@ describe("the account form", () => {
     // between the null its action returns and the undefined React Router
     // answers until one has run -- so a release that stopped making that
     // distinction would greet every visitor with "Your details are saved."
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   // The one place this screen departs from the two loaders beside it. GET
@@ -139,11 +139,12 @@ describe("amending one field", () => {
 
     renderAt("/account");
 
+    const before = await screen.findByRole("status");
+
     await amendUsername("aroha-t");
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your details are saved.",
-    );
+    await screen.findByText("Your details are saved.");
+    expect(screen.getByRole("status")).toBe(before);
 
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
@@ -172,7 +173,7 @@ describe("amending one field", () => {
     );
     await amendUsername("aroha-t");
 
-    await screen.findByRole("status");
+    await screen.findByText("Your details are saved.");
 
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
@@ -199,7 +200,7 @@ describe("amending one field", () => {
     );
     await amendUsername("aroha-t");
 
-    await screen.findByRole("status");
+    await screen.findByText("Your details are saved.");
     expect(screen.getByLabelText(/Current password/)).toHaveValue("");
     expect(screen.getByLabelText("Username")).toHaveValue("aroha-t");
     expect(screen.getByLabelText("First name")).toHaveValue("Aroha");

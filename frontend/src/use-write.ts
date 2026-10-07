@@ -43,7 +43,10 @@ import "./use-write.css";
 // every screen would then have to post a sentence to it from a distance, and
 // the sentence would be maintained far from the change it reports. Per screen
 // is a small region each and no plumbing, and it is the idiom this client
-// already has rather than a new one. What is genuinely shared is the part that
+// already has rather than a new one. The region stays mounted, empty, from the
+// screen's first render and only its text arrives with a write (StatusRegion,
+// C28), because a live region inserted already holding its text is commonly
+// not announced. What is genuinely shared is the part that
 // could otherwise have been decided once per screen -- when a write counts as
 // having succeeded -- and that is what this hook holds.
 //
