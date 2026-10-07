@@ -96,20 +96,24 @@ export default function Targets() {
             the equation is "published" rather than named, and the day's total is
             scaled rather than a TDEE.
 
-            It stops at "divided into" and says nothing about the proportions,
-            which is deliberate. MACRO_SPLIT in backend/main.py carries "TODO:
-            team to confirm the split" and product.md section 6 marks those
-            proportions [CITE], so a figure here would read -- on screen and in
-            a report screenshot -- exactly like a sourced one. The gap is
-            recorded where it can be closed, not here. */}
+            The paragraph states the split in plain words: a fifth of the
+            energy to protein, half to carbohydrate and three-tenths to fat.
+            Those are MACRO_SPLIT in backend/main.py (0.20, 0.50, 0.30), chosen
+            to sit inside the ranges in National Health and Medical Research
+            Council (2021), Macronutrient balance, Eat For Health -- the source
+            is cited beside MACRO_SPLIT and in doc/output/report.md section 5.3
+            in nomadwiz/kete-doc. This copy must change with MACRO_SPLIT, and so must
+            the test that asserts it. nomadwiz/kete#251. */}
         <Band heading="How these are worked out">
           <p className="mt-2 max-w-(--measure) text-sm">
             Kete worked these out from the measurements you saved. A published
             equation turns your weight, height, age and sex into the energy your
             body uses at rest, your activity level scales that up to a whole
             day, and the day's energy is divided into protein, carbohydrate and
-            fat. Save your measurements again whenever they change and all four
-            figures are worked out afresh.
+            fat: a fifth of the energy goes to protein, half to carbohydrate and
+            the rest to fat, which sits within the ranges Australian and New
+            Zealand guidance recommends. Save your measurements again whenever
+            they change and all four figures are worked out afresh.
           </p>
         </Band>
       </div>
