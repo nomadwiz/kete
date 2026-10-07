@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { StatusRegion } from "../components/ui/status-region";
+import { useEffect, useRef, useState } from "react";
 import {
   Form,
   Link,
   useActionData,
   useLoaderData,
+  useLocation,
   useSearchParams,
 } from "react-router";
 
@@ -43,6 +45,15 @@ export default function Recipes() {
   // the address changes but this route element does not unmount, so the hook
   // keeps its state.
   const { busy: saving, succeeded } = useWrite("POST");
+
+  // `succeeded` is true in the render where the redirect lands, while the
+  // modal is still open and the page behind it inert, so a sentence shown from
+  // it would reach a screen reader already populated -- the defect C28
+  // (nomadwiz/kete#285) removes. The sentence waits for the dialog's own
+  // `close` event, which fires once it is shut, and is keyed to the address so
+  // a later write cannot inherit it.
+  const { key } = useLocation();
+  const [toldAt, setToldAt] = useState<string | null>(null);
 
   // The address that opens the modal, built in the component body rather than
   // at module scope: routes.tsx imports this page through the pages barrel and
@@ -93,6 +104,10 @@ export default function Recipes() {
   // the effect above sees the key go. Pushing here would put a second entry
   // on top of it, and Back would reopen the form somebody had just dismissed.
   function closeModal() {
+    if (succeeded) {
+      setToldAt(key);
+    }
+
     if (!searchParams.has(QUERY.new_recipe)) {
       return;
     }
@@ -122,11 +137,11 @@ export default function Recipes() {
           Written here rather than posted to a region in AppLayout, for the
           reason src/use-write.ts records, and worded as account.tsx words its
           own because that screen is the one this copies. */}
-      {succeeded ? (
-        <p className="recipes__saved" role="status">
-          Your recipe is saved. It is in the list below.
-        </p>
-      ) : null}
+      <StatusRegion plain className="recipes__saved">
+        {succeeded && toldAt === key
+          ? "Your recipe is saved. It is in the list below."
+          : null}
+      </StatusRegion>
 
       <div className="recipes__bar">
         {/* A GET Form, so searching is a navigation and the loader answers it.

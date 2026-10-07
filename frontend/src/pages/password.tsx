@@ -4,6 +4,7 @@ import { Form, useActionData } from "react-router";
 import { Button } from "../components/ui/button";
 import { Field } from "../components/ui/field";
 import { Notice } from "../components/ui/notice";
+import { StatusRegion } from "../components/ui/status-region";
 import { Screen } from "../components/ui/screen";
 import { useWrite } from "../use-write";
 
@@ -40,11 +41,9 @@ export default function Password() {
           </Notice>
         ) : null}
 
-        {succeeded ? (
-          <Notice tone="progress" role="status">
-            Your password is changed.
-          </Notice>
-        ) : null}
+        <StatusRegion>
+          {succeeded ? "Your password is changed." : null}
+        </StatusRegion>
 
         {/* One new-password field, not two: sign-up asks once, and this
             screen follows it. */}

@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { Comparison } from "../components/ui/comparison";
 import { NoMeasurements } from "../components/ui/no-measurements";
 import { Notice } from "../components/ui/notice";
+import { StatusRegion } from "../components/ui/status-region";
 import { Band, Screen } from "../components/ui/screen";
 import { PATHS, QUERY } from "../routes";
 import type { DayOfWeek, MealPosition, PlanWeek } from "../types/plan";
@@ -201,12 +202,11 @@ export default function Planner() {
           rather than what the action was asked to do, and the total is
           computed from the two lists above rather than typed as 21 -- a meal
           added to MEALS would otherwise make this sentence quietly wrong. */}
-        {succeeded ? (
-          <Notice tone="progress" role="status">
-            Your week is updated: {slots.length} of {DAYS.length * MEALS.length}{" "}
-            positions planned.
-          </Notice>
-        ) : null}
+        <StatusRegion>
+          {succeeded
+            ? `Your week is updated: ${slots.length} of ${DAYS.length * MEALS.length} positions planned.`
+            : null}
+        </StatusRegion>
 
         {/* Two different empty states, because they want two different answers.
           A week with nothing in it is ordinary and is simply said; a library

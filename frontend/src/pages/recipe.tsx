@@ -13,6 +13,7 @@ import { buttonVariants } from "../components/ui/button-variants";
 import { Field } from "../components/ui/field";
 import { Figures } from "../components/ui/figures";
 import { Notice } from "../components/ui/notice";
+import { StatusRegion } from "../components/ui/status-region";
 import { Screen } from "../components/ui/screen";
 import { PATHS, QUERY } from "../routes";
 // The component this file default-exports is also called RecipeDetail, and the
@@ -155,6 +156,15 @@ export default function RecipeDetail() {
       lede={recipe.cuisine || undefined}
     >
       <div className="recipe">
+        {/* Above the edit-or-read choice, not inside the read branch: a save
+          drops `?edit`, so a region inside that branch would be mounted by the
+          very render that fills it, which is the defect C28 (nomadwiz/kete#285)
+          exists to remove. It says nothing while the edit form is showing,
+          because the sentence is a claim about the record the read view draws. */}
+        <StatusRegion>
+          {!editing && succeeded ? "Your changes are saved." : null}
+        </StatusRegion>
+
         {editing ? (
           <>
             {/* Mounted only while the address says so, and that is what empties
@@ -195,17 +205,6 @@ export default function RecipeDetail() {
           </>
         ) : (
           <>
-            {/* The edit form is replaced by the read view, in place, with the
-              heading unchanged -- so to anyone not watching the page the save
-              is silent. C28 (nomadwiz/kete#285). In the read branch rather
-              than above the pair, because it is a claim about the record now
-              on screen and the edit form is not showing that record. */}
-            {succeeded ? (
-              <Notice tone="progress" role="status">
-                Your changes are saved.
-              </Notice>
-            ) : null}
-
             {/* photo_url is optional and nullable, so the absent case is a state
               this page draws rather than an <img> with nothing to load -- which
               renders as a broken-image glyph in every browser. It is also a
@@ -409,11 +408,7 @@ function Photograph({
         </Notice>
       ) : null}
 
-      {succeeded ? (
-        <Notice tone="progress" role="status">
-          Photograph saved.
-        </Notice>
-      ) : null}
+      <StatusRegion>{succeeded ? "Photograph saved." : null}</StatusRegion>
 
       {uploading ? <progress aria-label="Uploading photograph" /> : null}
 

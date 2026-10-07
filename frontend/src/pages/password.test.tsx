@@ -32,11 +32,13 @@ describe("changing the password", () => {
 
     renderAt("/account/password");
 
+    const before = await screen.findByRole("status");
+    expect(before).toBeEmptyDOMElement();
+
     await changePassword();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your password is changed.",
-    );
+    await screen.findByText("Your password is changed.");
+    expect(screen.getByRole("status")).toBe(before);
 
     const [, init] = fetchStub.mock.calls[0];
 
@@ -60,9 +62,7 @@ describe("changing the password", () => {
 
     await changePassword();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your password is changed.",
-    );
+    await screen.findByText("Your password is changed.");
     expect(screen.getByLabelText("Current password")).toHaveValue("");
     expect(screen.getByLabelText("New password")).toHaveValue("");
   });
@@ -78,13 +78,11 @@ describe("changing the password", () => {
     renderAt("/account/password");
 
     await changePassword();
-    await screen.findByRole("status");
+    await screen.findByText("Your password is changed.");
     await changePassword();
 
     await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledTimes(2));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your password is changed.",
-    );
+    await screen.findByText("Your password is changed.");
     expect(screen.getByLabelText("Current password")).toHaveValue("");
     expect(screen.getByLabelText("New password")).toHaveValue("");
   });
