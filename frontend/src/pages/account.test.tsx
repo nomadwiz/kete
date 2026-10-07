@@ -143,9 +143,7 @@ describe("amending one field", () => {
 
     await amendUsername("aroha-t");
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your details are saved.",
-    );
+    await screen.findByText("Your details are saved.");
     expect(screen.getByRole("status")).toBe(before);
 
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
@@ -175,7 +173,7 @@ describe("amending one field", () => {
     );
     await amendUsername("aroha-t");
 
-    await screen.findByRole("status");
+    await screen.findByText("Your details are saved.");
 
     const put = fetchStub.mock.calls.find(([, init]) => init?.method === "PUT");
 
@@ -202,7 +200,7 @@ describe("amending one field", () => {
     );
     await amendUsername("aroha-t");
 
-    await screen.findByRole("status");
+    await screen.findByText("Your details are saved.");
     expect(screen.getByLabelText(/Current password/)).toHaveValue("");
     expect(screen.getByLabelText("Username")).toHaveValue("aroha-t");
     expect(screen.getByLabelText("First name")).toHaveValue("Aroha");

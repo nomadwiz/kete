@@ -251,9 +251,7 @@ describe("what a screen says when a write worked", () => {
       screen.getByRole("button", { name: "Add a recipe to Monday breakfast" }),
     );
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your week is updated: 1 of 21 positions planned.",
-    );
+    await screen.findByText("Your week is updated: 1 of 21 positions planned.");
     expect(screen.getByRole("status")).toBe(before);
   });
 
@@ -304,7 +302,7 @@ describe("what a screen says when a write worked", () => {
       screen.getByRole("button", { name: "Add a recipe to Monday breakfast" }),
     );
 
-    await screen.findByRole("status");
+    await screen.findByText("Your week is updated: 1 of 21 positions planned.");
 
     await user.click(screen.getByRole("link", { name: "Next week" }));
 
@@ -343,6 +341,19 @@ describe("what a screen says when a write worked", () => {
     const before = await screen.findByRole("status");
     expect(before).toBeEmptyDOMElement();
 
+    // The page is inert while the modal is open, so a sentence committed
+    // before close() runs would reach a screen reader already populated. jsdom
+    // has no inertness to model, so this records what the region held at the
+    // moment the dialog was closed, which is the nearest thing it can say.
+    const heldAtClose: string[] = [];
+    const close = HTMLDialogElement.prototype.close;
+    vi.spyOn(HTMLDialogElement.prototype, "close").mockImplementation(function (
+      this: HTMLDialogElement,
+    ) {
+      heldAtClose.push(before.textContent ?? "");
+      close.call(this);
+    });
+
     await user.type(await screen.findByLabelText("Name"), "Soup");
     await user.type(screen.getByLabelText("Servings"), "4");
     await user.type(screen.getByLabelText("Energy (kcal)"), "540");
@@ -351,10 +362,10 @@ describe("what a screen says when a write worked", () => {
     await user.type(screen.getByLabelText("Fat (g)"), "16");
     await user.click(screen.getByRole("button", { name: "Save recipe" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your recipe is saved. It is in the list below.",
-    );
-    expect(screen.getByRole("status")).toBe(before);
+    expect(
+      await screen.findByText("Your recipe is saved. It is in the list below."),
+    ).toBe(before);
+    expect(heldAtClose).toEqual([""]);
   });
 
   // The edit form is swapped for the read view in place, under a heading that
