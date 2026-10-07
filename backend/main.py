@@ -618,9 +618,12 @@ def delete_account(body: DeleteAccountIn,
                    db: Session = Depends(get_db)):
     """Delete the account and everything in it, given the password.
 
-    One row goes and the database takes the rest: profiles, nutrition_targets,
-    recipes and plan_slots all reference users ON DELETE CASCADE. That is the
-    cascading deletion section 7.2 describes, and this is its only caller.
+    The ORM deletes the children, not the database. Every relationship on
+    User is cascade="all, delete-orphan", so db.delete(user) loads the
+    profile, the target, the recipes and the plan slots and deletes each
+    before the user row goes. The schema's ON DELETE CASCADE stands behind it
+    for a delete made in SQL, but this path never reaches it. That is what
+    section 7.2 and ADR 010 describe, and this is the only caller.
 
     Photographs are the exception. They live in S3, which no foreign key
     reaches, so their keys are read first and each object is removed once the
@@ -905,7 +908,8 @@ def update_recipe(recipe_id: int, body: RecipeIn,
             responses={**AUTH, **NO_RECIPE})
 def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
-    """Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE)."""
+    """Delete a recipe. Any meal-plan slots using it go too, deleted by the ORM
+    through Recipe.plan_slots's cascade, as delete_account's children are."""
     recipe = _owned_recipe(db, recipe_id, user_id)
     key = recipe.photo_url              # remember it before the row disappears
     db.delete(recipe)
