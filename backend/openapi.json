@@ -51,6 +51,16 @@
               }
             }
           },
+          "429": {
+            "description": "Too many attempts from this address; wait a minute",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -95,6 +105,16 @@
           },
           "401": {
             "description": "Incorrect username or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts from this address; wait a minute",
             "content": {
               "application/json": {
                 "schema": {
