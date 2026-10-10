@@ -159,12 +159,23 @@ WEEK_DESCRIPTION = (
 )
 
 
+# Each cap matches its column in models.py, so an over-long value is a 422 here
+# rather than a 500 when the database refuses it. EmailStr needs none: it
+# refuses an address over 254 characters, inside the 255 of users.email. A
+# password is hashed, never stored, so its cap is not a column's: it bounds the
+# PBKDF2 work one request can ask for. B31 (#400).
+NAME_MAX = 80           # users.first_name, users.last_name: String(80)
+USERNAME_MAX = 50       # users.username: String(50)
+PASSWORD_MAX = 128
+RECIPE_TEXT_MAX = 10_000    # recipes.ingredients, recipes.steps: Text
+
+
 class RegisterIn(BaseModel):
-    first_name: str
-    last_name: str
-    username: str
+    first_name: str = Field(max_length=NAME_MAX)
+    last_name: str = Field(max_length=NAME_MAX)
+    username: str = Field(max_length=USERNAME_MAX)
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=8, max_length=PASSWORD_MAX)
 
 
 class RegisterOut(BaseModel):
@@ -172,8 +183,9 @@ class RegisterOut(BaseModel):
 
 
 class LoginIn(BaseModel):
-    username_or_email: str
-    password: str
+    # The longest thing it can match is an email, which EmailStr caps at 254.
+    username_or_email: str = Field(max_length=254)
+    password: str = Field(max_length=PASSWORD_MAX)
 
 
 class LoginOut(BaseModel):
@@ -189,24 +201,25 @@ class ProfileOut(BaseModel):
 
 
 class ProfileIn(BaseModel):
-    first_name: str
-    last_name: str
-    username: str
+    first_name: str = Field(max_length=NAME_MAX)
+    last_name: str = Field(max_length=NAME_MAX)
+    username: str = Field(max_length=USERNAME_MAX)
     email: EmailStr
     current_password: Optional[str] = Field(
-        default=None,
+        default=None, max_length=PASSWORD_MAX,
         description="Required when username or email changes, since either is "
                     "what the account signs in with. Not needed to change "
                     "only the name.")
 
 
 class PasswordIn(BaseModel):
-    current_password: str
-    new_password: str = Field(min_length=8)     # the rule register applies
+    current_password: str = Field(max_length=PASSWORD_MAX)
+    # The rule register applies.
+    new_password: str = Field(min_length=8, max_length=PASSWORD_MAX)
 
 
 class DeleteAccountIn(BaseModel):
-    password: str
+    password: str = Field(max_length=PASSWORD_MAX)
 
 
 class MetricsIn(BaseModel):
@@ -253,8 +266,8 @@ class RecipeDetail(RecipeSummary):
 class RecipeIn(BaseModel):
     name: str = Field(min_length=1, max_length=150)
     cuisine: str = Field(max_length=60)
-    ingredients: str
-    steps: str
+    ingredients: str = Field(max_length=RECIPE_TEXT_MAX)
+    steps: str = Field(max_length=RECIPE_TEXT_MAX)
     # gt=0 matches ck_recipe_servings. le=100 is a human bound, chosen well
     # inside the 32-bit column: unbounded, 2147483648 overflowed it as a 500.
     servings: int = Field(gt=0, le=100)
