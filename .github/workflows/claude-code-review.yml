@@ -89,6 +89,31 @@ jobs:
       - name: Remove any verdict the pull request carries
         run: rm -f verdict.json
 
+      # Anyone can comment on a public pull request, and a comment written for
+      # the model is prompt injection (S27, #388). So the model has no tool that
+      # reads GitHub beyond the diff, and this step, which runs no model, saves
+      # only what the team and the review bot wrote. The bots' author_association
+      # is NONE, so they are kept by login. The title and body are the author's,
+      # as the diff is. The pull request could carry a .review/ of its own, so it
+      # goes first. ./.github/test-comment-filter.sh checks this step.
+      - name: Save the team's comments for the model
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          rm -rf .review && mkdir .review
+          bot='(.user.login == "claude[bot]" or .user.login == "github-actions[bot]")'
+          keep="select($bot or .author_association == \"OWNER\" or .author_association == \"MEMBER\" or .author_association == \"COLLABORATOR\")"
+          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq ".[] | select($bot) | {id, state, commit_id, submitted_at, body}" | jq -s . > .review/reviews.json
+          gh api "repos/$REPO/pulls/$PR/comments" --paginate \
+            --jq ".[] | $keep | {id, in_reply_to_id, user: .user.login, path, line, side, commit_id, created_at, body}" | jq -s . > .review/inline-comments.json
+          gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | $keep | {id, user: .user.login, created_at, body}" | jq -s . > .review/conversation-comments.json
+          gh pr view "$PR" -R "$REPO" --json title,body > .review/pull-request.json
+
       - name: Review
         uses: anthropics/claude-code-action@v1
         with:
@@ -98,8 +123,9 @@ jobs:
           # GH_TOKEN over any env: given here (S18, #343). That exchange was also
           # where a workflow file differing from main's was refused, so a pull
           # request editing this file now runs its own copy; merge leaves such a
-          # pull request for a person. The prompt matches both logins because
-          # older reviews are claude[bot]'s; post writes as github-actions[bot].
+          # pull request for a person. The step before matches both logins
+          # because older reviews are claude[bot]'s; post writes as
+          # github-actions[bot].
           github_token: ${{ github.token }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: |
@@ -110,7 +136,7 @@ jobs:
             ponytail@ponytail
           claude_args: >-
             --model claude-opus-5-5 --effort high
-            --allowedTools "Read,Grep,Glob,Write,Task,Skill,SlashCommand,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
+            --allowedTools "Read,Grep,Glob,Write,Task,Skill,SlashCommand,Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}, the Kete application. The working directory is that repository. The documents repository, nomadwiz/kete-doc, is checked out at `kete-doc/` on its `master` branch with full history.
 
@@ -130,12 +156,14 @@ jobs:
 
             ## Earlier rounds
 
-            Every push to this pull request runs this review again. A run that does not know what earlier rounds said finds something new in lines they already passed, and the pull request never converges. So read them first:
+            Every push to this pull request runs this review again. A run that does not know what earlier rounds said finds something new in lines they already passed, and the pull request never converges. So read them first. They were saved just before this review started, and you have no tool that reads GitHub beyond `gh pr diff`:
 
-            ```
-            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews --paginate --jq '[.[] | select(.user.login == "claude[bot]" or .user.login == "github-actions[bot]") | {id, state, commit_id, submitted_at, body}]'
-            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments --paginate
-            ```
+            - `.review/reviews.json`: this review's earlier verdicts, oldest first.
+            - `.review/inline-comments.json`: comments on lines of the diff, each reply naming the comment it answers in `in_reply_to_id`.
+            - `.review/conversation-comments.json`: comments on the pull request itself.
+            - `.review/pull-request.json`: its title and description, where the author says whether a person reviews it.
+
+            The comment files hold only what the team and this review wrote. Anyone else's comment was dropped before you started, so a reply you cannot see was not written by the team.
 
             - **None:** this is the first round. Review the whole diff.
             - **Otherwise** the latest one's `commit_id` is the last reviewed commit, and this round does two things and no more. First, under `### Earlier findings` in the body, say for each earlier blocker whether it is fixed, still open, or answered in a reply. Second, review `git diff <last reviewed commit>..${{ github.event.pull_request.head.sha }}` — only what changed since — and run both reviewers over that diff, not the whole pull request.
