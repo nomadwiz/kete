@@ -54,7 +54,7 @@ jobs:
 
     steps:
       - name: Check out the application
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # the reviewer reads history; depth 1 has none
 
@@ -62,7 +62,7 @@ jobs:
       # this repository, and several documents assert SHAs in it, so the documents
       # come with their full history too.
       - name: Check out the documents
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: nomadwiz/kete-doc
           ref: master # kete-doc's default branch is master, not main
@@ -73,15 +73,22 @@ jobs:
           # Nothing after this runs a git command that needs to authenticate.
           persist-credentials: false
 
-      # The agent-skills plugin's manifest names a github source, and the plugin
-      # installer clones that over SSH, which a runner has no key for. Ponytail is
-      # unaffected: its manifest declares source "./", so it installs from the
-      # marketplace clone already on disk and never fetches again. The rewrite is
-      # safe because the clone is anonymous and the repository is public — the
-      # extraheader actions/checkout leaves behind is per-repository and does not
-      # reach the plugin cache.
-      - name: Let the plugin installer clone over HTTPS
-        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      # Each plugin is checked out at a fixed commit, so a push to either
+      # repository changes nothing here until this file does (S29, #390). The
+      # action's marketplace input takes a URL with no ref or a local path, so it
+      # gets the path. agent-skills' marketplace entry names a github source,
+      # which the installer would fetch from its default branch, so the entry is
+      # pointed at this checkout, as ponytail's already is. Nothing fetches over
+      # SSH any more. ./.github/test-pins.sh checks this step.
+      - name: Check out the review plugins at fixed commits
+        run: |
+          set -euo pipefail
+          git clone -q https://github.com/addyosmani/agent-skills.git "$RUNNER_TEMP/agent-skills"
+          git -C "$RUNNER_TEMP/agent-skills" checkout -q 1401c8b8030e023baeebb31781a6653fe8e93026
+          git clone -q https://github.com/DietrichGebert/ponytail.git "$RUNNER_TEMP/ponytail"
+          git -C "$RUNNER_TEMP/ponytail" checkout -q 9b58c1ffb790c075ca32e70a89cf1d80588f4abf
+          m="$RUNNER_TEMP/agent-skills/.claude-plugin/marketplace.json"
+          jq '(.plugins[] | select(.name == "agent-skills")).source = "./"' "$m" > "$m.new" && mv "$m.new" "$m"
 
       # The pull request is checked out here, so it could carry a verdict.json of
       # its own. Removed before the model starts, so the file handed on is one
@@ -117,7 +124,7 @@ jobs:
           gh pr view "$PR" -R "$REPO" --json title,body > .review/pull-request.json
 
       - name: Review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1
         with:
           # Claude acts with this job's read-only token. Without this input the
           # action exchanges for the Claude app's token, which carries
@@ -131,8 +138,8 @@ jobs:
           github_token: ${{ github.token }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: |
-            https://github.com/addyosmani/agent-skills.git
-            https://github.com/DietrichGebert/ponytail.git
+            ${{ runner.temp }}/agent-skills
+            ${{ runner.temp }}/ponytail
           plugins: |
             agent-skills@addy-agent-skills
             ponytail@ponytail
@@ -227,7 +234,7 @@ jobs:
       # request sat unblocked with findings scattered over it; a missing file now
       # fails here, and post is skipped.
       - name: Hand the verdict to the next job
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: verdict
           path: verdict.json
@@ -246,7 +253,7 @@ jobs:
       clean: ${{ steps.post.outputs.clean }}
 
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: verdict
 
