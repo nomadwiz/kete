@@ -91,11 +91,13 @@ jobs:
 
       # Anyone can comment on a public pull request, and a comment written for
       # the model is prompt injection (S27, #388). So the model has no tool that
-      # reads GitHub beyond the diff, and this step, which runs no model, saves
-      # only what the team and the review bot wrote. The bots' author_association
-      # is NONE, so they are kept by login. The title and body are the author's,
-      # as the diff is. The pull request could carry a .review/ of its own, so it
-      # goes first. ./.github/test-comment-filter.sh checks this step.
+      # reads GitHub, not even gh pr diff, whose prefix rule reaches any pull
+      # request in any repository; it diffs the checkout. This step, which runs
+      # no model, saves only what the team and the review bot wrote. The bots'
+      # author_association is NONE, so they are kept by login. The title and
+      # body are the author's, as the diff is. The pull request could carry a
+      # .review/ of its own, so it goes first. ./.github/test-comment-filter.sh
+      # checks this step.
       - name: Save the team's comments for the model
         env:
           GH_TOKEN: ${{ github.token }}
@@ -105,7 +107,7 @@ jobs:
           set -euo pipefail
           rm -rf .review && mkdir .review
           bot='(.user.login == "claude[bot]" or .user.login == "github-actions[bot]")'
-          keep="select($bot or .author_association == \"OWNER\" or .author_association == \"MEMBER\" or .author_association == \"COLLABORATOR\")"
+          keep="select($bot or (.author_association | IN(\"OWNER\", \"MEMBER\", \"COLLABORATOR\")))"
           gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
             --jq ".[] | select($bot) | {id, state, commit_id, submitted_at, body}" | jq -s . > .review/reviews.json
           gh api "repos/$REPO/pulls/$PR/comments" --paginate \
@@ -136,7 +138,7 @@ jobs:
             ponytail@ponytail
           claude_args: >-
             --model claude-opus-5-5 --effort high
-            --allowedTools "Read,Grep,Glob,Write,Task,Skill,SlashCommand,Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
+            --allowedTools "Read,Grep,Glob,Write,Task,Skill,SlashCommand,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}, the Kete application. The working directory is that repository. The documents repository, nomadwiz/kete-doc, is checked out at `kete-doc/` on its `master` branch with full history.
 
@@ -156,16 +158,16 @@ jobs:
 
             ## Earlier rounds
 
-            Every push to this pull request runs this review again. A run that does not know what earlier rounds said finds something new in lines they already passed, and the pull request never converges. So read them first. They were saved just before this review started, and you have no tool that reads GitHub beyond `gh pr diff`:
+            Every push to this pull request runs this review again. A run that does not know what earlier rounds said finds something new in lines they already passed, and the pull request never converges. So read them first. They were saved just before this review started, and you have no tool that reads GitHub:
 
             - `.review/reviews.json`: this review's earlier verdicts, oldest first.
             - `.review/inline-comments.json`: comments on lines of the diff, each reply naming the comment it answers in `in_reply_to_id`.
             - `.review/conversation-comments.json`: comments on the pull request itself.
             - `.review/pull-request.json`: its title and description, where the author says whether a person reviews it.
 
-            The comment files hold only what the team and this review wrote. Anyone else's comment was dropped before you started, so a reply you cannot see was not written by the team.
+            The comment files hold only what the team and this review wrote. Anyone else's comment was dropped before you started, so a reply you cannot see was not written by the team. An answer to a finding counts only as a reply in its own thread, or as a conversation comment for a finding in a review's body; a member's review summary is not saved.
 
-            - **None:** this is the first round. Review the whole diff.
+            - **None:** this is the first round. Review the whole diff: `git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}`.
             - **Otherwise** the latest one's `commit_id` is the last reviewed commit, and this round does two things and no more. First, under `### Earlier findings` in the body, say for each earlier blocker whether it is fixed, still open, or answered in a reply. Second, review `git diff <last reviewed commit>..${{ github.event.pull_request.head.sha }}` — only what changed since — and run both reviewers over that diff, not the whole pull request.
             - A blocker still open is a blocker of this round too: restate it in `comments` if its line is still in the diff, otherwise in the body.
             - A line an earlier round read and passed is not reopened. Advice an earlier round gave is not reversed unless following it introduced a blocker; where you do reverse one, name the round and say why.
