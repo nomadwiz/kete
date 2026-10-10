@@ -14,7 +14,8 @@ Mifflin-St Jeor equation and the activity factors a second time.
 Run it from this folder, where .env names the database. It prints user ids and
 target figures only, never the body metrics behind them: profiles is the most
 sensitive table in the system, and this output is pasted into the issue as the
-record of the run.
+record of the run. For the same reason it names the database but not its host.
+B33 (#402).
 """
 
 import sys
@@ -101,9 +102,9 @@ def main(argv: list[str]) -> int:
         return 2
     apply = argv == ["--apply"]
 
-    url = make_url(DATABASE_URL)
     print(f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC, "
-          f"{url.host}/{url.database}, {'--apply' if apply else 'dry run'}\n")
+          f"database {make_url(DATABASE_URL).database}, "
+          f"{'--apply' if apply else 'dry run'}\n")
 
     with SessionLocal() as db:
         checked, stale = find_stale(db, lock=apply)

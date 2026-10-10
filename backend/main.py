@@ -56,9 +56,11 @@ app = FastAPI(
 # The list is configuration, not code, because the origin differs between a
 # laptop and the deployed site. Set CORS_ORIGINS in .env, comma-separated.
 #
-# It is never "*". A wildcard alongside allow_credentials is rejected outright
-# by browsers, and were it honoured it would let any page on the internet call
-# this API carrying a signed-in user's token.
+# It is a named list, never "*", so only the client's own pages can read this
+# API's answers in a browser. Credentialed requests are not allowed: the client
+# sends its token in the Authorization header, never in a cookie, so it needs
+# none, and allowing them would only widen what a wrongly added origin could
+# do. B32 (#401).
 _DEV_ORIGINS = "http://localhost:7377,http://127.0.0.1:7377"
 ALLOWED_ORIGINS = [
     origin.strip()
@@ -69,7 +71,6 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
