@@ -252,7 +252,7 @@
           "profile"
         ],
         "summary": "Delete Account",
-        "description": "Delete the account and everything in it, given the password.\n\nOne row goes and the database takes the rest: profiles, nutrition_targets,\nrecipes and plan_slots all reference users ON DELETE CASCADE. That is the\ncascading deletion section 7.2 describes, and this is its only caller.\n\nPhotographs are the exception. They live in S3, which no foreign key\nreaches, so their keys are read first and each object is removed once the\nrows are gone, best effort, as delete_recipe does for one. Deleting them\nfirst would lose them if the commit then failed.",
+        "description": "Delete the account and everything in it, given the password.\n\nThe ORM deletes the children, not the database. Every relationship on\nUser is cascade=\"all, delete-orphan\", so db.delete(user) loads the\nprofile, the target, the recipes and the plan slots and deletes each\nbefore the user row goes. The schema's ON DELETE CASCADE stands behind it\nfor a delete made in SQL, but this path never reaches it. That is what\nsection 7.2 and ADR 010 describe, and this is the only caller.\n\nPhotographs are the exception. They live in S3, which no foreign key\nreaches, so their keys are read first and each object is removed once the\nrows are gone, best effort, as delete_recipe does for one. Deleting them\nfirst would lose them if the commit then failed.",
         "operationId": "delete_account_profile_delete",
         "requestBody": {
           "content": {
@@ -818,7 +818,7 @@
           "recipes"
         ],
         "summary": "Delete Recipe",
-        "description": "Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE).",
+        "description": "Delete a recipe. Any meal-plan slots using it go too, deleted by the ORM\nthrough Recipe.plan_slots's cascade, as delete_account's children are.",
         "operationId": "delete_recipe_recipes__recipe_id__delete",
         "security": [
           {
