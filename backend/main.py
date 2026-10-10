@@ -408,6 +408,10 @@ NO_RECIPE = _err(404, "No such recipe, or it belongs to another account")
 NO_ACCOUNT = _err(404, "The account behind the token no longer exists")
 NAME_TAKEN = _err(409, "That username or email is already taken")
 WRONG_PASSWORD = _err(403, "The current password is incorrect")
+# Answered by nginx in front of the API, not by this file: more than ten POSTs
+# a minute from one client to /login and /register together. The body has the
+# same shape as every error here. backend/deploy/kete-nginx.conf; B30 (#399).
+TOO_MANY = _err(429, "Too many attempts from this address; wait a minute")
 
 
 def _confirm_password(user: models.User, password: Optional[str]) -> None:
@@ -510,7 +514,7 @@ def _taken(constraint: str) -> str:
 # 1-2  Auth  (PUBLIC — no token)
 # ==========================================================================
 @app.post("/register", response_model=RegisterOut, status_code=201,
-          tags=["auth"], responses=NAME_TAKEN)
+          tags=["auth"], responses={**NAME_TAKEN, **TOO_MANY})
 def register(body: RegisterIn, db: Session = Depends(get_db)):
     """Create a user row. The password is hashed; the plain text is never stored."""
     clash = db.query(models.User).filter(
@@ -535,7 +539,8 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
 
 
 @app.post("/login", response_model=LoginOut, tags=["auth"],
-          responses=_err(401, "Incorrect username or password"))
+          responses={**_err(401, "Incorrect username or password"),
+                     **TOO_MANY})
 def login(body: LoginIn, db: Session = Depends(get_db)):
     """Find the user, check the password, hand back a token."""
     user = db.query(models.User).filter(
