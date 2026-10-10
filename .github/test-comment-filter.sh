@@ -65,7 +65,8 @@ check "inline comments: OWNER, MEMBER, COLLABORATOR and both review bots are kep
 check "conversation comments: OWNER and COLLABORATOR are kept" '[ "$(ids conversation-comments.json)" = "5804822918 5851097049" ]'
 check "reviews: only the review bot's are kept" '[ "$(ids reviews.json)" = "5372798847" ]'
 check "nothing an outsider wrote, or the pull request planted, is left in .review/" '! grep -rq INJECT "$OUT/.review"'
-# Every network-capable tool is a route for outsiders' text, so the list is an
-# allowlist: any Bash rule but these four, or any web or MCP tool, fails.
-check "the model has no tool that reads beyond the checkout" '! grep -- "--allowedTools" "$F" | grep -oE "Bash\([^)]*\)|Web(Fetch|Search)|mcp__[A-Za-z_]+" | grep -qvxE "Bash\((git (log|diff|show)|jq):\*\)"'
+# Every tool beyond the checkout is a route for outsiders' text, so the whole
+# list must be exactly the set reviewed, and no flag may widen it.
+want='Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(jq:*),Glob,Grep,Read,Skill,SlashCommand,Task,Write'
+check "the model's tools are exactly the reviewed set, and nothing widens them" '[ "$(grep -ioE -- "--allowed-?tools[ =]\"?[^\"]*" "$F" | sed -E "s/^[^ =]*[ =]\"?//" | tr , "\n" | LC_ALL=C sort | paste -sd, -)" = "$want" ] && ! grep -qE -- "--(dangerously-skip-permissions|permission-mode|mcp-config)" "$F"'
 exit $fail
