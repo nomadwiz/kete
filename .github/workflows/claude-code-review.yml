@@ -88,8 +88,7 @@ jobs:
           git clone -q https://github.com/DietrichGebert/ponytail.git "$RUNNER_TEMP/ponytail"
           git -C "$RUNNER_TEMP/ponytail" checkout -q 9b58c1ffb790c075ca32e70a89cf1d80588f4abf
           m="$RUNNER_TEMP/agent-skills/.claude-plugin/marketplace.json"
-          jq '(.plugins[] | select(.name == "agent-skills")).source = "./"' "$m" > "$m.new"
-          mv "$m.new" "$m"
+          jq '(.plugins[] | select(.name == "agent-skills")).source = "./"' "$m" > "$m.new" && mv "$m.new" "$m"
 
       # The pull request is checked out here, so it could carry a verdict.json of
       # its own. Removed before the model starts, so the file handed on is one

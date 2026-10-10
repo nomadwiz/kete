@@ -23,13 +23,17 @@ markets=$(awk '/plugin_marketplaces: \|/ {f=1; next} f && /^ {0,11}[^ ]/ {exit} 
 [ -n "$markets" ] || { echo "FAIL: no plugin_marketplaces found in $F"; fail=1; }
 while IFS= read -r m; do
   name=${m##*/}
+  # One pinned checkout at the start of its line, and nothing that moves it after.
   # shellcheck disable=SC2016 # matches the literal ${{ runner.temp }} and $RUNNER_TEMP
   if [ "$m" != '${{ runner.temp }}/'"$name" ] ||
-     ! grep -Eq 'git -C "\$RUNNER_TEMP/'"$name"'" checkout -q [0-9a-f]{40}$' "$F"; then
+     ! grep -Eq '^ +git -C "\$RUNNER_TEMP/'"$name"'" checkout -q [0-9a-f]{40}$' "$F" ||
+     grep -E 'RUNNER_TEMP/'"$name"'".*(pull|fetch|reset|checkout|switch)' "$F" |
+       grep -Ev '^ +git -C "\$RUNNER_TEMP/'"$name"'" checkout -q [0-9a-f]{40}$' >/dev/null; then
     echo "FAIL: marketplace is not a checkout fixed to a commit: $m"; fail=1
   fi
 done <<<"$markets"
-grep -Fq "(.plugins[] | select(.name == \"agent-skills\")).source = \"./\"" "$F" ||
+# shellcheck disable=SC2016 # the workflow's own lines, $m and all
+sed 's/^ *//' "$F" | grep -Fx 'jq '\''(.plugins[] | select(.name == "agent-skills")).source = "./"'\'' "$m" > "$m.new" && mv "$m.new" "$m"' >/dev/null ||
   { echo "FAIL: agent-skills' marketplace entry still fetches its default branch"; fail=1; }
 
 [ "$fail" = 0 ] && echo "ok: every action and plugin is fixed to a commit"
