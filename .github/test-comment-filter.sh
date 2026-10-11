@@ -69,4 +69,7 @@ check "nothing an outsider wrote, or the pull request planted, is left in .revie
 # list must be exactly the set reviewed, and no flag may widen it.
 want='Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(jq:*),Glob,Grep,Read,Skill,SlashCommand,Task,Write'
 check "the model's tools are exactly the reviewed set, and nothing widens them" '[ "$(grep -ioE -- "--allowed-?tools[ =]\"?[^\"]*" "$F" | sed -E "s/^[^ =]*[ =]\"?//" | tr , "\n" | LC_ALL=C sort | paste -sd, -)" = "$want" ] && ! grep -qE -- "--(dangerously-skip-permissions|permission-mode|mcp-config)" "$F"'
+# The action's own warning: '*' on a public repository lets outside apps supply
+# prompts. Dependabot is the one bot whose pull requests are reviewed (#415).
+check "the only bot the action accepts is dependabot, never '*'" '[ "$(grep -E "^ *allowed_bots:" "$F" | sed -E "s/^ *allowed_bots: *//")" = dependabot ]'
 exit $fail
