@@ -136,6 +136,8 @@ jobs:
           # because older reviews are claude[bot]'s; post writes as
           # github-actions[bot].
           github_token: ${{ github.token }}
+          # Dependabot's pull requests are reviewed; never '*', which the action warns lets outside apps supply prompts on a public repository. merge still leaves them for a person (#415).
+          allowed_bots: dependabot
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: |
             ${{ runner.temp }}/agent-skills
