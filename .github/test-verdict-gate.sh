@@ -44,7 +44,7 @@ gh() { case $1 in
     */merge) grep -q 'sha=abc123' <<<"$args" && echo "merge pinned" >> "$OUT/log" || echo "merge UNPINNED" >> "$OUT/log";;
   esac; }
 export -f gh
-export PR=1 REPO=o/r BASE=main HEAD=b HEAD_SHA=abc123
+export PR=1 REPO=o/r BASE=main HEAD=b HEAD_SHA=abc123 AUTHOR=nomadwiz
 
 fail=0
 check() { if eval "$2"; then echo "ok:   $1"; else echo "FAIL: $1"; fail=1; fi; }
@@ -86,30 +86,32 @@ check "post: posts first, then dismisses old bot blocks, never the new one or a 
 merge() { export OUT; OUT=$(mktemp -d); : > "$OUT/log"; export CLEAN=$1 FILES=$2
   bash -c "$MERGE" >/dev/null 2>&1; echo $? > "$OUT/rc"; }
 
-merge true frontend/x.ts
+merge true docs/x.md
 check "merge: a clean verdict merges, pinned to the reviewed commit" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ]'
-merge false frontend/x.ts
+AUTHOR='dependabot[bot]' merge true docs/x.md
+check "merge: a clean verdict on a Dependabot pull request is left for a person" '[ ! -s $OUT/log ]'
+merge false docs/x.md
 check "merge: a verdict that is not clean holds" '[ ! -s $OUT/log ]'
-merge "" frontend/x.ts
+merge "" docs/x.md
 check "merge: no verdict from post holds" '[ ! -s $OUT/log ]'
 merge true .github/workflows/claude-code-review.yml
 check "merge: a workflow change is left for a person" '[ ! -s $OUT/log ]'
 export BEHIND=3
-merge true frontend/x.ts
+merge true docs/x.md
 check "merge: a clean branch that is behind is left for Update branch, not updated or merged" '[ ! -s $OUT/log ]'
 unset BEHIND
 export REFS=$'o/r 5\nnomadwiz/kete 7'
-merge true frontend/x.ts
+merge true docs/x.md
 check "merge: after merging, closes every issue the pull request names" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned close o/r#5 close nomadwiz/kete#7 " ] && [ "$(cat $OUT/rc)" = 0 ]'
 export FAIL_CLOSE=5
-merge true frontend/x.ts
+merge true docs/x.md
 check "merge: an issue that will not close is skipped, and the rest still close" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned close nomadwiz/kete#7 " ] && [ "$(cat $OUT/rc)" = 0 ]'
 unset FAIL_CLOSE
-merge false frontend/x.ts
+merge false docs/x.md
 check "merge: nothing is closed when nothing merges" '[ ! -s $OUT/log ]'
 unset REFS
 export FAIL_LOOKUP=1
-merge true frontend/x.ts
+merge true docs/x.md
 check "merge: a failed issue lookup still leaves the merge done and the job green" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ] && [ "$(cat $OUT/rc)" = 0 ]'
 unset FAIL_LOOKUP
 if [ "$HAS_DEPLOY" = 1 ]; then

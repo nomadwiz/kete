@@ -331,11 +331,21 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CLEAN: ${{ needs.post.outputs.clean }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
 
           if [ "$CLEAN" != true ]; then
             echo "The review requested changes or carries inline findings. Not merging."
+            exit 0
+          fi
+
+          # A Dependabot pull request is merged by a person, never here. Its body
+          # quotes upstream release notes, text from outside the team that could
+          # argue the model into a clean verdict. The pull request's author is
+          # checked, not the actor, so a person re-running the job does not unlock it.
+          if [ "$AUTHOR" = 'dependabot[bot]' ]; then
+            echo "This pull request is Dependabot's. Left open for a person to merge."
             exit 0
           fi
 
