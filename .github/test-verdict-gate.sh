@@ -90,6 +90,13 @@ merge true docs/x.md
 check "merge: a clean verdict merges, pinned to the reviewed commit" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned " ]'
 AUTHOR='dependabot[bot]' merge true docs/x.md
 check "merge: a clean verdict on a Dependabot pull request is left for a person" '[ ! -s $OUT/log ]'
+# AUTHOR is exported above, so this reads the workflow for where it comes from:
+# the pull request's author, which stays dependabot[bot] when a person pushes to
+# the branch or re-runs the job, unlike github.actor.
+check "merge: AUTHOR is the pull request's author, not the actor" \
+  'sed -n "/name: Merge what the review found clean/,\$p" "$F" | grep -qF "AUTHOR: \${{ github.event.pull_request.user.login }}"'
+merge true frontend/x.ts
+check "merge: a frontend change merges and dispatches the client deploy" '[ "$(tr "\n" " " < $OUT/log)" = "merge pinned dispatch " ]'
 merge false docs/x.md
 check "merge: a verdict that is not clean holds" '[ ! -s $OUT/log ]'
 merge "" docs/x.md

@@ -343,7 +343,8 @@ jobs:
           # A Dependabot pull request is merged by a person, never here. Its body
           # quotes upstream release notes, text from outside the team that could
           # argue the model into a clean verdict. The pull request's author is
-          # checked, not the actor, so a person re-running the job does not unlock it.
+          # checked, not the actor: pull_request.user.login stays dependabot[bot]
+          # even when a person pushes to the branch or re-runs the job.
           if [ "$AUTHOR" = 'dependabot[bot]' ]; then
             echo "This pull request is Dependabot's. Left open for a person to merge."
             exit 0
