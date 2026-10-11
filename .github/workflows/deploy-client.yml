@@ -59,8 +59,8 @@ jobs:
     steps:
       # The whole repository, not frontend/ alone: generate:types, which runs
       # ahead of test and build, reads ../backend/openapi.json.
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: frontend/.nvmrc
           cache: npm
@@ -88,7 +88,7 @@ jobs:
           npm run build
 
       # The deploy uploads exactly the bundle that was tested, not a rebuild.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: github.event_name != 'pull_request'
         with:
           name: dist
@@ -105,12 +105,12 @@ jobs:
       BUCKET: ${{ secrets.CLIENT_BUCKET }}
       DISTRIBUTION: ${{ secrets.CLIENT_DISTRIBUTION_ID }}
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: dist
           path: dist
 
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

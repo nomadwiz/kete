@@ -45,8 +45,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, server_default=func.now())
 
-    # `cascade="all, delete-orphan"` means deleting a user deletes everything
-    # of theirs, matching ON DELETE CASCADE in schema.sql.
+    # `cascade="all, delete-orphan"` means deleting a user through the ORM
+    # deletes everything of theirs: SQLAlchemy removes the children itself.
+    # ON DELETE CASCADE in schema.sql does the same for a delete made in SQL.
     profile = relationship("Profile", back_populates="user",
                            uselist=False, cascade="all, delete-orphan")
     target = relationship("NutritionTarget", back_populates="user",

@@ -159,12 +159,23 @@ WEEK_DESCRIPTION = (
 )
 
 
+# Each cap matches its column in models.py, so an over-long value is a 422 here
+# rather than a 500 when the database refuses it. EmailStr needs none: it
+# refuses an address over 254 characters, inside the 255 of users.email. A
+# password is hashed, never stored, so its cap is not a column's: it bounds the
+# PBKDF2 work one request can ask for. B31 (#400).
+NAME_MAX = 80           # users.first_name, users.last_name: String(80)
+USERNAME_MAX = 50       # users.username: String(50)
+PASSWORD_MAX = 128
+RECIPE_TEXT_MAX = 10_000    # recipes.ingredients, recipes.steps: Text
+
+
 class RegisterIn(BaseModel):
-    first_name: str
-    last_name: str
-    username: str
+    first_name: str = Field(max_length=NAME_MAX)
+    last_name: str = Field(max_length=NAME_MAX)
+    username: str = Field(max_length=USERNAME_MAX)
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=8, max_length=PASSWORD_MAX)
 
 
 class RegisterOut(BaseModel):
@@ -172,8 +183,9 @@ class RegisterOut(BaseModel):
 
 
 class LoginIn(BaseModel):
-    username_or_email: str
-    password: str
+    # The longest thing it can match is an email, which EmailStr caps at 254.
+    username_or_email: str = Field(max_length=254)
+    password: str = Field(max_length=PASSWORD_MAX)
 
 
 class LoginOut(BaseModel):
@@ -189,24 +201,25 @@ class ProfileOut(BaseModel):
 
 
 class ProfileIn(BaseModel):
-    first_name: str
-    last_name: str
-    username: str
+    first_name: str = Field(max_length=NAME_MAX)
+    last_name: str = Field(max_length=NAME_MAX)
+    username: str = Field(max_length=USERNAME_MAX)
     email: EmailStr
     current_password: Optional[str] = Field(
-        default=None,
+        default=None, max_length=PASSWORD_MAX,
         description="Required when username or email changes, since either is "
                     "what the account signs in with. Not needed to change "
                     "only the name.")
 
 
 class PasswordIn(BaseModel):
-    current_password: str
-    new_password: str = Field(min_length=8)     # the rule register applies
+    current_password: str = Field(max_length=PASSWORD_MAX)
+    # The rule register applies.
+    new_password: str = Field(min_length=8, max_length=PASSWORD_MAX)
 
 
 class DeleteAccountIn(BaseModel):
-    password: str
+    password: str = Field(max_length=PASSWORD_MAX)
 
 
 class MetricsIn(BaseModel):
@@ -253,8 +266,8 @@ class RecipeDetail(RecipeSummary):
 class RecipeIn(BaseModel):
     name: str = Field(min_length=1, max_length=150)
     cuisine: str = Field(max_length=60)
-    ingredients: str
-    steps: str
+    ingredients: str = Field(max_length=RECIPE_TEXT_MAX)
+    steps: str = Field(max_length=RECIPE_TEXT_MAX)
     # gt=0 matches ck_recipe_servings. le=100 is a human bound, chosen well
     # inside the 32-bit column: unbounded, 2147483648 overflowed it as a 500.
     servings: int = Field(gt=0, le=100)
@@ -395,6 +408,10 @@ NO_RECIPE = _err(404, "No such recipe, or it belongs to another account")
 NO_ACCOUNT = _err(404, "The account behind the token no longer exists")
 NAME_TAKEN = _err(409, "That username or email is already taken")
 WRONG_PASSWORD = _err(403, "The current password is incorrect")
+# Answered by nginx in front of the API, not by this file: more than ten POSTs
+# a minute from one client to /login and /register together. The body has the
+# same shape as every error here. backend/deploy/kete-nginx.conf; B30 (#399).
+TOO_MANY = _err(429, "Too many attempts from this address; wait a minute")
 
 
 def _confirm_password(user: models.User, password: Optional[str]) -> None:
@@ -497,7 +514,7 @@ def _taken(constraint: str) -> str:
 # 1-2  Auth  (PUBLIC — no token)
 # ==========================================================================
 @app.post("/register", response_model=RegisterOut, status_code=201,
-          tags=["auth"], responses=NAME_TAKEN)
+          tags=["auth"], responses={**NAME_TAKEN, **TOO_MANY})
 def register(body: RegisterIn, db: Session = Depends(get_db)):
     """Create a user row. The password is hashed; the plain text is never stored."""
     clash = db.query(models.User).filter(
@@ -522,7 +539,8 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
 
 
 @app.post("/login", response_model=LoginOut, tags=["auth"],
-          responses=_err(401, "Incorrect username or password"))
+          responses={**_err(401, "Incorrect username or password"),
+                     **TOO_MANY})
 def login(body: LoginIn, db: Session = Depends(get_db)):
     """Find the user, check the password, hand back a token."""
     user = db.query(models.User).filter(
@@ -619,9 +637,12 @@ def delete_account(body: DeleteAccountIn,
                    db: Session = Depends(get_db)):
     """Delete the account and everything in it, given the password.
 
-    One row goes and the database takes the rest: profiles, nutrition_targets,
-    recipes and plan_slots all reference users ON DELETE CASCADE. That is the
-    cascading deletion section 7.2 describes, and this is its only caller.
+    The ORM deletes the children, not the database. Every relationship on
+    User is cascade="all, delete-orphan", so db.delete(user) loads the
+    profile, the target, the recipes and the plan slots and deletes each
+    before the user row goes. The schema's ON DELETE CASCADE stands behind it
+    for a delete made in SQL, but this path never reaches it. That is what
+    section 7.2 and ADR 010 describe, and this is the only caller.
 
     Photographs are the exception. They live in S3, which no foreign key
     reaches, so their keys are read first and each object is removed once the
@@ -906,7 +927,8 @@ def update_recipe(recipe_id: int, body: RecipeIn,
             responses={**AUTH, **NO_RECIPE})
 def delete_recipe(recipe_id: int, user_id: int = Depends(current_user_id),
                   db: Session = Depends(get_db)):
-    """Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE)."""
+    """Delete a recipe. Any meal-plan slots using it go too, deleted by the ORM
+    through Recipe.plan_slots's cascade, as delete_account's children are."""
     recipe = _owned_recipe(db, recipe_id, user_id)
     key = recipe.photo_url              # remember it before the row disappears
     db.delete(recipe)
