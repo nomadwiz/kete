@@ -68,8 +68,10 @@ import "./use-write.css";
 // Two things it deliberately does not do. It does not announce a write that
 // redirects to another route -- sign-in and measurements both do, and their
 // component is unmounted before this could say anything, so what needs
-// announcing there is the arrival at the new screen, which is route-change
-// announcement and a different problem. And it moves focus only when focus
+// announcing there is the arrival at the new screen. That is
+// components/focus-on-arrival.tsx, which moves focus to the new page's heading
+// on every change of pathname and leaves a change of query string to this
+// hook. And it moves focus only when focus
 // has been dropped on the floor: if anything at all holds it when the write
 // finishes, this leaves it alone, because the browser restoring focus after a
 // <dialog> closes and a person who has clicked elsewhere mid-save are both

@@ -5,9 +5,11 @@
    place src/use-write.ts puts focus after a write is real, is where the next
    Tab starts from, and is invisible to anyone watching the screen.
 
-   The selector is the attribute that file sets and nothing else in this client
-   sets, so this styles that case and no other. It is deliberately :focus and
-   not :focus-visible, which is the whole point. */
+   The selector is the attribute that file sets, and that
+   src/components/focus-on-arrival.tsx sets on the heading a new page puts focus
+   on; nothing else in this client sets it, so this styles those cases and no
+   other. It is deliberately :focus and not :focus-visible, which is the whole
+   point. */
 [tabindex="-1"]:focus {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

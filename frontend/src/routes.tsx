@@ -12,6 +12,7 @@ import { clearToken, readToken, writeToken } from "./api/token";
 import { isoWeek, isWeek } from "./api/week";
 import AppLayout from "./components/app-layout";
 import ErrorBoundary from "./components/error-boundary";
+import FocusOnArrival from "./components/focus-on-arrival";
 import PublicLayout from "./components/public-layout";
 import {
   ACCOUNT,
@@ -1126,6 +1127,7 @@ function signOutLoader() {
 
 const routes = [
   {
+    Component: FocusOnArrival,
     ErrorBoundary,
     children: [
       {
