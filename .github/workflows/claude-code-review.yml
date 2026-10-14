@@ -2,15 +2,10 @@
 # the result as a request-changes review, not a comment. A comment is something to
 # scroll past; a review is a state the author has to answer.
 #
-# The other half of this runs in nomadwiz/kete-doc and reads this repository. This
-# one reads that one, because the two drift in opposite directions and only the
-# direction guarded here is expensive: the documents say what Kete should be, so a
-# change that departs from one is a defect in the change.
-#
-# The documents are checked out at kete-doc/, not at the parent of this repository,
-# although CLAUDE.md links to them as ../doc/... . actions/checkout cannot place a
-# repository above the workspace, and checking them out over the workspace root
-# would replace the application. The prompt translates the paths instead.
+# It reads this repository only. CLAUDE.md's ../doc/... links lead to the
+# project's documents, which are not checked out here, so the review checks
+# correctness, security, tests and the rules CLAUDE.md states, not drift
+# against those documents.
 #
 # Three jobs, so the model can write nothing on GitHub. claude-review runs the
 # model with a read-only token, and the model writes its verdict to a file. post
@@ -21,10 +16,6 @@
 #
 # Repository secrets this needs (Settings -> Secrets and variables -> Actions):
 #   CLAUDE_CODE_OAUTH_TOKEN  the Claude Code subscription token
-#   KETE_CROSS_REPO_TOKEN    a fine-grained personal access token with
-#                            Contents: read on nomadwiz/kete and
-#                            nomadwiz/kete-doc. Both repositories are private, so
-#                            the default GITHUB_TOKEN cannot read the other one.
 
 name: Claude Code Review
 
@@ -57,21 +48,6 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # the reviewer reads history; depth 1 has none
-
-      # doc/contributing.md pins the review rule's start to a commit in
-      # this repository, and several documents assert SHAs in it, so the documents
-      # come with their full history too.
-      - name: Check out the documents
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: nomadwiz/kete-doc
-          ref: master # kete-doc's default branch is master, not main
-          path: kete-doc
-          token: ${{ secrets.KETE_CROSS_REPO_TOKEN }}
-          fetch-depth: 0
-          # Not stored in .git/config, where the model's Read could open it.
-          # Nothing after this runs a git command that needs to authenticate.
-          persist-credentials: false
 
       # Each plugin is checked out at a fixed commit, so a push to either
       # repository changes nothing here until this file does (S29, #390). The
@@ -149,21 +125,15 @@ jobs:
             --model claude-opus-5-5 --effort high
             --allowedTools "Read,Grep,Glob,Write,Task,Skill,SlashCommand,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(jq:*)"
           prompt: |
-            Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}, the Kete application. The working directory is that repository. The documents repository, nomadwiz/kete-doc, is checked out at `kete-doc/` on its `master` branch with full history.
+            Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}, the Kete application. The working directory is that repository.
 
             ## Read the contract first
 
-            Read `CLAUDE.md` in the working directory, then `kete-doc/CLAUDE.md` and `kete-doc/doc/contributing.md`.
+            Read `CLAUDE.md` in the working directory, and the `README.md` of any directory the diff touches.
 
-            `CLAUDE.md` links to the documents as `../doc/...`, which is where they sit in a working clone. Here they are under `kete-doc/doc/` — so `../doc/design/product.md` is `kete-doc/doc/design/product.md`. Translate every such link; none of them is broken.
+            `CLAUDE.md` links to the project's documents as `../doc/...`. They are not checked out here, so you cannot read them: do not flag those links as broken, and do not guess what the documents say.
 
-            Enforce what those files say. Do not restate them, do not reinterpret them, and do not apply a rule they do not contain. `CLAUDE.md` is deliberately a map: where it and the file it points at disagree, the other file is right.
-
-            Three of its rules decide most reviews here, so check them on every change:
-
-            - **Scope.** `kete-doc/doc/design/product.md` section 5 lists what Kete deliberately does not do, and `kete-doc/doc/design/implementation.md` section 5 what was reviewed and must not be "improved". Building something from either list is the defect to catch first.
-            - **Lanes.** `kete-doc/doc/design/ownership.md` maps each path to an owner. A change reaching into another lane's files takes that member's contribution evidence away from them, and `kete-doc/doc/contributing.md` compels a person's review for it.
-            - **Review.** `kete-doc/doc/contributing.md` compels a person's review when a change touches another lane's files, changes the API contract or the database schema, changes the scope in `product.md`, or changes the rules. It asks the author to open such a pull request as a draft while that person reads it, and to say in one line which they chose. Flag a pull request that meets one of those tests and says nothing — a finding here is what stops this review merging it before the person has read it.
+            Enforce what the files you can read say. Do not restate them, do not reinterpret them, and do not apply a rule they do not contain.
 
             ## Earlier rounds
 
@@ -187,22 +157,6 @@ jobs:
             - `/agent-skills:review` for correctness, architecture and security.
             - `/ponytail:ponytail-review` for what can be deleted.
 
-            ## Check the two repositories for drift
-
-            The documents say what Kete should be. The code says what it is. Report a mismatch, name both sides, and resolve neither — which side moves is the author's decision, not yours.
-
-            `CLAUDE.md` says "The code beats every description of it." Read that as descriptive, not normative: the code is the authority on what exists, the documents on what should exist. Do not use that sentence to close a finding. Its own last clause says the difference is worth raising as an issue.
-
-            **Here the expensive direction is the change.** A document going stale about correct code is cheap and the documents repository's own reviewer catches it. A change departing from a document that was not updated with it is what this review is for. Where the diff makes a document wrong, say which document and which line.
-
-            **Only a present-tense claim can drift.** A count or a statement inside a dated historical record is correct as written and must not be flagged: a commit message describing what was true then, a delivery-stage table describing that stage, an ADR describing what was true when it was written.
-
-            Three checks, cheapest first:
-
-            1. `jq '[.paths[] | keys[]] | length' backend/openapi.json` gives the operation count and `jq -r '.paths | keys[]' backend/openapi.json` the routes. Compare both against every present-tense endpoint count and route list in `kete-doc/doc/`, section 10 of `kete-doc/doc/output/report.md` in particular, since that is where the brief requires the access URLs.
-            2. Where the diff adds, removes or renames a route, a table, a column or a file the documents name, say which document now needs changing.
-            3. Any present-tense claim in `kete-doc/doc/` about what the system does, against what this diff makes it do.
-
             ## Write exactly one verdict
 
             Your token can read but not write, so you post nothing yourself. Write the verdict to `verdict.json` in the working directory and confirm it parses with `jq . verdict.json`. The job after you checks it and posts it to this pull request as one review:
@@ -219,17 +173,17 @@ jobs:
 
             Use `"event": "COMMENT"` with an empty `comments` array when you found nothing. Those two are the only events accepted, `body` must not be empty, and each comment keeps only `path`, `line`, `side` and `body` — anything else in the file is dropped or makes the run fail.
 
-            **Only a blocker blocks.** A blocker is a correctness or security defect, a breach of a rule the files above state, or drift between the repositories. Everything else — wording, a tighter phrasing, an optional cut, most of what `/ponytail:ponytail-review` finds — is a suggestion. A suggestion goes in the body under `### Suggestions`, never in `comments`, and never makes the verdict `REQUEST_CHANGES`. `comments` holds blockers only.
+            **Only a blocker blocks.** A blocker is a correctness or security defect, or a breach of a rule the files above state. Everything else — wording, a tighter phrasing, an optional cut, most of what `/ponytail:ponytail-review` finds — is a suggestion. A suggestion goes in the body under `### Suggestions`, never in `comments`, and never makes the verdict `REQUEST_CHANGES`. `comments` holds blockers only.
 
-            **A clean verdict merges the pull request.** A `COMMENT` carrying a summary and no inline comments is squash-merged by the merge job that runs after you, without anybody looking at it first. So write one only where you would merge the change yourself, and use `REQUEST_CHANGES` only when at least one finding blocks — and a pull request that meets one of the review tests above and asked for nobody always blocks.
+            **A clean verdict merges the pull request.** A `COMMENT` carrying a summary and no inline comments is squash-merged by the merge job that runs after you, without anybody looking at it first. So write one only where you would merge the change yourself, and use `REQUEST_CHANGES` only when at least one finding blocks.
 
             Every `line` must be one the diff touches, or GitHub rejects the whole review with a 422 and the run fails with nothing posted. `side` is `"RIGHT"` for an added or changed line and `"LEFT"` for a removed one. A finding about a file the diff does not touch goes in the body, not in `comments`.
 
             **The file is the whole deliverable.** A run that leaves no valid `verdict.json` fails and posts nothing.
 
-            Open the body with one sentence saying whether anything blocks. Then group the findings under `### Correctness`, `### Drift against the documents`, `### Project rules` and `### Suggestions`, leaving out any group that is empty. Quote the rule or the document you measured against, so the author can check your reading. A finding with no file and line is not a finding.
+            Open the body with one sentence saying whether anything blocks. Then group the findings under `### Correctness`, `### Project rules` and `### Suggestions`, leaving out any group that is empty. Quote the rule you measured against, so the author can check your reading. A finding with no file and line is not a finding.
 
-            Report only what you can point at. Where something cannot be determined from this code and those documents, say so and stop. Never pick the most plausible reading and carry on.
+            Report only what you can point at. Where something cannot be determined from this code, say so and stop. Never pick the most plausible reading and carry on.
 
       # The verdict leaves this job as a file and nothing else. A run that wrote
       # inline comments and no verdict once reported success, and the pull
@@ -372,7 +326,7 @@ jobs:
           # github.token, and GitHub holds the run that push causes for approval
           # in the Actions tab, where nobody looks (S17, #339). The button's
           # default merges the base in; its rebase option rewrites pushed commits,
-          # which kete-doc/doc/overview.md forbids.
+          # which the assignment brief forbids.
           behind=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq '.behind_by')
           if [ "$behind" -gt 0 ]; then
             echo "Branch is $behind commits behind $BASE. Press Update branch on the pull request (not the rebase option); the review runs again and merges it."
@@ -381,7 +335,7 @@ jobs:
 
           # Squashed, so one pull request is one commit on $BASE. GitHub writes a
           # Co-authored-by trailer for every author in the squashed range, which is
-          # what keeps this inside kete-doc/doc/contributing.md's authorship rule
+          # what keeps this inside the project's authorship rule
           # rather than being the squash that rule forbids. Pinned to the commit
           # that was reviewed: if a push landed since, GitHub answers 409 and the
           # unreviewed head is not merged (S20, #350).

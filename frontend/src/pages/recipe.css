@@ -2,7 +2,7 @@
    the controls by components/ui/button.tsx, so what is left here is the page's
    own rhythm: bands of content separated by one weight of hairline, and a
    photograph that is a plate on the page rather than a card with a picture in
-   it. doc/design/visual-language.md section 4 in nomadwiz/kete-doc. */
+   it. Section 4 of the visual language. */
 .recipe {
   display: grid;
   gap: var(--space-8);

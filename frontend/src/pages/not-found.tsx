@@ -3,9 +3,8 @@ import { Link } from "react-router";
 import { PATHS } from "../routes";
 
 // Carries its own <main>, because it sits outside both layouts and so inherits
-// no landmark from one -- doc/design/implementation.md section 2 in
-// nomadwiz/kete-doc. It takes the same column, gutter and display setting as
-// every other screen, so a wrong address does not land somewhere that looks
+// no landmark from one -- section 2 of the implementation design. It takes the
+// same column, gutter and display setting as every other screen, so a wrong address does not land somewhere that looks
 // like a different application.
 export default function NotFound() {
   return (

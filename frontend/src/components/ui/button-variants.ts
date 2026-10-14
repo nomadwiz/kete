@@ -21,8 +21,8 @@
 // 3. The accent variant carries an inset boundary, and that is a fix rather
 //    than decoration. --color-accent reaches only 2.39:1 against the page
 //    where WCAG 2.1 asks 3:1 of a control's edge, and no darkening satisfies
-//    both that and 4.5:1 of the label -- measured in
-//    ../../../../doc/design/visual-language.md section 1.2 of nomadwiz/kete-doc.
+//    both that and 4.5:1 of the label -- measured in section 1.2 of the
+//    visual language.
 //    The boundary reaches 5.69:1. It is an inset shadow rather than a border
 //    because the button has none and gaining one shifts its text by a pixel.
 import { cva } from "class-variance-authority";

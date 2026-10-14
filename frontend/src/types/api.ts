@@ -69,9 +69,12 @@ export interface paths {
          * Delete Account
          * @description Delete the account and everything in it, given the password.
          *
-         *     One row goes and the database takes the rest: profiles, nutrition_targets,
-         *     recipes and plan_slots all reference users ON DELETE CASCADE. That is the
-         *     cascading deletion section 7.2 describes, and this is its only caller.
+         *     The ORM deletes the children, not the database. Every relationship on
+         *     User is cascade="all, delete-orphan", so db.delete(user) loads the
+         *     profile, the target, the recipes and the plan slots and deletes each
+         *     before the user row goes. The schema's ON DELETE CASCADE stands behind it
+         *     for a delete made in SQL, but this path never reaches it. That is what
+         *     section 7.2 and ADR 010 describe, and this is the only caller.
          *
          *     Photographs are the exception. They live in S3, which no foreign key
          *     reaches, so their keys are read first and each object is removed once the
@@ -203,7 +206,8 @@ export interface paths {
         post?: never;
         /**
          * Delete Recipe
-         * @description Delete a recipe. Any meal-plan slots using it go too (ON DELETE CASCADE).
+         * @description Delete a recipe. Any meal-plan slots using it go too, deleted by the ORM
+         *     through Recipe.plan_slots's cascade, as delete_account's children are.
          */
         delete: operations["delete_recipe_recipes__recipe_id__delete"];
         options?: never;
@@ -274,7 +278,7 @@ export interface paths {
          *     with zero totals: an empty day is a result, not a missing one. Each day's
          *     total is the sum of its slots' per-serving figures exactly as GET /mealplan
          *     shows them, so the grid and these totals always add up. The design is ADR
-         *     001 in nomadwiz/kete-doc.
+         *     001.
          */
         get: operations["get_mealplan_summary_mealplan_summary_get"];
         put?: never;
@@ -405,8 +409,7 @@ export interface components {
          *
          *     FastAPI's own request validation answers 422 with `detail` as a list of
          *     field errors instead, so a client cannot read the two the same way. The
-         *     rule is stated in doc/design/implementation.md section 3 in the
-         *     documents repository, nomadwiz/kete-doc.
+         *     rule is stated in section 3 of the implementation design.
          */
         ErrorDetail: {
             /** Detail */
@@ -796,6 +799,15 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Too many attempts from this address; wait a minute */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
         };
     };
     login_login_post: {
@@ -836,6 +848,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts from this address; wait a minute */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
         };

@@ -2,9 +2,9 @@ import { isRouteErrorResponse, useRouteError } from "react-router";
 
 import { ApiError } from "../api/errors";
 
-// One error component, mounted twice -- ADR 003 in nomadwiz/kete-doc. The outer
-// mount replaces the whole page, the inner one renders into AppLayout's outlet
-// so the navigation survives, and neither is redundant.
+// One error component, mounted twice -- ADR 003. The outer mount replaces the
+// whole page, the inner one renders into AppLayout's outlet so the navigation
+// survives, and neither is redundant.
 //
 // It carries its own <main> for the same reason pages/not-found.tsx does: the
 // outer mount inherits no layout. All three branches take the same column and

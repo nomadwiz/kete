@@ -374,8 +374,7 @@ class ErrorDetail(BaseModel):
 
     FastAPI's own request validation answers 422 with `detail` as a list of
     field errors instead, so a client cannot read the two the same way. The
-    rule is stated in doc/design/implementation.md section 3 in the
-    documents repository, nomadwiz/kete-doc.
+    rule is stated in section 3 of the implementation design.
     """
     detail: str
 
@@ -1011,7 +1010,7 @@ def get_mealplan_summary(week: str = Query(pattern=WEEK_PATTERN,
     with zero totals: an empty day is a result, not a missing one. Each day's
     total is the sum of its slots' per-serving figures exactly as GET /mealplan
     shows them, so the grid and these totals always add up. The design is ADR
-    001 in nomadwiz/kete-doc.
+    001.
     """
     targets = _stored_targets(db, user_id)   # 404 before any slot is read
 

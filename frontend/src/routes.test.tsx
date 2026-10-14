@@ -147,7 +147,7 @@ describe("signing out", () => {
   });
 });
 
-// ADR 004 in nomadwiz/kete-doc. Sign-in used to probe GET /targets itself and
+// ADR 004. Sign-in used to probe GET /targets itself and
 // route on the answer, which covered a fresh sign-in and left the returning
 // user with a valid token uncovered.
 describe("where a fresh sign-in lands", () => {
