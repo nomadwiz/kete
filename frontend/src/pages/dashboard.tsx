@@ -65,7 +65,7 @@ export default function Dashboard() {
 
   // Null is the 404 the loader caught: no measurements saved, so there is
   // nothing to compute a target from. It is not an error and is not announced
-  // as one -- ADR 004 in nomadwiz/kete-doc. The areas render either way: a user
+  // as one -- ADR 004. The areas render either way: a user
   // who has not supplied measurements can still write recipes, and a hub that
   // withholds the hub until a form is filled in is a redirect wearing different
   // clothes.

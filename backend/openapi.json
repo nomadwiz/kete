@@ -1167,7 +1167,7 @@
           "mealplan"
         ],
         "summary": "Get Mealplan Summary",
-        "description": "Each day's planned totals against the daily targets (FR-16).\n\nSeven entries, Mon to Sun. A day with nothing planned is still returned,\nwith zero totals: an empty day is a result, not a missing one. Each day's\ntotal is the sum of its slots' per-serving figures exactly as GET /mealplan\nshows them, so the grid and these totals always add up. The design is ADR\n001 in nomadwiz/kete-doc.",
+        "description": "Each day's planned totals against the daily targets (FR-16).\n\nSeven entries, Mon to Sun. A day with nothing planned is still returned,\nwith zero totals: an empty day is a result, not a missing one. Each day's\ntotal is the sum of its slots' per-serving figures exactly as GET /mealplan\nshows them, so the grid and these totals always add up. The design is ADR\n001.",
         "operationId": "get_mealplan_summary_mealplan_summary_get",
         "security": [
           {
@@ -1526,7 +1526,7 @@
           "detail"
         ],
         "title": "ErrorDetail",
-        "description": "The shape of every error this application raises.\n\nFastAPI's own request validation answers 422 with `detail` as a list of\nfield errors instead, so a client cannot read the two the same way. The\nrule is stated in doc/design/implementation.md section 3 in the\ndocuments repository, nomadwiz/kete-doc."
+        "description": "The shape of every error this application raises.\n\nFastAPI's own request validation answers 422 with `detail` as a list of\nfield errors instead, so a client cannot read the two the same way. The\nrule is stated in section 3 of the implementation design."
       },
       "GenerateIn": {
         "properties": {

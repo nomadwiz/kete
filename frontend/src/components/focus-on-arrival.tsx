@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
 
-// Where focus goes when the page changes. C38 (nomadwiz/kete#379), ADR 015 in
-// nomadwiz/kete-doc.
+// Where focus goes when the page changes. C38 (nomadwiz/kete#379), ADR 015.
 //
 // ON EVERY CHANGE OF PATHNAME, focus moves to the new page's <h1>, or to its
 // <main> where there is no <h1>, so a keyboard or screen-reader user hears

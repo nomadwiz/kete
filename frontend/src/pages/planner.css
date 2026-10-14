@@ -1,7 +1,7 @@
 /* The weave. Seven days of warp against three meals of weft, and the rules
    between them are the design rather than a container for it -- which is the
    one place in this client where the product's name earns something.
-   doc/design/visual-language.md section 3.6 in nomadwiz/kete-doc draws it.
+   Section 3.6 of the visual language draws it.
 
    Everything here is a hairline in --color-rule at one weight. No cell has a
    fill, no cell has a shadow, and a planned position is told from an empty one

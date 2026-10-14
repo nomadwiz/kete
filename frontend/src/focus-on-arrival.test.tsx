@@ -10,9 +10,9 @@ import {
   TARGETS_BODY,
 } from "./test/router";
 
-// C38 (nomadwiz/kete#379), ADR 015 in nomadwiz/kete-doc. Each test drives the
-// real route tree and asserts where focus is once the destination has drawn,
-// because the defect was focus left on <body> after a write that redirects.
+// C38 (nomadwiz/kete#379), ADR 015. Each test drives the real route tree and
+// asserts where focus is once the destination has drawn, because the defect
+// was focus left on <body> after a write that redirects.
 
 // The dashboard compares the current week, so the clock is pinned as in
 // routes.test.tsx: Thursday 24 September 2026 is in 2026-W39.

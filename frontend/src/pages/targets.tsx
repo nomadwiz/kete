@@ -91,8 +91,7 @@ export default function Targets() {
         </Band>
 
         {/* Where the figures come from, in the four steps of section 3 of
-            doc/design/product.md in the documents repository nomadwiz/kete-doc,
-            and in the words of someone who holds no nutritional expertise -- so
+            the product definition, and in the words of someone who holds no nutritional expertise -- so
             the equation is "published" rather than named, and the day's total is
             scaled rather than a TDEE.
 
@@ -101,9 +100,9 @@ export default function Targets() {
             Those are MACRO_SPLIT in backend/main.py (0.20, 0.50, 0.30), chosen
             to sit inside the ranges in National Health and Medical Research
             Council (2021), Macronutrient balance, Eat For Health -- the source
-            is cited beside MACRO_SPLIT and in doc/output/report.md section 5.3
-            in nomadwiz/kete-doc. This copy must change with MACRO_SPLIT, and so must
-            the test that asserts it. nomadwiz/kete#251. */}
+            is cited beside MACRO_SPLIT and in section 5.3 of the report. This
+            copy must change with MACRO_SPLIT, and so must the test that asserts
+            it. nomadwiz/kete#251. */}
         <Band heading="How these are worked out">
           <p className="mt-2 max-w-(--measure) text-sm">
             Kete worked these out from the measurements you saved. A published
